@@ -518,8 +518,8 @@ function parseAaitrStorePage(source, fetchResult, strategy, attempt) {
     const soldOut = /Sold Out|Out of Stock|已售罄|售罄|缺货|无货/i.test(fullText);
     const availableSignal = /Limited Stock|Plenty in Stock|In Stock|库存充足|库存不足|有货|Order Now|立即购买/i.test(fullText);
     const features = textFeatureMap(fullText);
-    const hardware = cleanText([features.CPU, features["内存"], features["硬盘"]].filter(Boolean).join(" / "));
-    const bandwidth = cleanText([features["带宽"], features["流量"], features["转发"]].filter(Boolean).join(" / "));
+    const hardware = cleanText([features.CPU, features["内存"] ?? features.RAM, features["硬盘"] ?? features.Disk].filter(Boolean).join(" / "));
+    const bandwidth = cleanText([features["带宽"] ?? features.Bandwidth, features["流量"] ?? features.Traffic, features["转发"] ?? features["Port Forwarding"]].filter(Boolean).join(" / "));
     const hasProductSignal = name && (price || stockLabel || orderUrl || /静态家宽|动态NAT|住宅家宽/i.test(fullText));
     if (!hasProductSignal) return;
 
@@ -528,7 +528,7 @@ function parseAaitrStorePage(source, fetchResult, strategy, attempt) {
     records.push(baseRecord(source, fetchResult, {
       id: `${source.id}-${pid ? `pid-${pid}` : `idx-${index + 1}`}`,
       name,
-      region: features["位置"] ?? source.regionHint ?? null,
+      region: features["位置"] ?? features.Location ?? source.regionHint ?? null,
       route: features.IP ?? source.routeHint ?? null,
       note: nodeLines(card).filter((line) => /^点我查看|需要实名认证|静态IP|保证|IP[:：]/.test(line)).join(" / "),
       hardware,
@@ -610,8 +610,8 @@ function parseAaitrReaderSnapshot(source, fetchResult, sourcePageUrl, attempt) {
   const records = blocks.map((block, index) => {
     const bodyText = block.lines.join("\n");
     const features = textFeatureMap(bodyText);
-    const hardware = cleanText([features.CPU, features["内存"], features["硬盘"]].filter(Boolean).join(" / "));
-    const bandwidth = cleanText([features["带宽"], features["流量"], features["转发"]].filter(Boolean).join(" / "));
+    const hardware = cleanText([features.CPU, features["内存"] ?? features.RAM, features["硬盘"] ?? features.Disk].filter(Boolean).join(" / "));
+    const bandwidth = cleanText([features["带宽"] ?? features.Bandwidth, features["流量"] ?? features.Traffic, features["转发"] ?? features["Port Forwarding"]].filter(Boolean).join(" / "));
     const route = features.IP ?? features.T ?? source.routeHint ?? null;
     const status = statusFromSnapshotStock(block.stockLabel, bodyText);
     const statusLabel = status === "available" ? `快照: ${block.stockLabel}` : status === "unavailable" ? `快照: ${block.stockLabel}` : "快照: 未知";
@@ -620,7 +620,7 @@ function parseAaitrReaderSnapshot(source, fetchResult, sourcePageUrl, attempt) {
     return baseRecord(source, fetchResult, {
       id: `${source.id}-reader-${readerPathSlug(sourcePageUrl, index)}`,
       name: block.name,
-      region: features["位置"] ?? source.regionHint ?? null,
+      region: features["位置"] ?? features.Location ?? source.regionHint ?? null,
       route,
       note: "第三方 Reader 快照；本轮未取得可解析的官方数据，详见尝试记录",
       hardware,

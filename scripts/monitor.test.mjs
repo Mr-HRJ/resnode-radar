@@ -213,3 +213,49 @@ test("other provider adapters keep automatic redirects", () => {
   assert.equal(products[0].status, "available");
   assert.equal(products[0].finalUrl, finalUrl);
 });
+
+
+const englishFeatures = {
+  CPU: "1vCPU (Opt)", RAM: "512MB (Opt)", Disk: "8GB SSD (Fixed)",
+  Bandwidth: "100Mbps Peak (Opt)", Traffic: "1000GB (In+Out) (Fixed)",
+  "Port Forwarding": "Free (10 Ports)", Location: "USA, CA (Residential)"
+};
+const chineseFeatures = {
+  CPU: "2vCPU", 内存: "1GB", 硬盘: "16GB SSD", 带宽: "50Mbps",
+  流量: "500GB", 转发: "10 ports", 位置: "日本 东京"
+};
+for (const strategy of ["official", "reader"]) {
+  for (const [locale, features, expected] of [
+    ["English", englishFeatures, ["1vCPU (Opt) / 512MB (Opt) / 8GB SSD (Fixed)", "100Mbps Peak (Opt) / 1000GB (In+Out) (Fixed) / Free (10 Ports)", "USA, CA (Residential)"]],
+    ["Chinese", chineseFeatures, ["2vCPU / 1GB / 16GB SSD", "50Mbps / 500GB / 10 ports", "日本 东京"]],
+    ["mixed keys prefer existing Chinese values", { ...englishFeatures, ...chineseFeatures }, ["2vCPU / 1GB / 16GB SSD", "50Mbps / 500GB / 10 ports", "日本 东京"]],
+    ["missing fields preserve hints", { CPU: "1vCPU" }, ["1vCPU", "", "fallback region"]]
+  ]) {
+    test(`AaITR ${strategy} normalizes ${locale}`, () => {
+      const lines = Object.entries(features).map(([key, value]) => `${key}: ${value}`);
+      const readerUrl = `https://r.jina.ai/${sourceUrl}`;
+      const routes = strategy === "official" ? {
+        [sourceUrl]: { body: `<div id="products"><div class="card"><h4>Offline VPS</h4><p>Plenty in Stock</p>${lines.map((line) => `<p>${line}</p>`).join("")}<a href="/cart.php?a=add&pid=1">Order Now</a></div></div>` }
+      } : {
+        [sourceUrl]: { body: "No product cards" },
+        [readerUrl]: { body: `Markdown Content:\nOffline VPS Plenty in Stock\n${lines.join("\n")}` }
+      };
+      const { products, calls } = runMonitor(routes, {
+        regionHint: "fallback region",
+        readerSnapshot: { enabled: strategy === "reader", urls: [sourceUrl] }
+      });
+      assert.equal(products.length, 1);
+      const record = products[0];
+      assert.deepEqual([record.hardware, record.bandwidth, record.region], expected);
+      assert.deepEqual(record.raw.features, features);
+      assert.equal(record.status, "available");
+      assert.equal(record.stockCount, null);
+      assert.equal(record.raw.strategy, strategy === "reader" ? "reader_snapshot" : "direct_http");
+      assert.deepEqual(calls.map((call) => call.url), strategy === "reader" ? [sourceUrl, readerUrl] : [sourceUrl]);
+      if (strategy === "reader") {
+        assert.match(record.note, /第三方 Reader 快照/);
+        assert.match(record.statusLabel, /^快照:/);
+      }
+    });
+  }
+}
