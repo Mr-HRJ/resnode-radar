@@ -34,7 +34,8 @@ export default {
           cf: { cacheEverything: true, cacheTtlByStatus: { "200": 60, "300-599": -1 } }
         }
       );
-    } catch {
+    } catch (error) {
+      console.error("Inventory source fetch failed:", error instanceof Error ? `${error.name}: ${error.message}` : "Unknown transport error");
       return unavailable("Inventory source could not be reached");
     }
     if (upstream.status !== 200) {
