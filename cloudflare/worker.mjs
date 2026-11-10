@@ -28,9 +28,10 @@ export default {
         `https://raw.githubusercontent.com/${env.DATA_REPOSITORY}/main/data/products.json`,
         {
           headers: { accept: "application/json" },
-          redirect: "error",
+          // Workers supports manual redirects; all non-200 responses are rejected below.
+          redirect: "manual",
           signal: AbortSignal.timeout(10000),
-          cf: { cacheEverything: true, cacheTtlByStatus: { "200": 60, "400-599": -1 } }
+          cf: { cacheEverything: true, cacheTtlByStatus: { "200": 60, "300-599": -1 } }
         }
       );
     } catch {

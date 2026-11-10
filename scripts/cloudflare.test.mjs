@@ -13,6 +13,7 @@ test("inventory uses only our repository and does not forward visitor credential
   t.mock.method(globalThis, "fetch", async (url, options) => {
     assert.equal(url, "https://raw.githubusercontent.com/Mr-HRJ/resnode-radar/main/data/products.json");
     assert.deepEqual(options.headers, { accept: "application/json" });
+    assert.equal(options.redirect, "manual");
     assert.equal(options.cf.cacheTtlByStatus["200"], 60);
     return new Response(body);
   });
@@ -24,8 +25,8 @@ test("inventory uses only our repository and does not forward visitor credential
   assert.equal(await response.text(), body);
 });
 
-test("upstream errors stay unavailable rather than returning an old bundled snapshot", async (t) => {
-  for (const status of [404, 429, 503]) {
+test("upstream redirects and errors stay unavailable rather than returning an old bundled snapshot", async (t) => {
+  for (const status of [301, 302, 307, 404, 429, 503]) {
     t.mock.method(globalThis, "fetch", async () => new Response("error page", { status }));
     const response = await worker.fetch(new Request("https://radar.example/data/products.json"), env);
     assert.equal(response.status, 503);
