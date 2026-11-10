@@ -27,7 +27,8 @@ function installPage(t) {
   for (const [name, descriptor] of Object.entries({
     dataset: { get() { return Object.fromEntries(Object.entries(this.attributes).filter(([key]) => key.startsWith("data-")).map(([key, value]) => [key.slice(5).replace(/-([a-z])/g, (_, ch) => ch.toUpperCase()), value])); } },
     style: { get() { if (!styles.has(this)) styles.set(this, {}); return styles.get(this); } },
-    addEventListener: { value(event, handler) { if (!handlers.has(this)) handlers.set(this, {}); handlers.get(this)[event] = handler; } }
+    addEventListener: { value(event, handler) { if (!handlers.has(this)) handlers.set(this, {}); handlers.get(this)[event] = handler; } },
+    scrollIntoView: { value() {} }
   })) {
     Object.defineProperty(HTMLElement.prototype, name, { configurable: true, ...descriptor });
     t.after(() => delete HTMLElement.prototype[name]);
@@ -41,6 +42,7 @@ function installPage(t) {
     document,
     text: (selector) => document.querySelector(selector).textContent.trim(),
     click(selector) { const node = document.querySelector(selector); handlers.get(node).click({ target: node }); },
+    change(selector, value) { const node = document.querySelector(selector); node.value = value; handlers.get(node).change({ target: node }); },
     finishAnimations() {
       const callbacks = [...frames.values()];
       frames.clear();
@@ -133,4 +135,43 @@ test("site data loading, errors, and repeated refreshes stay consistent", async 
   await settle("success");
   await t.test("a later success clears the error and warning", assertSuccess);
   assert.equal(requests.length, 0);
+});
+
+test("ordinary VPS and residential categories work independently from IP filters on desktop and mobile", async (t) => {
+  const page = installPage(t);
+  const products = [
+    { ...payload.products[0], id: "ordinary-native", category: "vps", name: "普通原生 IP VPS", provider: "General provider" },
+    { ...payload.products[0], id: "ordinary-basic", category: "vps", name: "普通 KVM VPS", provider: "General provider" },
+    { ...payload.products[0], id: "home", category: "home", name: "真实家庭宽带 VPS", provider: "Home provider" }
+  ];
+  t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify({
+    ...payload, products, summary: { ...payload.summary, total: 3, available: 3 }
+  })));
+  await import("../app.js?category-regression");
+  await new Promise(setImmediate);
+  assert.equal(page.text("[data-count-vps]"), "2");
+  assert.equal(page.text("[data-count-home]"), "1");
+  const rows = () => page.text("[data-products]");
+  const mobile = () => page.text("[data-mobile-products]");
+  page.click('[data-category="vps"]');
+  assert.equal(page.text("[data-title-category]"), "普通 VPS");
+  assert.match(rows(), /普通原生 IP VPS/);
+  assert.match(mobile(), /普通 KVM VPS/);
+  assert.doesNotMatch(rows(), /真实家庭宽带/);
+  assert.doesNotMatch(mobile(), /真实家庭宽带/);
+  page.change("[data-filter-ip-type]", "native");
+  assert.match(rows(), /普通原生 IP VPS/);
+  assert.doesNotMatch(rows(), /普通 KVM VPS/);
+  page.click('[data-category="home"]');
+  assert.equal(page.document.querySelector("[data-filter-ip-type]").value, "all");
+  assert.match(rows(), /真实家庭宽带/);
+  assert.doesNotMatch(rows(), /普通原生 IP/);
+  assert.match(mobile(), /家宽 \/ 住宅 VPS/);
+  page.click('[data-ip-type="home"]');
+  assert.match(rows(), /真实家庭宽带/);
+  assert.equal(page.text("[data-title-category]"), "家宽 / 住宅 VPS");
+  page.click('[data-category="all"]');
+  assert.match(rows(), /普通原生 IP VPS/);
+  assert.match(rows(), /普通 KVM VPS/);
+  assert.match(rows(), /真实家庭宽带/);
 });

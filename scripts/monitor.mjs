@@ -5,6 +5,7 @@ import { URL } from "node:url";
 import { parse } from "node-html-parser";
 import { parseLagomProductList } from "./adapters/lagom-product-list.mjs";
 import { parseZlidcProductWrap } from "./adapters/zlidc-product-wrap.mjs";
+import { parseRacknerdKvm } from "./adapters/racknerd-kvm.mjs";
 
 const sources = JSON.parse(readFileSync("monitor/sources.json", "utf8"));
 const generatedAt = new Date().toISOString();
@@ -875,6 +876,9 @@ async function monitorSource(source) {
 
     if (source.adapter === "vircs_inertia_product") return parseVircs(source, fetchResult);
     if (source.adapter === "whmcs_group") return parseWhmcsGroup(source, fetchResult);
+    if (source.adapter === "racknerd_kvm") {
+      return parseRacknerdKvm(source, fetchResult, { cleanText, parsePriceValue, baseRecord });
+    }
     if (source.adapter === "zlidc_product_wrap") {
       return parseZlidcProductWrap(source, fetchResult, generatedAt, { absoluteUrl, cleanText, parsePriceValue });
     }

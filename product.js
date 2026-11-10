@@ -10,12 +10,17 @@ export const statusLabels = {
 
 export const categoryNames = {
   all: "全部产品",
-  home: "真家宽",
-  residential: "住宅IP",
-  native: "原生IP",
-  "dual-isp": "双ISP",
-  pending: "待核验"
+  vps: "普通 VPS",
+  home: "家宽 / 住宅 VPS",
+  unclassified: "待分类"
 };
+
+export const productCategories = ["vps", "home", "unclassified"];
+
+// Product category comes from the reviewed source catalog, independently of IP claims.
+export function productCategory(product) {
+  return productCategories.includes(product.category) ? product.category : "unclassified";
+}
 
 export const ipTypeCategories = [
   { value: "home", label: "真家宽", dot: "#0ba678", desc: "真实家庭宽带" },

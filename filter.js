@@ -1,11 +1,11 @@
 import { state } from "./state.js";
 import { text, normalizeSearch } from "./util.js";
-import { priceBandFor, orderabilityRank, stableCompare } from "./product.js";
+import { productCategory, priceBandFor, orderabilityRank, stableCompare } from "./product.js";
 
 export function filterBaseProducts() {
   return state.activeCategory === "all"
     ? state.products
-    : state.products.filter((product) => product._ipType.value === state.activeCategory);
+    : state.products.filter((product) => productCategory(product) === state.activeCategory);
 }
 
 export function matchesFilters(product) {

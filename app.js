@@ -1,6 +1,6 @@
 import { state } from "./state.js";
 import { setText, setHidden, countUp, refreshClock, debounce, formatDateTime, formatRelativeAge, text, escapeHtml, safeUrl } from "./util.js";
-import { statusLabels, categoryNames, ipTypeCategories, ipTypeOrder, priceBands, statusClass, statusRank, normalizeProduct, priceBandFor, numericStockCount } from "./product.js";
+import { statusLabels, categoryNames, productCategories, productCategory, ipTypeCategories, ipTypeOrder, priceBands, statusClass, statusRank, normalizeProduct, priceBandFor, numericStockCount } from "./product.js";
 import { filterBaseProducts, visibleProducts } from "./filter.js";
 
 let dataLoadError = "";
@@ -81,6 +81,7 @@ function detailRowHtml(product) {
           <dl class="detail-grid">
             <div><dt>产品</dt><dd>${escapeHtml(text(product.name))}</dd></div>
             <div><dt>商家</dt><dd>${escapeHtml(text(product.provider))}</dd></div>
+            <div><dt>产品类别</dt><dd>${escapeHtml(categoryNames[productCategory(product)])}</dd></div>
             <div><dt>区域 / 线路</dt><dd>${escapeHtml(text(product.region))} · ${escapeHtml(text(product.route))}</dd></div>
             <div><dt>IP 类型</dt><dd>${escapeHtml(product._ipType.label)}</dd></div>
             <div><dt>硬件配置</dt><dd>${escapeHtml(displayValue(product.hardware, "配置未标明"))}</dd></div>
@@ -101,6 +102,7 @@ function detailRowHtml(product) {
 }
 
 function renderTable(animate = false) {
+  syncActiveCategory();
   document.querySelectorAll("[data-title-category]").forEach((node) => {
     node.textContent = categoryNames[state.activeCategory];
   });
@@ -129,6 +131,7 @@ function renderTable(animate = false) {
             <td class="cell-product">
               <a class="prov" href="${escapeHtml(href)}" target="_blank" rel="nofollow sponsored noopener">${escapeHtml(text(product.provider))}</a>
               <span class="prov-sub">${escapeHtml(text(product.name))}</span>
+              <span class="prov-sub">${escapeHtml(categoryNames[productCategory(product)])}</span>
             </td>
             <td>${escapeHtml(text(product.region))}</td>
             <td class="cell-note">${escapeHtml(text(product.note || product.evidence))}</td>
@@ -206,7 +209,8 @@ function renderMobileCards(list, emptyMessage = "没有符合当前筛选条件�
           <p>${escapeHtml(text(product.note || product.evidence))}</p>
           <dl>
             <div><dt>区域</dt><dd>${escapeHtml(text(product.region))}</dd></div>
-            <div><dt>类型</dt><dd><span class="chip chip-ip ${escapeHtml(product._ipType.className)}">${escapeHtml(product._ipType.label)}</span></dd></div>
+            <div><dt>产品类别</dt><dd>${escapeHtml(categoryNames[productCategory(product)])}</dd></div>
+            <div><dt>IP 特征</dt><dd><span class="chip chip-ip ${escapeHtml(product._ipType.className)}">${escapeHtml(product._ipType.label)}</span></dd></div>
             <div><dt>线路</dt><dd>${escapeHtml(text(product.route))}</dd></div>
             <div><dt>配置</dt><dd>${escapeHtml(displayValue(product.hardware, "配置未标明"))}</dd></div>
             <div><dt>流量</dt><dd>${escapeHtml(displayValue(product.bandwidth, "流量未标明"))}</dd></div>
@@ -269,18 +273,22 @@ function syncActiveCategory() {
   document.querySelectorAll("[data-category]").forEach((item) => {
     item.classList.toggle("is-active", item.dataset.category === state.activeCategory);
   });
+  document.querySelectorAll("[data-ip-type]").forEach((item) => {
+    item.classList.toggle("is-active", item.dataset.ipType === state.filters.ipType);
+  });
 }
 
 function renderIpDist() {
   const container = document.querySelector("[data-ip-dist]");
   if (!container) return;
-  const total = state.products.length || 1;
+  const products = filterBaseProducts();
+  const total = products.length || 1;
   container.innerHTML = ipTypeCategories
     .map((cat) => {
-      const count = state.products.filter((p) => p._ipType.value === cat.value).length;
+      const count = products.filter((p) => p._ipType.value === cat.value).length;
       const pct = ((count / total) * 100).toFixed(1);
       return `
-        <button class="dist-row" data-category="${cat.value}" type="button">
+        <button class="dist-row" data-ip-type="${cat.value}" type="button">
           <span class="dist-dot" style="--c:${cat.dot}"></span>
           <span class="dist-name">${cat.label}</span>
           <span class="dist-track"><span class="dist-fill" style="--c:${cat.dot};width:${pct}%"></span></span>
@@ -290,10 +298,10 @@ function renderIpDist() {
       `;
     })
     .join("");
-  container.querySelectorAll("[data-category]").forEach((btn) => {
+  container.querySelectorAll("[data-ip-type]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.activeCategory = btn.dataset.category;
-      syncActiveCategory();
+      state.filters.ipType = btn.dataset.ipType;
+      syncFilterControls();
       renderTable(true);
       document.querySelector("#products")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -303,13 +311,13 @@ function renderIpDist() {
 
 function renderCounts() {
   const counts = { all: state.products.length };
-  for (const cat of ipTypeCategories) {
-    counts[cat.value] = state.products.filter((p) => p._ipType.value === cat.value).length;
+  for (const category of productCategories) {
+    counts[category] = state.products.filter((p) => productCategory(p) === category).length;
   }
 
   for (const [category, count] of Object.entries(counts)) {
     setText(`[data-count-${category}]`, count);
-    if (category !== "all") setHidden(`[data-category="${category}"]`, count === 0);
+    if (category === "unclassified") setHidden(`[data-category="${category}"]`, count === 0);
   }
 
   if (state.activeCategory !== "all" && counts[state.activeCategory] === 0) {
@@ -540,8 +548,8 @@ function bindControls() {
   document.querySelectorAll("[data-category]").forEach((button) => {
     button.addEventListener("click", () => {
       state.activeCategory = button.dataset.category;
-      syncActiveCategory();
-      renderTable(true);
+      resetFilters();
+      renderIpDist();
       document.querySelector("#products")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });

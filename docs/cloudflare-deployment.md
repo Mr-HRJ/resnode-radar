@@ -5,7 +5,7 @@
 此部署基于 [ResNode Radar](https://github.com/majiayu000/resnode-radar)，保留原项目 MIT 许可证。
 
 - Cloudflare Workers Static Assets 提供网页。
-- 本仓库的 `monitor.yml` 每 30 分钟运行原有采集器，校验并提交 `data/products.json`。
+- 本仓库的 `monitor.yml` 每 30 分钟运行采集器，校验并提交 `data/products.json`，同时覆盖普通 VPS 和家宽 / 住宅产品。
 - Worker 的 `/data/products.json` 读取本仓库 `main` 分支的公开数据，边缘缓存 60 秒；无需为库存更新重新部署网页。
 - 数据源不可用时接口返回 503，页面显示库存未知。采集失败和被阻断的商家仍使用原项目的状态标记。
 

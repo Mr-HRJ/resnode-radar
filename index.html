@@ -5,25 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="住宅节点雷达汇集 VPS 供应商的库存、订购入口、配置和线路信息，标明官方抓取、第三方快照及失败证据，帮助跨境运营者比较方案。库存和价格以供应商页面为准。"
+      content="VPS 节点雷达汇集 VPS 供应商的库存、订购入口、配置和线路信息，标明官方抓取、第三方快照及失败证据，帮助跨境运营者比较方案。库存和价格以供应商页面为准。"
     />
-    <title>VPS 库存监控与来源证据 · 住宅节点雷达</title>
+    <title>VPS 库存监控与来源证据 · VPS 节点雷达</title>
     <link rel="canonical" href="https://majiayu000.github.io/resnode-radar/" />
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="住宅节点雷达" />
+    <meta property="og:site_name" content="VPS 节点雷达" />
     <meta property="og:locale" content="zh_CN" />
-    <meta property="og:title" content="VPS 库存监控与来源证据 · 住宅节点雷达" />
+    <meta property="og:title" content="VPS 库存监控与来源证据 · VPS 节点雷达" />
     <meta property="og:description" content="比较 VPS 库存、订购入口、配置和线路，查看官方抓取、第三方快照及失败证据。库存和价格以供应商页面为准。" />
     <meta property="og:url" content="https://majiayu000.github.io/resnode-radar/" />
     <meta property="og:image" content="https://majiayu000.github.io/resnode-radar/assets/inventory-preview.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="住宅节点雷达库存界面截图；数值为截图时的记录" />
+    <meta property="og:image:alt" content="VPS 节点雷达库存界面截图；数值为截图时的记录" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="VPS 库存监控与来源证据 · 住宅节点雷达" />
+    <meta name="twitter:title" content="VPS 库存监控与来源证据 · VPS 节点雷达" />
     <meta name="twitter:description" content="比较 VPS 库存、订购入口、配置和线路，查看来源证据。库存和价格以供应商页面为准。" />
     <meta name="twitter:image" content="https://majiayu000.github.io/resnode-radar/assets/inventory-preview.png" />
-    <meta name="twitter:image:alt" content="住宅节点雷达库存界面截图；数值为截图时的记录" />
+    <meta name="twitter:image:alt" content="VPS 节点雷达库存界面截图；数值为截图时的记录" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <script>
       (function () {
@@ -36,46 +36,36 @@
   <body>
     <div class="app-shell">
       <aside class="sidebar" aria-label="监控导航">
-        <a class="brand" href="index.html" aria-label="住宅节点雷达首页">
+        <a class="brand" href="index.html" aria-label="VPS 节点雷达首页">
           <span class="brand-mark" aria-hidden="true">◉</span>
           <span class="brand-text">
-            <strong>住宅节点雷达</strong>
-            <small>站长自测 · 库存监控 · 线路记录</small>
+            <strong>VPS 节点雷达</strong>
+            <small>普通 VPS · 家宽住宅 · 库存监控</small>
           </span>
         </a>
 
         <p class="status-pill" data-monitor-status>加载监控数据中</p>
 
-        <div class="cats-label">按 IP 类型</div>
-        <nav class="cats" aria-label="分类">
+        <div class="cats-label">按产品类别</div>
+        <nav class="cats" aria-label="产品分类">
           <button class="cat is-active" data-category="all" type="button">
             <span class="cat-name">全部产品</span>
             <b data-count-all>0</b>
           </button>
+          <button class="cat" data-category="vps" type="button">
+            <span class="cat-dot" style="--c:#2563eb"></span>
+            <span class="cat-name">普通 VPS</span>
+            <b data-count-vps>0</b>
+          </button>
           <button class="cat" data-category="home" type="button">
             <span class="cat-dot" style="--c:#0ba678"></span>
-            <span class="cat-name">真家宽</span>
+            <span class="cat-name">家宽 / 住宅 VPS</span>
             <b data-count-home>0</b>
           </button>
-          <button class="cat" data-category="residential" type="button">
-            <span class="cat-dot" style="--c:#4f46e5"></span>
-            <span class="cat-name">住宅IP</span>
-            <b data-count-residential>0</b>
-          </button>
-          <button class="cat" data-category="native" type="button">
-            <span class="cat-dot" style="--c:#2563eb"></span>
-            <span class="cat-name">原生IP</span>
-            <b data-count-native>0</b>
-          </button>
-          <button class="cat" data-category="dual-isp" type="button">
-            <span class="cat-dot" style="--c:#7c3aed"></span>
-            <span class="cat-name">双ISP</span>
-            <b data-count-dual-isp>0</b>
-          </button>
-          <button class="cat" data-category="pending" type="button">
+          <button class="cat" data-category="unclassified" type="button" hidden>
             <span class="cat-dot" style="--c:#8b94a3"></span>
-            <span class="cat-name">待核验</span>
-            <b data-count-pending>0</b>
+            <span class="cat-name">待分类</span>
+            <b data-count-unclassified>0</b>
           </button>
         </nav>
 
@@ -94,7 +84,7 @@
             <p class="eyebrow">Live VPS Inventory</p>
             <h1><span class="grad" data-title-category>全部产品</span> · 库存、价格、证据一屏判断</h1>
             <p class="hero-sub">
-              按 IP 类型分类浏览：真家宽 / 住宅 / 原生 / 双 ISP。先看可订购状态、线路和价格，再打开购买入口。只展示官方源或明确快照的监控记录，不补假库存。
+              普通 VPS、家宽与住宅 VPS 一起看。按产品类别、地区、商家和 IP 特征筛选，比较配置、线路和价格；库存以商家当前页面为准。
             </p>
             <div class="hero-tags" aria-label="证据口径">
               <span>官方源抓取</span>
@@ -149,7 +139,7 @@
         <section class="dist" aria-label="IP 类型分布">
           <div class="dist-head">
             <h2>IP 类型分布</h2>
-            <span class="result-count">点击分类切换浏览</span>
+            <span class="result-count">当前产品类别 · 点击筛选 IP 特征</span>
           </div>
           <div class="dist-rows" data-ip-dist></div>
         </section>
@@ -173,9 +163,9 @@
           <h2>公告</h2>
           <ul>
             <li>不是所有条目都等于真实家庭宽带；表格里的“IP 类型”只按官方页面文本做保守标记。</li>
-            <li>这类 VPS 优先看 IP 来源真实性，其次看线路、带宽、库存和退款政策。</li>
+            <li>普通 VPS 可按配置、线路和价格比较；家宽与住宅 VPS 还需核实 IP 来源。原生 IP 不等于家宽。</li>
             <li>线路备注采用电信 / 联通 / 移动三网口径，例如 CN2GIA、9929、CMIN2、普通线路。</li>
-            <li>状态来自 <code>data/products.json</code> 的官方直连结果或明确标注的第三方快照；抓不到就显示被阻断或抓取失败，不显示假库存。</li>
+            <li>库存状态来自商家公开页面或明确标注的第三方快照；采集异常会单独显示，不能据此判断有货或售罄。</li>
           </ul>
         </section>
 
@@ -215,6 +205,12 @@
               <span>商家</span>
               <select data-filter-provider name="provider">
                 <option value="all">全部商家</option>
+              </select>
+            </label>
+            <label>
+              <span>IP 特征</span>
+              <select data-filter-ip-type name="ipType">
+                <option value="all">全部 IP 类型</option>
               </select>
             </label>
             <label>
@@ -292,7 +288,7 @@
         <section id="guide" class="guide">
           <h2>怎样用库存表比较 VPS</h2>
           <ol>
-            <li>在<a href="#products">库存表</a>按区域、商家和状态筛选，或搜索线路名称。勾选方案后点击“开始对比”，查看配置、带宽和价格。</li>
+            <li>在<a href="#products">库存表</a>先选择普通 VPS 或家宽 / 住宅 VPS，再按区域、商家、IP 特征和状态筛选，或搜索线路名称。勾选方案后点击“开始对比”，查看配置、带宽和价格。</li>
             <li>比较价格时一起看币种和计费周期。月付、季付和年付的标价需要先换成同一周期；购买前还要核对供应商的续费价格和退款条款。</li>
             <li>查看记录里的来源、更新时间和证据标签。精确库存、官方订购入口和第三方快照各自能说明什么，见<a href="#faq-stock">库存状态说明</a>。</li>
             <li>打开官方购买入口，重新确认当前库存和配置。IP 类型按页面文本保守标记，实际 IP 来源和线路仍需结合供应商说明与到手测试核验。</li>
@@ -309,6 +305,8 @@
           <p>第三方快照来自 reader_snapshot 等读取方式，页面会标明快照证据。它反映的是读取到的页面内容；官方直连受阻时尤其要查看更新时间，并在购买入口再次核对。</p>
           <h3 id="faq-refresh">点击“重新加载”会立即检查所有商家吗？</h3>
           <p>按钮重新读取本站已有的监控数据。供应商检查由后台监控流程完成，计划每 30 分钟运行一次，实际同步时间以页面显示为准。刷新后没有变化时，先查看“最后同步”和各条记录的更新时间。</p>
+          <h3>普通 VPS 和家宽 / 住宅 VPS 怎么区分？</h3>
+          <p>产品类别按商家目录与产品说明维护。普通 VPS 包括常规云服务器、建站 VPS 和线路优化 VPS；原生 IP 本身不代表住宅 IP。家宽 / 住宅类别收录以住宅、家庭宽带或 ISP IP 为主要特征的产品，实际 IP 属性仍需到手验证。</p>
           <h3 id="faq-ip">“住宅 IP”分类能保证真实家庭宽带吗？</h3>
           <p>分类依据供应商页面文字做保守标记。它不包含对每个实际分配 IP 的现场核验，也无法保证特定平台可用。购买前确认 IP 来源，到手后可使用<a href="#tools">检测脚本</a>辅助检查，并保留测试时间。</p>
           <p>发现记录错误时，请在<a href="https://github.com/majiayu000/resnode-radar/issues">项目问题页</a>附上产品链接、观察时间和页面证据。监控方式与字段说明见<a href="https://github.com/majiayu000/resnode-radar/blob/main/docs/monitoring-spec.md">监控文档</a>。</p>
@@ -328,7 +326,7 @@
 
     <footer class="footer">
       <div>
-        <strong>住宅节点雷达</strong>
+        <strong>VPS 节点雷达</strong>
         <p>这是站长自测型 VPS 目录。库存和价格可能变化，正式推荐前需要补实测证据。</p>
         <p><a href="https://github.com/majiayu000/resnode-radar">源码与部署说明</a> · <a href="https://github.com/majiayu000/resnode-radar/blob/main/LICENSE">MIT 许可证</a></p>
       </div>

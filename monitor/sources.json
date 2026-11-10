@@ -65,7 +65,7 @@
   {
     "id": "lisahost-us-9929-phase2-native",
     "provider": "LisaHost",
-    "category": "home",
+    "category": "vps",
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=31",
     "regionHint": "美国",
@@ -191,7 +191,7 @@
   {
     "id": "lisahost-us-cn2-gia-native",
     "provider": "LisaHost",
-    "category": "home",
+    "category": "vps",
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=10",
     "regionHint": "美国",
@@ -200,7 +200,7 @@
   {
     "id": "lisahost-hk-isp-premium",
     "provider": "LisaHost",
-    "category": "home",
+    "category": "vps",
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=11",
     "regionHint": "香港",
@@ -209,7 +209,7 @@
   {
     "id": "lisahost-jp-native-bandwidth",
     "provider": "LisaHost",
-    "category": "home",
+    "category": "vps",
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=13",
     "regionHint": "日本",
@@ -218,7 +218,7 @@
   {
     "id": "lisahost-sg-native",
     "provider": "LisaHost",
-    "category": "home",
+    "category": "vps",
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=15",
     "regionHint": "新加坡",
@@ -227,7 +227,7 @@
   {
     "id": "lisahost-tw-native-vds",
     "provider": "LisaHost",
-    "category": "home",
+    "category": "vps",
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=24",
     "regionHint": "台湾",
@@ -236,7 +236,7 @@
   {
     "id": "lisahost-tw-native-vps",
     "provider": "LisaHost",
-    "category": "home",
+    "category": "vps",
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=36",
     "regionHint": "台湾",
@@ -252,14 +252,14 @@
     "routeHint": "Dual ISP SEO / ISP"
   },
   {
-    "id": "zoro-us-4837-isp",
+    "id": "zoro-uk-9929",
     "provider": "ZoroCloud",
-    "category": "home",
+    "category": "vps",
     "adapter": "lagom_product_list",
     "url": "https://my.zorocloud.com/store/isp-4837",
     "cardSelector": ".package",
-    "regionHint": "美国",
-    "routeHint": "4837 原生双 ISP"
+    "regionHint": "英国",
+    "routeHint": "双程 CUII 9929"
   },
   {
     "id": "zoro-us-bgp-isp",
@@ -445,5 +445,64 @@
     },
     "regionHint": "美国 / 日本",
     "routeHint": "住宅家宽"
+  },
+  {
+    "id": "zoro-hk-cn2",
+    "provider": "ZoroCloud",
+    "category": "vps",
+    "adapter": "lagom_product_list",
+    "url": "https://my.zorocloud.com/store/hkcn2",
+    "cardSelector": ".package",
+    "regionHint": "香港",
+    "routeHint": "双程 CN2 GIA"
+  },
+  {
+    "id": "zoro-jp-cn2",
+    "provider": "ZoroCloud",
+    "category": "vps",
+    "adapter": "lagom_product_list",
+    "url": "https://my.zorocloud.com/store/jp-cn2",
+    "cardSelector": ".package",
+    "regionHint": "日本",
+    "routeHint": "三网 CN2 GIA"
+  },
+  {
+    "id": "zoro-jp-tri",
+    "provider": "ZoroCloud",
+    "category": "vps",
+    "adapter": "lagom_product_list",
+    "url": "https://my.zorocloud.com/store/jp-tri",
+    "cardSelector": ".package",
+    "regionHint": "日本",
+    "routeHint": "三网直连"
+  },
+  {
+    "id": "zoro-us-cn2",
+    "provider": "ZoroCloud",
+    "category": "vps",
+    "adapter": "lagom_product_list",
+    "url": "https://my.zorocloud.com/store/cn2-9929-cmin2",
+    "cardSelector": ".package",
+    "regionHint": "美国",
+    "routeHint": "CN2 GIA / 9929 / CMIN2"
+  },
+  {
+    "id": "zoro-de-9929",
+    "provider": "ZoroCloud",
+    "category": "vps",
+    "adapter": "lagom_product_list",
+    "url": "https://my.zorocloud.com/store/de-9929",
+    "cardSelector": ".package",
+    "regionHint": "德国",
+    "routeHint": "双程 CUII 9929"
+  },
+  {
+    "id": "racknerd-kvm",
+    "provider": "RackNerd",
+    "category": "vps",
+    "adapter": "racknerd_kvm",
+    "url": "https://www.racknerd.com/kvm-vps",
+    "regionHint": "多地区（下单选择）",
+    "routeHint": "线路以所选机房为准"
   }
 ]
