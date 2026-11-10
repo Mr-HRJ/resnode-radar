@@ -1,0 +1,16 @@
+{
+  "name": "resnode-radar",
+  "main": "cloudflare/worker.mjs",
+  "compatibility_date": "2026-11-10",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/data/products.json"]
+  },
+  "vars": {
+    "DATA_REPOSITORY": "Mr-HRJ/resnode-radar",
+    "SITE_URL": "https://resnode-radar.haorenjie1997.workers.dev/"
+  }
+}

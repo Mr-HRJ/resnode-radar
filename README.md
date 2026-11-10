@@ -1,12 +1,17 @@
 # ResNode Radar
 
-[![CI](https://github.com/majiayu000/resnode-radar/actions/workflows/ci.yml/badge.svg)](https://github.com/majiayu000/resnode-radar/actions/workflows/ci.yml)
-[![Monitor VPS Sources](https://github.com/majiayu000/resnode-radar/actions/workflows/monitor.yml/badge.svg)](https://github.com/majiayu000/resnode-radar/actions/workflows/monitor.yml)
+This fork deploys to [Cloudflare](https://resnode-radar.haorenjie1997.workers.dev/)
+and runs its own scheduled collector. See [deployment instructions](docs/cloudflare-deployment.md).
+Based on [the original ResNode Radar](https://github.com/majiayu000/resnode-radar),
+with its MIT license and copyright notice retained.
+
+[![CI](https://github.com/Mr-HRJ/resnode-radar/actions/workflows/ci.yml/badge.svg)](https://github.com/Mr-HRJ/resnode-radar/actions/workflows/ci.yml)
+[![Monitor VPS Sources](https://github.com/Mr-HRJ/resnode-radar/actions/workflows/monitor.yml/badge.svg)](https://github.com/Mr-HRJ/resnode-radar/actions/workflows/monitor.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 VPS stock monitor and owner-run review site for Chinese cross-border operators.
 
-[Browse the live inventory](https://majiayu000.github.io/resnode-radar/) ·
+[Browse the live inventory](https://resnode-radar.haorenjie1997.workers.dev/) ·
 [Quick start](#quick-start) · [Monitoring contract](docs/monitoring-spec.md)
 
 ResNode Radar tracks provider-backed VPS availability, records parser evidence,
@@ -54,16 +59,12 @@ Open `http://127.0.0.1:4173/`.
 
 ## Public Site
 
-GitHub Pages serves the repository root from `main` at
-<https://majiayu000.github.io/resnode-radar/>. The homepage uses that project
-path for its canonical URL and sharing preview. `sitemap.xml` lists the homepage;
-the unfinished review templates use `noindex` until real test evidence is added.
-The committed preview is a screenshot of the public inventory interface, not
-a promise of current stock or prices.
-
-GitHub Pages crawler rules are read at the host root
-(`https://majiayu000.github.io/robots.txt`), outside this project's deployment
-path. A project-local `robots.txt` would not control crawling of this site.
+Cloudflare serves the website at <https://resnode-radar.haorenjie1997.workers.dev/>.
+The build uses `wrangler.json` to generate canonical URLs, `sitemap.xml`, and
+`robots.txt`. Inventory is loaded from this fork's scheduled collector without
+redeploying the website. See [Cloudflare deployment](docs/cloudflare-deployment.md).
+The unfinished review templates retain `noindex` until real test evidence is
+added. The committed preview is a screenshot, not a promise of current stock.
 
 ## Release Policy
 
