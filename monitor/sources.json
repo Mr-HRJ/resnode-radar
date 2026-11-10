@@ -259,7 +259,8 @@
     "url": "https://my.zorocloud.com/store/isp-4837",
     "cardSelector": ".package",
     "regionHint": "英国",
-    "routeHint": "双程 CUII 9929"
+    "routeHint": "双程 CUII 9929",
+    "requestIntervalMs": 10000
   },
   {
     "id": "zoro-us-bgp-isp",
@@ -269,7 +270,8 @@
     "url": "https://my.zorocloud.com/store/cuvip-isp",
     "cardSelector": ".package",
     "regionHint": "美国",
-    "routeHint": "BGP 原生双 ISP"
+    "routeHint": "BGP 原生双 ISP",
+    "requestIntervalMs": 10000
   },
   {
     "id": "zoro-jp-residential",
@@ -279,7 +281,8 @@
     "url": "https://my.zorocloud.com/store/jpisp",
     "cardSelector": ".package",
     "regionHint": "日本",
-    "routeHint": "家宽住宅"
+    "routeHint": "家宽住宅",
+    "requestIntervalMs": 10000
   },
   {
     "id": "zoro-jp-ntt-isp",
@@ -289,7 +292,8 @@
     "url": "https://my.zorocloud.com/store/jp-isp-ntt",
     "cardSelector": ".package",
     "regionHint": "日本",
-    "routeHint": "NTT 原生双 ISP"
+    "routeHint": "NTT 原生双 ISP",
+    "requestIntervalMs": 10000
   },
   {
     "id": "zoro-de-isp",
@@ -299,7 +303,8 @@
     "url": "https://my.zorocloud.com/store/deisp",
     "cardSelector": ".package",
     "regionHint": "德国",
-    "routeHint": "BGP 原生双 ISP"
+    "routeHint": "BGP 原生双 ISP",
+    "requestIntervalMs": 10000
   },
   {
     "id": "zoro-uk-isp",
@@ -309,7 +314,8 @@
     "url": "https://my.zorocloud.com/store/uk-isp",
     "cardSelector": ".package",
     "regionHint": "英国",
-    "routeHint": "BGP 原生双 ISP"
+    "routeHint": "BGP 原生双 ISP",
+    "requestIntervalMs": 10000
   },
   {
     "id": "zoro-kr-isp",
@@ -319,7 +325,8 @@
     "url": "https://my.zorocloud.com/store/kr-isp",
     "cardSelector": ".package",
     "regionHint": "韩国",
-    "routeHint": "BGP 原生双 ISP"
+    "routeHint": "BGP 原生双 ISP",
+    "requestIntervalMs": 10000
   },
   {
     "id": "zoro-hk-residential",
@@ -329,7 +336,8 @@
     "url": "https://my.zorocloud.com/store/hk-bgp-isp",
     "cardSelector": ".package",
     "regionHint": "香港",
-    "routeHint": "BGP 家宽住宅"
+    "routeHint": "BGP 家宽住宅",
+    "requestIntervalMs": 10000
   },
   {
     "id": "zoro-my-residential",
@@ -339,7 +347,8 @@
     "url": "https://my.zorocloud.com/store/mysisp",
     "cardSelector": ".package",
     "regionHint": "马来西亚",
-    "routeHint": "BGP 家宽住宅"
+    "routeHint": "BGP 家宽住宅",
+    "requestIntervalMs": 10000
   },
   {
     "id": "cstone-us-cuii-isp",
@@ -454,7 +463,8 @@
     "url": "https://my.zorocloud.com/store/hkcn2",
     "cardSelector": ".package",
     "regionHint": "香港",
-    "routeHint": "双程 CN2 GIA"
+    "routeHint": "双程 CN2 GIA",
+    "requestIntervalMs": 10000
   },
   {
     "id": "zoro-jp-cn2",
@@ -464,7 +474,8 @@
     "url": "https://my.zorocloud.com/store/jp-cn2",
     "cardSelector": ".package",
     "regionHint": "日本",
-    "routeHint": "三网 CN2 GIA"
+    "routeHint": "三网 CN2 GIA",
+    "requestIntervalMs": 10000
   },
   {
     "id": "zoro-jp-tri",
@@ -474,7 +485,8 @@
     "url": "https://my.zorocloud.com/store/jp-tri",
     "cardSelector": ".package",
     "regionHint": "日本",
-    "routeHint": "三网直连"
+    "routeHint": "三网直连",
+    "requestIntervalMs": 10000
   },
   {
     "id": "zoro-us-cn2",
@@ -484,7 +496,8 @@
     "url": "https://my.zorocloud.com/store/cn2-9929-cmin2",
     "cardSelector": ".package",
     "regionHint": "美国",
-    "routeHint": "CN2 GIA / 9929 / CMIN2"
+    "routeHint": "CN2 GIA / 9929 / CMIN2",
+    "requestIntervalMs": 10000
   },
   {
     "id": "zoro-de-9929",
@@ -494,7 +507,8 @@
     "url": "https://my.zorocloud.com/store/de-9929",
     "cardSelector": ".package",
     "regionHint": "德国",
-    "routeHint": "双程 CUII 9929"
+    "routeHint": "双程 CUII 9929",
+    "requestIntervalMs": 10000
   },
   {
     "id": "racknerd-kvm",

@@ -114,7 +114,7 @@ npm run monitor:validate
 
 GitHub Actions runs `.github/workflows/monitor.yml` every 30 minutes and commits `data/products.json` when live provider data changes.
 
-Current adapters cover RackNerd, VIRCS, LisaHost, ZoroCloud, CstoneCloud, 学长网络, YINNET, PoloCloud, ZLIDC, and AaITR. Ordinary VPS sources include RackNerd's official KVM plan table, ZoroCloud's CN2/9929/TRI product groups, and LisaHost's non-residential groups. Source categories are maintained from provider catalogs in `monitor/sources.json`, independently of the frontend's IP-text classification. `available` means the parser found a provider-backed positive stock count or an official order path; when stock count is not stated, the evidence field labels it as an order entry rather than precise stock.
+Current adapters cover RackNerd, VIRCS, LisaHost, ZoroCloud, CstoneCloud, 学长网络, YINNET, PoloCloud, ZLIDC, and AaITR. Ordinary VPS sources include RackNerd's official KVM plan table, ZoroCloud's CN2/9929/TRI product groups, and LisaHost's non-residential groups. ZoroCloud requests are spaced by 10 seconds per origin to avoid burst rate limits. Source categories are maintained from provider catalogs in `monitor/sources.json`, independently of the frontend's IP-text classification. `available` means the parser found a provider-backed positive stock count or an official order path; when stock count is not stated, the evidence field labels it as an order entry rather than precise stock.
 
 ## License
 

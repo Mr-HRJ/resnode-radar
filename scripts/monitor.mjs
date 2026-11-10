@@ -6,6 +6,7 @@ import { parse } from "node-html-parser";
 import { parseLagomProductList } from "./adapters/lagom-product-list.mjs";
 import { parseZlidcProductWrap } from "./adapters/zlidc-product-wrap.mjs";
 import { parseRacknerdKvm } from "./adapters/racknerd-kvm.mjs";
+import { createOriginPacer } from "./request-pacing.mjs";
 
 const sources = JSON.parse(readFileSync("monitor/sources.json", "utf8"));
 const generatedAt = new Date().toISOString();
@@ -14,6 +15,7 @@ const execFileAsync = promisify(execFile);
 const antiBotPattern = /Just a moment|cf_chl|challenge-platform|Enable JavaScript and cookies|cf-turnstile|正在进行安全验证|Cloudflare Ray ID|cf-mitigated/i;
 const monitorConcurrency = Number(process.env.MONITOR_CONCURRENCY ?? 5);
 const fetchRetries = Number(process.env.MONITOR_FETCH_RETRIES ?? 2);
+const waitForRequestSlot = createOriginPacer();
 
 function cleanText(value) {
   return String(value ?? "")
@@ -154,6 +156,7 @@ async function fetchHtml(source, targetUrl = source.url, restrictAaitr = false) 
   const initialUrl = restrictAaitr ? aaitrUrl(targetUrl) : targetUrl;
   let lastError;
   for (let attempt = 0; attempt <= fetchRetries; attempt += 1) {
+    await waitForRequestSlot(initialUrl, source.requestIntervalMs);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20000);
     try {
