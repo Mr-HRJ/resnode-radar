@@ -1,57 +1,13 @@
 [
   {
-    "id": "vircs-product-1",
-    "provider": "VIRCS",
-    "category": "home",
-    "adapter": "vircs_inertia_product",
-    "url": "https://www.vircs.com/products/1",
-    "regionHint": "美国",
-    "routeHint": "AT&T 住宅宽带"
-  },
-  {
-    "id": "vircs-product-2",
-    "provider": "VIRCS",
-    "category": "home",
-    "adapter": "vircs_inertia_product",
-    "url": "https://www.vircs.com/products/2",
-    "regionHint": "美国",
-    "routeHint": "专线隧道"
-  },
-  {
-    "id": "vircs-product-4",
-    "provider": "VIRCS",
-    "category": "home",
-    "adapter": "vircs_inertia_product",
-    "url": "https://www.vircs.com/products/4",
-    "regionHint": "美国",
-    "routeHint": "AT&T 住宅宽带"
-  },
-  {
-    "id": "vircs-product-5",
-    "provider": "VIRCS",
-    "category": "home",
-    "adapter": "vircs_inertia_product",
-    "url": "https://www.vircs.com/products/5",
-    "regionHint": "美国",
-    "routeHint": "AT&T / Frontier 住宅宽带"
-  },
-  {
-    "id": "vircs-product-6",
-    "provider": "VIRCS",
-    "category": "home",
-    "adapter": "vircs_inertia_product",
-    "url": "https://www.vircs.com/products/6",
-    "regionHint": "美国",
-    "routeHint": "AT&T / Frontier 住宅宽带"
-  },
-  {
     "id": "lisahost-us-9929-residential",
     "provider": "LisaHost",
     "category": "home",
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=12",
     "regionHint": "美国",
-    "routeHint": "9929 双 ISP 家宽住宅"
+    "routeHint": "9929 双 ISP 家宽住宅",
+    "providerId": "lisahost"
   },
   {
     "id": "lisahost-us-4837-residential",
@@ -60,7 +16,8 @@
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=35",
     "regionHint": "美国",
-    "routeHint": "4837 双 ISP 家宽住宅"
+    "routeHint": "4837 双 ISP 家宽住宅",
+    "providerId": "lisahost"
   },
   {
     "id": "lisahost-us-9929-phase2-native",
@@ -69,7 +26,8 @@
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=31",
     "regionHint": "美国",
-    "routeHint": "9929 二期原生 IP"
+    "routeHint": "9929 二期原生 IP",
+    "providerId": "lisahost"
   },
   {
     "id": "lisahost-us-static-residential-vds",
@@ -78,7 +36,8 @@
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=33",
     "regionHint": "美国",
-    "routeHint": "静态住宅 IP 家庭宽带 VDS"
+    "routeHint": "静态住宅 IP 家庭宽带 VDS",
+    "providerId": "lisahost"
   },
   {
     "id": "lisahost-us-ny-residential",
@@ -87,7 +46,8 @@
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=38",
     "regionHint": "美国",
-    "routeHint": "纽约双 ISP 家宽住宅"
+    "routeHint": "纽约双 ISP 家宽住宅",
+    "providerId": "lisahost"
   },
   {
     "id": "lisahost-us-chicago-residential",
@@ -96,7 +56,8 @@
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=21",
     "regionHint": "美国",
-    "routeHint": "芝加哥双 ISP 家宽住宅"
+    "routeHint": "芝加哥双 ISP 家宽住宅",
+    "providerId": "lisahost"
   },
   {
     "id": "lisahost-us-residential-nat",
@@ -105,7 +66,8 @@
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=34",
     "regionHint": "美国",
-    "routeHint": "家宽住宅 IP NAT"
+    "routeHint": "家宽住宅 IP NAT",
+    "providerId": "lisahost"
   },
   {
     "id": "lisahost-hk-icable-residential",
@@ -114,7 +76,8 @@
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=39",
     "regionHint": "香港",
-    "routeHint": "iCable 双 ISP 住宅 IP"
+    "routeHint": "iCable 双 ISP 住宅 IP",
+    "providerId": "lisahost"
   },
   {
     "id": "lisahost-hk-hgc-residential",
@@ -123,7 +86,8 @@
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=18",
     "regionHint": "香港",
-    "routeHint": "HGC 双 ISP 住宅 IP"
+    "routeHint": "HGC 双 ISP 住宅 IP",
+    "providerId": "lisahost"
   },
   {
     "id": "lisahost-tw-hinet-dynamic",
@@ -132,7 +96,8 @@
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=17",
     "regionHint": "台湾",
-    "routeHint": "HiNet 双 ISP 动态住宅 IP"
+    "routeHint": "HiNet 双 ISP 动态住宅 IP",
+    "providerId": "lisahost"
   },
   {
     "id": "lisahost-jp-iij-residential",
@@ -141,7 +106,8 @@
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=25",
     "regionHint": "日本",
-    "routeHint": "IIJ 双 ISP 静态住宅 IP"
+    "routeHint": "IIJ 双 ISP 静态住宅 IP",
+    "providerId": "lisahost"
   },
   {
     "id": "lisahost-jp-isp-residential",
@@ -150,7 +116,8 @@
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=37",
     "regionHint": "日本",
-    "routeHint": "ISP 静态住宅 IP"
+    "routeHint": "ISP 静态住宅 IP",
+    "providerId": "lisahost"
   },
   {
     "id": "lisahost-uk-residential",
@@ -159,7 +126,8 @@
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=14",
     "regionHint": "英国",
-    "routeHint": "双 ISP 住宅 IP"
+    "routeHint": "双 ISP 住宅 IP",
+    "providerId": "lisahost"
   },
   {
     "id": "lisahost-kr-residential",
@@ -168,7 +136,8 @@
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=23",
     "regionHint": "韩国",
-    "routeHint": "双 ISP 家庭宽带住宅 IP"
+    "routeHint": "双 ISP 家庭宽带住宅 IP",
+    "providerId": "lisahost"
   },
   {
     "id": "lisahost-de-residential",
@@ -177,7 +146,8 @@
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=22",
     "regionHint": "德国",
-    "routeHint": "双 ISP 原生住宅 IP"
+    "routeHint": "双 ISP 原生住宅 IP",
+    "providerId": "lisahost"
   },
   {
     "id": "lisahost-vn-residential",
@@ -186,7 +156,8 @@
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=16",
     "regionHint": "越南",
-    "routeHint": "双 ISP 原生住宅 IP"
+    "routeHint": "双 ISP 原生住宅 IP",
+    "providerId": "lisahost"
   },
   {
     "id": "lisahost-us-cn2-gia-native",
@@ -195,7 +166,8 @@
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=10",
     "regionHint": "美国",
-    "routeHint": "CN2 GIA 原生 IP"
+    "routeHint": "CN2 GIA 原生 IP",
+    "providerId": "lisahost"
   },
   {
     "id": "lisahost-hk-isp-premium",
@@ -204,7 +176,8 @@
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=11",
     "regionHint": "香港",
-    "routeHint": "CMI / CU2 / CN2 精品网络 ISP IP"
+    "routeHint": "CMI / CU2 / CN2 精品网络 ISP IP",
+    "providerId": "lisahost"
   },
   {
     "id": "lisahost-jp-native-bandwidth",
@@ -213,7 +186,8 @@
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=13",
     "regionHint": "日本",
-    "routeHint": "原生 IP 大带宽"
+    "routeHint": "原生 IP 大带宽",
+    "providerId": "lisahost"
   },
   {
     "id": "lisahost-sg-native",
@@ -222,7 +196,8 @@
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=15",
     "regionHint": "新加坡",
-    "routeHint": "原生 IP"
+    "routeHint": "原生 IP",
+    "providerId": "lisahost"
   },
   {
     "id": "lisahost-tw-native-vds",
@@ -231,7 +206,8 @@
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=24",
     "regionHint": "台湾",
-    "routeHint": "原生 IP 大带宽 VDS"
+    "routeHint": "原生 IP 大带宽 VDS",
+    "providerId": "lisahost"
   },
   {
     "id": "lisahost-tw-native-vps",
@@ -240,7 +216,8 @@
     "adapter": "whmcs_group",
     "url": "https://lisahost.com/cart.php?gid=36",
     "regionHint": "台湾",
-    "routeHint": "原生 IP 大带宽 VPS"
+    "routeHint": "原生 IP 大带宽 VPS",
+    "providerId": "lisahost"
   },
   {
     "id": "zlidc-globe-dual-isp-seo",
@@ -249,7 +226,8 @@
     "adapter": "zlidc_product_wrap",
     "url": "https://zlidc.net/cart.php",
     "regionHint": "全球",
-    "routeHint": "Dual ISP SEO / ISP"
+    "routeHint": "Dual ISP SEO / ISP",
+    "providerId": "zlidc"
   },
   {
     "id": "zoro-uk-9929",
@@ -260,7 +238,8 @@
     "cardSelector": ".package",
     "regionHint": "英国",
     "routeHint": "双程 CUII 9929",
-    "requestIntervalMs": 10000
+    "requestIntervalMs": 10000,
+    "providerId": "zorocloud"
   },
   {
     "id": "zoro-us-bgp-isp",
@@ -271,7 +250,8 @@
     "cardSelector": ".package",
     "regionHint": "美国",
     "routeHint": "BGP 原生双 ISP",
-    "requestIntervalMs": 10000
+    "requestIntervalMs": 10000,
+    "providerId": "zorocloud"
   },
   {
     "id": "zoro-jp-residential",
@@ -282,7 +262,8 @@
     "cardSelector": ".package",
     "regionHint": "日本",
     "routeHint": "家宽住宅",
-    "requestIntervalMs": 10000
+    "requestIntervalMs": 10000,
+    "providerId": "zorocloud"
   },
   {
     "id": "zoro-jp-ntt-isp",
@@ -293,7 +274,8 @@
     "cardSelector": ".package",
     "regionHint": "日本",
     "routeHint": "NTT 原生双 ISP",
-    "requestIntervalMs": 10000
+    "requestIntervalMs": 10000,
+    "providerId": "zorocloud"
   },
   {
     "id": "zoro-de-isp",
@@ -304,7 +286,8 @@
     "cardSelector": ".package",
     "regionHint": "德国",
     "routeHint": "BGP 原生双 ISP",
-    "requestIntervalMs": 10000
+    "requestIntervalMs": 10000,
+    "providerId": "zorocloud"
   },
   {
     "id": "zoro-uk-isp",
@@ -315,7 +298,8 @@
     "cardSelector": ".package",
     "regionHint": "英国",
     "routeHint": "BGP 原生双 ISP",
-    "requestIntervalMs": 10000
+    "requestIntervalMs": 10000,
+    "providerId": "zorocloud"
   },
   {
     "id": "zoro-kr-isp",
@@ -326,7 +310,8 @@
     "cardSelector": ".package",
     "regionHint": "韩国",
     "routeHint": "BGP 原生双 ISP",
-    "requestIntervalMs": 10000
+    "requestIntervalMs": 10000,
+    "providerId": "zorocloud"
   },
   {
     "id": "zoro-hk-residential",
@@ -337,7 +322,8 @@
     "cardSelector": ".package",
     "regionHint": "香港",
     "routeHint": "BGP 家宽住宅",
-    "requestIntervalMs": 10000
+    "requestIntervalMs": 10000,
+    "providerId": "zorocloud"
   },
   {
     "id": "zoro-my-residential",
@@ -348,7 +334,8 @@
     "cardSelector": ".package",
     "regionHint": "马来西亚",
     "routeHint": "BGP 家宽住宅",
-    "requestIntervalMs": 10000
+    "requestIntervalMs": 10000,
+    "providerId": "zorocloud"
   },
   {
     "id": "cstone-us-cuii-isp",
@@ -358,7 +345,8 @@
     "url": "https://www.cstonecloud.com/store/cuii9929-isp",
     "cardSelector": ".product",
     "regionHint": "美国",
-    "routeHint": "CUII 9929 住宅双 ISP"
+    "routeHint": "CUII 9929 住宅双 ISP",
+    "providerId": "cstonecloud"
   },
   {
     "id": "cstone-uk-bgp-isp",
@@ -368,7 +356,8 @@
     "url": "https://www.cstonecloud.com/store/ukbgpisp",
     "cardSelector": ".product",
     "regionHint": "英国",
-    "routeHint": "BGP 住宅双 ISP"
+    "routeHint": "BGP 住宅双 ISP",
+    "providerId": "cstonecloud"
   },
   {
     "id": "xuezhang-jp-isp",
@@ -378,7 +367,8 @@
     "url": "https://xuezhangvps.shop/index.php/store/isp",
     "cardSelector": ".product",
     "regionHint": "日本",
-    "routeHint": "住宅双 ISP"
+    "routeHint": "住宅双 ISP",
+    "providerId": "xuezhangvps"
   },
   {
     "id": "yinnet-kr-dual-isp",
@@ -388,7 +378,8 @@
     "url": "https://www.yin-net.com/index.php?rp=/store/ispip-vps",
     "cardSelector": ".product",
     "regionHint": "韩国",
-    "routeHint": "双 ISP 住宅 IP"
+    "routeHint": "双 ISP 住宅 IP",
+    "providerId": "yinnet"
   },
   {
     "id": "yinnet-jp-dual-isp",
@@ -398,7 +389,8 @@
     "url": "https://www.yin-net.com/index.php?rp=/store/jpvsp-vps",
     "cardSelector": ".product",
     "regionHint": "日本",
-    "routeHint": "双 ISP 住宅 IP"
+    "routeHint": "双 ISP 住宅 IP",
+    "providerId": "yinnet"
   },
   {
     "id": "xuezhang-jp-home-nat",
@@ -408,7 +400,8 @@
     "url": "https://xuezhangvps.shop/index.php/store/jphomevps",
     "cardSelector": ".product",
     "regionHint": "日本",
-    "routeHint": "真家宽 NAT / 双 ISP"
+    "routeHint": "真家宽 NAT / 双 ISP",
+    "providerId": "xuezhangvps"
   },
   {
     "id": "polocloud-tw-hinet-vds",
@@ -418,7 +411,8 @@
     "url": "https://polocloud.net/index.php?rp=/store/hinet-vds",
     "cardSelector": ".package",
     "regionHint": "台湾",
-    "routeHint": "HiNet VDS 动态 IP"
+    "routeHint": "HiNet VDS 动态 IP",
+    "providerId": "polocloud"
   },
   {
     "id": "aaitr-srv-store",
@@ -453,7 +447,8 @@
       "timeoutMs": 25000
     },
     "regionHint": "美国 / 日本",
-    "routeHint": "住宅家宽"
+    "routeHint": "住宅家宽",
+    "providerId": "aaitr"
   },
   {
     "id": "zoro-hk-cn2",
@@ -464,7 +459,8 @@
     "cardSelector": ".package",
     "regionHint": "香港",
     "routeHint": "双程 CN2 GIA",
-    "requestIntervalMs": 10000
+    "requestIntervalMs": 10000,
+    "providerId": "zorocloud"
   },
   {
     "id": "zoro-jp-cn2",
@@ -475,7 +471,8 @@
     "cardSelector": ".package",
     "regionHint": "日本",
     "routeHint": "三网 CN2 GIA",
-    "requestIntervalMs": 10000
+    "requestIntervalMs": 10000,
+    "providerId": "zorocloud"
   },
   {
     "id": "zoro-jp-tri",
@@ -486,7 +483,8 @@
     "cardSelector": ".package",
     "regionHint": "日本",
     "routeHint": "三网直连",
-    "requestIntervalMs": 10000
+    "requestIntervalMs": 10000,
+    "providerId": "zorocloud"
   },
   {
     "id": "zoro-us-cn2",
@@ -497,7 +495,8 @@
     "cardSelector": ".package",
     "regionHint": "美国",
     "routeHint": "CN2 GIA / 9929 / CMIN2",
-    "requestIntervalMs": 10000
+    "requestIntervalMs": 10000,
+    "providerId": "zorocloud"
   },
   {
     "id": "zoro-de-9929",
@@ -508,7 +507,8 @@
     "cardSelector": ".package",
     "regionHint": "德国",
     "routeHint": "双程 CUII 9929",
-    "requestIntervalMs": 10000
+    "requestIntervalMs": 10000,
+    "providerId": "zorocloud"
   },
   {
     "id": "racknerd-kvm",
@@ -517,6 +517,583 @@
     "adapter": "racknerd_kvm",
     "url": "https://www.racknerd.com/kvm-vps",
     "regionHint": "多地区（下单选择）",
-    "routeHint": "线路以所选机房为准"
+    "routeHint": "线路以所选机房为准",
+    "providerId": "racknerd"
+  },
+  {
+    "id": "catalog-digitalfyre",
+    "providerId": "digitalfyre",
+    "provider": "DigitalFyre",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://www.digitalfyre.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12,
+    "catalogUrls": [
+      "https://console.digitalfyre.com/order/vps"
+    ]
+  },
+  {
+    "id": "catalog-datawave",
+    "providerId": "datawave",
+    "provider": "DataWave",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://datawave.sh/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-usvps24",
+    "providerId": "usvps24",
+    "provider": "USVPS24(干杯Cloud)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://usvps24.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12,
+    "catalogFormat": "usvps24",
+    "discover": false
+  },
+  {
+    "id": "catalog-pqs",
+    "providerId": "pqs",
+    "provider": "PittQiao(PQS)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://www.pqs.pw/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-leikwanhost",
+    "providerId": "leikwanhost",
+    "provider": "LeiKwan Host(利群主机)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://buy.leikwanhost.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-lightlayer",
+    "providerId": "lightlayer",
+    "provider": "LightLayer",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://account.lightlayer.net/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12,
+    "catalogUrls": [
+      "https://account.lightlayer.net/index.php?/cart/"
+    ],
+    "accessNote": "商品目录当前重定向到客户页面，公开访问未取得套餐库存。"
+  },
+  {
+    "id": "catalog-quicksrv",
+    "providerId": "quicksrv",
+    "provider": "quicksrv",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://quicksrv.io/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-vps",
+    "providerId": "vps",
+    "provider": "V.PS(小秘书)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://vps.hosting/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-greencloud",
+    "providerId": "greencloud",
+    "provider": "GreenCloud(绿云)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://greencloudvps.com/billing/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12,
+    "allowedOrigins": [
+      "https://green.cloud"
+    ]
+  },
+  {
+    "id": "catalog-tokyonline",
+    "providerId": "tokyonline",
+    "provider": "Tokyonline",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://www.tokyonline.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12,
+    "currency": "JPY"
+  },
+  {
+    "id": "catalog-saltyfish",
+    "providerId": "saltyfish",
+    "provider": "SaltyFish(咸鱼云)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://portal.saltyfish.io/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-bestvm",
+    "providerId": "bestvm",
+    "provider": "BestVM(富婆)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://bestvm.cloud/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12,
+    "excludePaths": [
+      "iepl"
+    ],
+    "catalogUrls": [
+      "https://bestvm.cloud/cart.php?gid=32",
+      "https://bestvm.cloud/cart.php?gid=36",
+      "https://bestvm.cloud/cart.php?gid=34",
+      "https://bestvm.cloud/cart.php?gid=27",
+      "https://bestvm.cloud/cart.php?gid=31",
+      "https://bestvm.cloud/cart.php?gid=29",
+      "https://bestvm.cloud/cart.php?gid=21",
+      "https://bestvm.cloud/cart.php?gid=1",
+      "https://bestvm.cloud/cart.php?gid=28",
+      "https://bestvm.cloud/cart.php?gid=19",
+      "https://bestvm.cloud/cart.php?gid=25",
+      "https://bestvm.cloud/cart.php?gid=24"
+    ]
+  },
+  {
+    "id": "catalog-moonvm",
+    "providerId": "moonvm",
+    "provider": "MoonVM",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://store.moonvm.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-sixtynet",
+    "providerId": "sixtynet",
+    "provider": "SixtyNet",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://sixtynet.net/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-netcup",
+    "providerId": "netcup",
+    "provider": "netcup",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://www.netcup.com/en",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-vmrack",
+    "providerId": "vmrack",
+    "provider": "VMRack",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://www.vmrack.net/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-residentialservice",
+    "providerId": "residentialservice",
+    "provider": "Residential-Service",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://residential-service.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-rivencloud",
+    "providerId": "rivencloud",
+    "provider": "RivenCloud(极云)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://portal.sa.net/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-yunyoo",
+    "providerId": "yunyoo",
+    "provider": "YUNYOO(云悠)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://yunyoo.cc/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-taipei101",
+    "providerId": "taipei101",
+    "provider": "Taipei101",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://vps.taipei/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-synexvm",
+    "providerId": "synexvm",
+    "provider": "SynexVM",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://www.synexvm.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-aethercloud",
+    "providerId": "aethercloud",
+    "provider": "AetherCloud",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://aethercloud.io/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-hostdare",
+    "providerId": "hostdare",
+    "provider": "HostDare",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://hostdare.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-geelinx",
+    "providerId": "geelinx",
+    "provider": "Geelinx",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://www.geelinx.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-100tb",
+    "providerId": "100tb",
+    "provider": "100TB",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://100tb.io/api/v1/services/products",
+    "requestIntervalMs": 2000,
+    "maxPages": 12,
+    "website": "https://100tb.io/",
+    "catalogFormat": "100tb",
+    "discover": false
+  },
+  {
+    "id": "catalog-tcs",
+    "providerId": "tcs",
+    "provider": "TCSCLOUD",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://billing.tcscloud.net/index.php?rp=%2Fstore%2Ftaipei-premium",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-kaze",
+    "providerId": "kaze",
+    "provider": "KazeCloud",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://kaze.network/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-dpnet",
+    "providerId": "dpnet",
+    "provider": "DPNET",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://dpnet.net/index.html",
+    "requestIntervalMs": 2000,
+    "maxPages": 12,
+    "priceSelector": "h3",
+    "currency": "USD",
+    "nameSelector": "h6"
+  },
+  {
+    "id": "catalog-miraigrid",
+    "providerId": "miraigrid",
+    "provider": "Miraigrid",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://miraigrid.com/api/v1/client/purchase/products",
+    "requestIntervalMs": 2000,
+    "maxPages": 12,
+    "website": "https://miraigrid.com/store/",
+    "catalogFormat": "miraigrid",
+    "discover": false
+  },
+  {
+    "id": "catalog-nmcloud",
+    "providerId": "nmcloud",
+    "provider": "NMCloud(牛马云)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://nmcloud.cc/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-isif",
+    "providerId": "isif",
+    "provider": "ISIF Cloud",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://cloud.isif.net/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-bwh",
+    "providerId": "bwh",
+    "provider": "搬瓦工(BWH)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://bandwagonhost.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-ipraft",
+    "providerId": "ipraft",
+    "provider": "IPRaft",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://ipraft.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-rfc",
+    "providerId": "rfc",
+    "provider": "RFCHOST(花卷科技)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://my.rfchost.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-evoxt",
+    "providerId": "evoxt",
+    "provider": "Evoxt(益沃斯)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://console.evoxt.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-taphip",
+    "providerId": "taphip",
+    "provider": "TapHip",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://taphip.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-nube",
+    "providerId": "nube",
+    "provider": "Nube",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://nube.sh/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-bage",
+    "providerId": "bage",
+    "provider": "BageVM",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://www.bagevm.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-akko",
+    "providerId": "akko",
+    "provider": "AkkoCloud",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://www.akkocloud.com/cart.php?gid=17",
+    "requestIntervalMs": 2000,
+    "maxPages": 12,
+    "catalogUrls": [
+      "https://www.akkocloud.com/cart.php?gid=7",
+      "https://www.akkocloud.com/cart.php?gid=27"
+    ],
+    "discover": false
+  },
+  {
+    "id": "catalog-neburst",
+    "providerId": "neburst",
+    "provider": "Neburst(奶爸)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://neburst.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-boil",
+    "providerId": "boil",
+    "provider": "Boil の家裡雲(港仔)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://cloud.boil.network/index.php",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-gomami",
+    "providerId": "gomami",
+    "provider": "Gomami(狗妈咪)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://gomami.io/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-vmiss",
+    "providerId": "vmiss",
+    "provider": "VMISS",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://app.vmiss.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-skyline",
+    "providerId": "skyline",
+    "provider": "Skyline Connect",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://www.skylineconnect.io/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-wirecat",
+    "providerId": "wirecat",
+    "provider": "WireCat(维猫)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://billing.wirecat.net/order/main/packages/resnet/?group_id=15",
+    "requestIntervalMs": 2000,
+    "maxPages": 12,
+    "accessNote": "官方公开目录目前仅展示验证服务，注明需完成 KYC 后通过工单申请；未公开 VPS 库存。"
+  },
+  {
+    "id": "catalog-dmit",
+    "providerId": "dmit",
+    "provider": "DMIT",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://www.dmit.io/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-flawlessnode",
+    "providerId": "flawlessnode",
+    "provider": "Flawless Node",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://www.flawlessnode.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-fachost",
+    "providerId": "fachost",
+    "provider": "FacHost(工厂云)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://fachost.cloud/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-qqpw",
+    "providerId": "qqpw",
+    "provider": "qqpw(夏威夷家宽)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://qq.pw/index.php?rp=%2Fstore%2Fresidential-vds-with-dedicated-ip",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-bugnet",
+    "providerId": "bugnet",
+    "provider": "BUG NET(虫网)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://bug.pw/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-ciallonetworks",
+    "providerId": "ciallonetworks",
+    "provider": "Ciallo Networks",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://ciallonet.works/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-novixlink",
+    "providerId": "novixlink",
+    "provider": "NovixLink(诺联主机)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://novixlink.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-nodemach",
+    "providerId": "vircs",
+    "provider": "NodeMach",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "catalogFormat": "nodemach",
+    "url": "https://www.nodemach.com/products",
+    "requestIntervalMs": 2000,
+    "discover": false
   }
 ]

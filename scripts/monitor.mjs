@@ -6,11 +6,13 @@ import { parse } from "node-html-parser";
 import { parseLagomProductList } from "./adapters/lagom-product-list.mjs";
 import { parseZlidcProductWrap } from "./adapters/zlidc-product-wrap.mjs";
 import { parseRacknerdKvm } from "./adapters/racknerd-kvm.mjs";
+import { monitorPublicCatalog } from "./adapters/public-catalog.mjs";
+import { cleanPublicUrl, catalogUrlAllowed } from "./adapters/catalog-pages.mjs";
 import { createOriginPacer } from "./request-pacing.mjs";
 
 const sources = JSON.parse(readFileSync("monitor/sources.json", "utf8"));
 const generatedAt = new Date().toISOString();
-const userAgent = "Mozilla/5.0 ResNodeMonitor/0.1 (+https://github.com/majiayu000/resnode-radar)";
+const userAgent = "Mozilla/5.0 ResNodeRadar/0.2 (+https://github.com/Mr-HRJ/resnode-radar)";
 const execFileAsync = promisify(execFile);
 const antiBotPattern = /Just a moment|cf_chl|challenge-platform|Enable JavaScript and cookies|cf-turnstile|正在进行安全验证|Cloudflare Ray ID|cf-mitigated/i;
 const monitorConcurrency = Number(process.env.MONITOR_CONCURRENCY ?? 5);
@@ -153,7 +155,17 @@ function aaitrUrl(targetUrl, baseUrl) {
 }
 
 async function fetchHtml(source, targetUrl = source.url, restrictAaitr = false) {
-  const initialUrl = restrictAaitr ? aaitrUrl(targetUrl) : targetUrl;
+  const restrictCatalog = source.adapter === "public_catalog";
+  const validateUrl = (value, base) => {
+    if (restrictAaitr) return aaitrUrl(value, base);
+    if (restrictCatalog) {
+      const url = cleanPublicUrl(value, base);
+      if (!url || !catalogUrlAllowed(url, source)) throw new Error("Catalog redirect outside configured official hosts");
+      return url;
+    }
+    return value;
+  };
+  const initialUrl = validateUrl(targetUrl);
   let lastError;
   for (let attempt = 0; attempt <= fetchRetries; attempt += 1) {
     await waitForRequestSlot(initialUrl, source.requestIntervalMs);
@@ -168,14 +180,14 @@ async function fetchHtml(source, targetUrl = source.url, restrictAaitr = false) 
             "user-agent": userAgent,
             accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
           },
-          redirect: restrictAaitr ? "manual" : "follow",
+          redirect: restrictAaitr || restrictCatalog ? "manual" : "follow",
           signal: controller.signal
         });
         const location = response.headers.get("location");
-        if (!restrictAaitr || ![301, 302, 303, 307, 308].includes(response.status) || !location) break;
+        if (!(restrictAaitr || restrictCatalog) || ![301, 302, 303, 307, 308].includes(response.status) || !location) break;
         await response.body?.cancel();
         if (redirects === 20) throw new Error("AaITR HTTP redirect limit exceeded");
-        currentUrl = aaitrUrl(location, currentUrl);
+        currentUrl = validateUrl(location, currentUrl);
       }
       const html = await response.text();
       return {
@@ -206,6 +218,7 @@ function baseRecord(source, fetchResult, extra = {}) {
   return {
     id: extra.id ?? source.id,
     sourceId: source.id,
+    providerId: source.providerId,
     provider: source.provider,
     category: source.category,
     adapter: source.adapter,
@@ -848,6 +861,7 @@ async function monitorAaitrStore(source) {
 async function monitorSource(source) {
   try {
     if (source.adapter === "aaitr_store") return await monitorAaitrStore(source);
+    if (source.adapter === "public_catalog") return await monitorPublicCatalog(source, { fetchHtml, isAntiBotResult, baseRecord, blockedRecord, errorRecord });
 
     const fetchResult = await fetchHtml(source);
     if (source.adapter === "vircs_inertia_product" && new URL(fetchResult.finalUrl).host !== new URL(source.url).host) {

@@ -1,9 +1,14 @@
+import { renderDirectory, bindDirectory, providerFor } from "./directory.js";
+import { priceQuote } from "./pricing.js";
 import { state } from "./state.js";
-import { setText, setHidden, countUp, refreshClock, debounce, formatDateTime, formatRelativeAge, text, escapeHtml, safeUrl } from "./util.js";
+import { setText, setHidden, debounce, formatDateTime, formatRelativeAge, text, escapeHtml, safeUrl } from "./util.js";
 import { statusLabels, categoryNames, productCategories, productCategory, ipTypeCategories, ipTypeOrder, priceBands, statusClass, statusRank, normalizeProduct, priceBandFor, numericStockCount } from "./product.js";
 import { filterBaseProducts, visibleProducts } from "./filter.js";
 
 let dataLoadError = "";
+let page = 1;
+const pageSize = 30;
+let activeView = "inventory";
 
 function toggleTheme() {
   const current = document.documentElement.getAttribute("data-theme");
@@ -76,7 +81,7 @@ function detailRowHtml(product) {
   const sourceHref = safeUrl(product.sourceUrl || product.finalUrl);
   return `
     <tr class="row-detail">
-      <td colspan="11">
+      <td colspan="7">
         <div class="row-detail-inner">
           <dl class="detail-grid">
             <div><dt>产品</dt><dd>${escapeHtml(text(product.name))}</dd></div>
@@ -101,129 +106,72 @@ function detailRowHtml(product) {
   `;
 }
 
-function renderTable(animate = false) {
+function priceHtml(product) {
+  const q = priceQuote(product);
+  if (q.amount === null) return '<span class="spec-empty">价格未标明</span>';
+  return `<strong><small>${escapeHtml(q.currency || "币种待核对")}</small>${q.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong><span class="price-cycle">${escapeHtml(q.period)}${q.baseOnly ? "起" : ""}</span>${q.monthly !== null && q.months > 1 ? `<span class="price-equivalent">折合 ${escapeHtml(q.currency || "")} ${(q.monthly).toFixed(2)}/月</span>` : ""}`;
+}
+function renderTable(resetPage = false) {
+  if (resetPage) page = 1;
   syncActiveCategory();
-  document.querySelectorAll("[data-title-category]").forEach((node) => {
-    node.textContent = categoryNames[state.activeCategory];
-  });
+  document.querySelectorAll("[data-title-category]").forEach((node) => { node.textContent = categoryNames[state.activeCategory]; });
   syncTableSortIndicator();
-  const list = visibleProducts();
+  syncQuery();
+  const all = visibleProducts();
+  const pages = Math.max(1, Math.ceil(all.length / pageSize));
+  page = Math.min(page, pages);
+  const list = all.slice((page - 1) * pageSize, page * pageSize);
+  setText("[data-page-label]", `${page} / ${pages}`);
+  document.querySelectorAll("[data-page-prev]").forEach((b) => { b.disabled = page <= 1; });
+  document.querySelectorAll("[data-page-next]").forEach((b) => { b.disabled = page >= pages; });
   if (list.length === 0) {
-    renderEmpty(dataLoadError || "没有符合当前筛选条件的真实监控记录。");
+    renderEmpty(dataLoadError || "没有符合条件的套餐。试试减少筛选条件，或到厂商目录查看采集状态。");
     renderSelectedCount();
     return;
   }
-
   const tableBody = document.querySelector("[data-products]");
-  if (tableBody) {
-    tableBody.innerHTML = list
-      .map((product) => {
-        const checked = state.selected.has(product._stableKey) ? "checked" : "";
-        const isOpen = state.expanded.has(product._stableKey);
-        const isActionable = product.status === "available" && product.orderUrl;
-        const href = productHref(product);
-        const actionText = isActionable ? "直达购买" : "查看源";
-        const ipType = product._ipType;
-        const main = `
-          <tr data-key="${escapeHtml(product._stableKey)}" class="${isOpen ? "is-open" : ""}">
-            <td class="cell-check"><span class="cell-compare-bar"></span><input data-select="${escapeHtml(product._stableKey)}" type="checkbox" ${checked} aria-label="选择 ${escapeHtml(text(product.provider))} ${escapeHtml(text(product.name))} 对比" /></td>
-            <td class="cell-rec">${product.recommended ? '<span class="rec">推荐</span>' : '<span class="dash">—</span>'}</td>
-            <td class="cell-product">
-              <a class="prov" href="${escapeHtml(href)}" target="_blank" rel="nofollow sponsored noopener">${escapeHtml(text(product.provider))}</a>
-              <span class="prov-sub">${escapeHtml(text(product.name))}</span>
-              <span class="prov-sub">${escapeHtml(categoryNames[productCategory(product)])}</span>
-            </td>
-            <td>${escapeHtml(text(product.region))}</td>
-            <td class="cell-note">${escapeHtml(text(product.note || product.evidence))}</td>
-            <td><span class="chip chip-ip ${escapeHtml(ipType.className)}">${escapeHtml(ipType.label)}</span></td>
-            <td>${escapeHtml(text(product.route))}</td>
-            <td class="cell-spec">${renderSpecCell(product)}</td>
-            <td class="cell-price"><strong>${escapeHtml(displayValue(product.price, "价格未标明"))}</strong></td>
-            <td class="cell-status">
-              <span class="chip chip-status ${escapeHtml(statusClass(product.status))}">${escapeHtml(text(product.statusLabel, statusLabels[product.status] ?? product.status))}</span>
-              ${renderEvidenceBadge(product)}
-              ${renderRiskTags(product)}
-            </td>
-            <td><a class="link ${isActionable ? "" : "is-soft"}" href="${escapeHtml(href)}" target="_blank" rel="nofollow sponsored noopener">${actionText}</a></td>
-          </tr>
-        `;
-        return isOpen ? main + detailRowHtml(product) : main;
-      })
-      .join("");
-
-    tableBody.querySelectorAll("tr:not(.row-detail)").forEach((tr, i) => {
-      if (animate) {
-        tr.style.animation = "fadeUp 0.34s cubic-bezier(.4,0,.2,1) both";
-        tr.style.animationDelay = `${Math.min(i, 14) * 16}ms`;
-      } else {
-        tr.style.animation = "none";
-      }
-    });
-  }
+  if (tableBody) tableBody.innerHTML = list.map((product) => {
+    const checked = state.selected.has(product._stableKey) ? "checked" : "";
+    const isOpen = state.expanded.has(product._stableKey);
+    const isActionable = product.status === "available" && product.orderUrl;
+    const href = productHref(product);
+    const provider = providerFor(product)?.name || product.provider;
+    const main = `<tr data-key="${escapeHtml(product._stableKey)}" class="${isOpen ? "is-open" : ""}">
+      <td class="cell-check"><input data-select="${escapeHtml(product._stableKey)}" type="checkbox" ${checked} aria-label="选择 ${escapeHtml(provider)} ${escapeHtml(text(product.name))} 对比" /></td>
+      <td class="cell-product"><a class="prov" href="${escapeHtml(href)}" target="_blank" rel="nofollow noopener">${escapeHtml(provider)}</a><span class="prov-sub">${escapeHtml(text(product.name))}</span></td>
+      <td class="cell-region"><span>${escapeHtml(text(product.region, "地区未注明"))}</span><span class="chip chip-ip ${escapeHtml(product._ipType.className)}">${escapeHtml(product._ipType.label)}</span></td>
+      <td class="cell-spec">${product.route ? `<span class="route-line">${escapeHtml(product.route)}</span>` : ""}${renderSpecCell(product)}</td>
+      <td class="cell-price">${priceHtml(product)}</td>
+      <td class="cell-status"><span class="chip chip-status ${escapeHtml(statusClass(product.status))}">${escapeHtml(text(product.statusLabel, statusLabels[product.status]))}</span>${renderEvidenceBadge(product)}</td>
+      <td><a class="link ${isActionable ? "" : "is-soft"}" href="${escapeHtml(href)}" target="_blank" rel="nofollow noopener">${isActionable ? "官网购买" : "查看官网"} ↗</a><button type="button" class="detail-button" data-detail="${escapeHtml(product._stableKey)}" aria-expanded="${isOpen}">${isOpen ? "收起详情" : "详情与来源"}</button></td>
+    </tr>`;
+    return isOpen ? main + detailRowHtml(product) : main;
+  }).join("");
+  document.querySelectorAll("[data-detail]").forEach((button) => button.addEventListener("click", () => {
+    const key = button.dataset.detail;
+    if (state.expanded.has(key)) state.expanded.delete(key); else state.expanded.add(key);
+    renderTable(false);
+    const current = [...document.querySelectorAll("[data-detail]")].find((b) => b.dataset.detail === key);
+    current?.focus?.();
+  }));
   renderMobileCards(list);
-  renderResultCount(list.length);
+  renderResultCount(all.length);
   bindRowSelection();
   renderSelectedCount();
 }
 
-function toggleRow(tr) {
-  const key = tr.dataset.key;
-  if (!key) return;
-  const product = state.products.find((item) => item._stableKey === key);
-  if (!product) return;
-  if (state.expanded.has(key)) {
-    state.expanded.delete(key);
-    tr.classList.remove("is-open");
-    const next = tr.nextElementSibling;
-    if (next && next.classList.contains("row-detail")) next.remove();
-  } else {
-    state.expanded.add(key);
-    tr.classList.add("is-open");
-    tr.insertAdjacentHTML("afterend", detailRowHtml(product));
-  }
-}
-
-function renderMobileCards(list, emptyMessage = "没有符合当前筛选条件的真实监控记录。") {
+function renderMobileCards(list, emptyMessage = "没有符合条件的套餐。请减少筛选条件，或查看厂商目录。") {
   const container = document.querySelector("[data-mobile-products]");
   if (!container) return;
-  if (list.length === 0) {
-    container.innerHTML = `<p class="empty-row">${escapeHtml(emptyMessage)}</p>`;
-    return;
-  }
-  container.innerHTML = list
-    .map((product) => {
-      const checked = state.selected.has(product._stableKey) ? "checked" : "";
-      const isActionable = product.status === "available" && product.orderUrl;
-      const href = productHref(product);
-      const actionText = isActionable ? "直达购买" : "查看源";
-      return `
-        <article class="mobile-product-card">
-          <div class="mobile-card-head">
-            <label>
-              <input data-select="${escapeHtml(product._stableKey)}" type="checkbox" ${checked} aria-label="选择 ${escapeHtml(text(product.provider))} ${escapeHtml(text(product.name))} 对比" />
-              <span>${escapeHtml(text(product.provider))}</span>
-            </label>
-            ${product.recommended ? '<span class="rec">推荐</span>' : ""}
-          </div>
-          <h3>${escapeHtml(text(product.name))}</h3>
-          <p>${escapeHtml(text(product.note || product.evidence))}</p>
-          <dl>
-            <div><dt>区域</dt><dd>${escapeHtml(text(product.region))}</dd></div>
-            <div><dt>产品类别</dt><dd>${escapeHtml(categoryNames[productCategory(product)])}</dd></div>
-            <div><dt>IP 特征</dt><dd><span class="chip chip-ip ${escapeHtml(product._ipType.className)}">${escapeHtml(product._ipType.label)}</span></dd></div>
-            <div><dt>线路</dt><dd>${escapeHtml(text(product.route))}</dd></div>
-            <div><dt>配置</dt><dd>${escapeHtml(displayValue(product.hardware, "配置未标明"))}</dd></div>
-            <div><dt>流量</dt><dd>${escapeHtml(displayValue(product.bandwidth, "流量未标明"))}</dd></div>
-            <div><dt>价格</dt><dd><strong>${escapeHtml(displayValue(product.price, "价格未标明"))}</strong></dd></div>
-            <div><dt>状态</dt><dd><span class="chip chip-status ${escapeHtml(statusClass(product.status))}">${escapeHtml(text(product.statusLabel, statusLabels[product.status] ?? product.status))}</span></dd></div>
-            <div><dt>证据</dt><dd>${renderEvidenceBadge(product)}</dd></div>
-            <div><dt>风险</dt><dd class="detail-risk-tags">${renderRiskTags(product) || "—"}</dd></div>
-          </dl>
-          <a class="link ${isActionable ? "" : "is-soft"}" href="${escapeHtml(href)}" target="_blank" rel="nofollow sponsored noopener">${actionText}</a>
-        </article>
-      `;
-    })
-    .join("");
+  if (!list.length) { container.innerHTML = `<p class="empty-row">${escapeHtml(emptyMessage)}</p>`; return; }
+  container.innerHTML = list.map((product) => {
+    const provider = providerFor(product)?.name || product.provider;
+    const checked = state.selected.has(product._stableKey) ? "checked" : "";
+    return `<article class="mobile-product-card"><div class="mobile-card-head"><label><input data-select="${escapeHtml(product._stableKey)}" type="checkbox" ${checked} aria-label="选择 ${escapeHtml(provider)} ${escapeHtml(text(product.name))} 对比" /><span>${escapeHtml(provider)}</span></label><span class="chip chip-status ${escapeHtml(statusClass(product.status))}">${escapeHtml(text(product.statusLabel, statusLabels[product.status]))}</span></div>
+      <h3>${escapeHtml(text(product.name))}</h3><p class="mobile-card-specs">${escapeHtml(text(product.region, "地区未注明"))} / ${escapeHtml(categoryNames[productCategory(product)])}<br>${escapeHtml(displayValue(product.hardware, "配置未注明"))}<br>${escapeHtml([product.route, product.bandwidth].filter(Boolean).join(" / "))}</p>
+      <div class="mobile-card-footer"><div class="cell-price">${priceHtml(product)}</div><a class="link" href="${escapeHtml(productHref(product))}" target="_blank" rel="nofollow noopener">${product.status === "available" ? "官网购买" : "查看官网"} ↗</a></div>
+      <details><summary>IP 特征与来源证据</summary><dl><div><dt>IP 特征</dt><dd>${escapeHtml(product._ipType.label)}</dd></div><div><dt>抓取时间</dt><dd>${escapeHtml(formatDateTime(product.fetchedAt))}</dd></div><div><dt>证据</dt><dd>${renderEvidenceBadge(product)}</dd></div><div><dt>提示</dt><dd>${renderRiskTags(product)}</dd></div></dl><p class="detail-evidence">${escapeHtml(text(product.evidence))}</p><a href="${escapeHtml(safeUrl(product.sourceUrl))}" target="_blank" rel="noopener nofollow">查看官方来源</a></details></article>`;
+  }).join("");
 }
 
 function renderEmpty(message) {
@@ -231,7 +179,7 @@ function renderEmpty(message) {
   if (tableBody) {
     tableBody.innerHTML = `
       <tr>
-        <td class="empty-row" colspan="11">${escapeHtml(message)}</td>
+        <td class="empty-row" colspan="7">${escapeHtml(message)}</td>
       </tr>
     `;
   }
@@ -242,7 +190,7 @@ function renderEmpty(message) {
 function renderResultCount(count) {
   const total = filterBaseProducts().length;
   document.querySelectorAll("[data-result-count]").forEach((node) => {
-    node.textContent = `显示 ${count} / ${total} 条`;
+    node.textContent = count > pageSize ? `显示 ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, count)} / ${count} 条` : `显示 ${count} / ${total} 条`;
   });
 }
 
@@ -349,14 +297,14 @@ function renderSummary() {
     setText("[data-trust-state]", dataLoadError ? "本站监控数据不可用" : "等待真实监控数据");
     setText("[data-trust-age]", "-");
     setText("[data-trust-freshness]", dataLoadError ? "当前库存未知" : "加载中");
-    renderRing();
+
     return;
   }
 
-  countUp(document.querySelector("[data-stat-total]"), state.payload.summary.total);
-  countUp(document.querySelector("[data-stat-available]"), state.payload.summary.available ?? 0);
-  countUp(document.querySelector("[data-stat-unavailable]"), state.payload.summary.unavailable ?? 0);
-  countUp(document.querySelector("[data-stat-sources]"), state.payload.sourceCount);
+  setText("[data-stat-total]", state.products.length);
+  setText("[data-stat-available]", state.products.filter((p) => p.status === "available").length);
+  setText("[data-stat-unavailable]", state.payload.summary.unavailable ?? 0);
+  setText("[data-stat-sources]", state.payload.sourceCount);
 
   const directProblems = (state.payload.summary.blocked ?? 0) + (state.payload.summary.error ?? 0);
   const snapshotCount = state.products.filter((product) => product._evidenceBadge.value === "snapshot").length;
@@ -377,24 +325,7 @@ function renderSummary() {
         ? `${unavailableCount} 条不可订购`
         : "官方入口可核验"
   );
-  renderRing();
-}
 
-function renderRing() {
-  const ring = document.querySelector("[data-ring]");
-  const pctEl = document.querySelector("[data-ring-pct]");
-  if (!ring || !pctEl) return;
-  const C = 2 * Math.PI * 52;
-  if (!state.payload) {
-    ring.style.strokeDashoffset = String(C);
-    pctEl.textContent = "-";
-    return;
-  }
-  const total = state.payload.summary.total || 1;
-  const avail = state.payload.summary.available ?? 0;
-  const pct = avail / total;
-  ring.style.strokeDashoffset = String(C * (1 - pct));
-  pctEl.textContent = `${Math.round(pct * 100)}%`;
 }
 
 function renderSkeleton() {
@@ -402,7 +333,7 @@ function renderSkeleton() {
   if (!tableBody) return;
   tableBody.innerHTML = Array.from({ length: 8 }, (_, i) => `
     <tr class="skel-row">
-      <td colspan="11"><span class="skel" style="width:${58 + (i % 3) * 12}%"></span></td>
+      <td colspan="7"><span class="skel" style="width:${58 + (i % 3) * 12}%"></span></td>
     </tr>
   `).join("");
 }
@@ -493,6 +424,8 @@ function hydrateFilterOptions() {
   populateSelect("[data-filter-provider]", "全部商家", providerOptions, validFilterValue("provider", providerOptions));
   populateSelect("[data-filter-ip-type]", "全部 IP 类型", ipTypeOptions, validFilterValue("ipType", ipTypeOptions));
   populateSelect("[data-filter-status]", "全部状态", statusOptions, validFilterValue("status", statusOptions));
+  const currencyOptions = countedOptions(state.products, (p) => priceQuote(p).currency);
+  populateSelect("[data-filter-currency]", "全部币种", currencyOptions, validFilterValue("currency", currencyOptions));
   populateSelect("[data-filter-price]", "全部价格", priceOptions, validFilterValue("price", priceOptions));
 }
 
@@ -505,7 +438,8 @@ function syncFilterControls() {
     ["[data-filter-provider]", state.filters.provider],
     ["[data-filter-ip-type]", state.filters.ipType],
     ["[data-filter-status]", state.filters.status],
-    ["[data-filter-price]", state.filters.price]
+    ["[data-filter-price]", state.filters.price],
+    ["[data-filter-currency]", state.filters.currency]
   ];
   for (const [selector, value] of selectBindings) {
     document.querySelectorAll(selector).forEach((select) => {
@@ -521,11 +455,12 @@ function resetFilters() {
   state.filters.ipType = "all";
   state.filters.status = "all";
   state.filters.price = "all";
+  state.filters.currency = "all";
   syncFilterControls();
   renderTable(true);
 }
 
-const debouncedRender = debounce(() => renderTable(false), 200);
+const debouncedRender = debounce(() => renderTable(true), 200);
 
 function syncTableSortIndicator() {
   document.querySelectorAll("[data-sort-col]").forEach((th) => {
@@ -539,12 +474,22 @@ function bindFilterControl(selector, key) {
     control.addEventListener(eventName, (event) => {
       state.filters[key] = event.target.value;
       if (key === "search") debouncedRender();
-      else renderTable(false);
+      else renderTable(true);
     });
   });
 }
 
 function bindControls() {
+  document.querySelectorAll("[data-mobile-filter-toggle]").forEach((button) => button.addEventListener("click", () => {
+    const expanded = button.getAttribute("aria-expanded") !== "true";
+    button.setAttribute("aria-expanded", String(expanded));
+    button.textContent = expanded ? "收起筛选" : "展开筛选";
+    document.querySelector(".filter-bar")?.classList.toggle("filters-expanded", expanded);
+  }));
+  document.querySelectorAll("form.filter-bar, form.directory-filters").forEach((form) => form.addEventListener("submit", (event) => event.preventDefault()));
+  document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
+  document.querySelectorAll("[data-page-prev], [data-page-next]").forEach((button) => button.addEventListener("click", () => { page += button.hasAttribute("data-page-next") ? 1 : -1; renderTable(); document.querySelector("#products")?.scrollIntoView({ block: "start" }); }));
+  bindDirectory({ showInventory(provider) { state.activeCategory = "all"; resetFilters(); state.filters.provider = provider.inventoryNames.find((name) => state.products.some((p) => p.provider === name)) || "all"; syncFilterControls(); showView("inventory"); renderTable(true); document.querySelector("#products")?.scrollIntoView({ block: "start" }); } });
   document.querySelectorAll("[data-category]").forEach((button) => {
     button.addEventListener("click", () => {
       state.activeCategory = button.dataset.category;
@@ -579,6 +524,7 @@ function bindControls() {
   bindFilterControl("[data-filter-ip-type]", "ipType");
   bindFilterControl("[data-filter-status]", "status");
   bindFilterControl("[data-filter-price]", "price");
+  bindFilterControl("[data-filter-currency]", "currency");
 
   document.querySelectorAll("[data-filter-reset]").forEach((button) => {
     button.addEventListener("click", resetFilters);
@@ -594,14 +540,6 @@ function bindControls() {
       state.selected.clear();
       renderTable(false);
     });
-  });
-
-  const tableBody = document.querySelector("[data-products]");
-  tableBody?.addEventListener("click", (event) => {
-    const tr = event.target.closest("tr");
-    if (!tr || !tableBody.contains(tr) || tr.classList.contains("row-detail")) return;
-    if (event.target.closest("input, a, button")) return;
-    toggleRow(tr);
   });
 
   document.querySelectorAll("[data-copy]").forEach((button) => {
@@ -650,7 +588,6 @@ function bindControls() {
 }
 
 async function loadMonitorData() {
-  refreshClock();
   dataLoadError = "";
   if (!state.payload) {
     renderSummary();
@@ -661,7 +598,9 @@ async function loadMonitorData() {
     const response = await fetch(`data/products.json?t=${Date.now()}`, { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     state.payload = await response.json();
-    state.products = Array.isArray(state.payload.products) ? state.payload.products.map(normalizeProduct) : [];
+    state.records = Array.isArray(state.payload.products) ? state.payload.products : [];
+    state.products = state.records.filter((p) => !p.diagnostic && !["blocked", "error"].includes(p.status)).map(normalizeProduct);
+    renderDirectory(state.records, true);
     state.selected.clear();
     hydrateFilterOptions();
     syncFilterControls();
@@ -672,6 +611,8 @@ async function loadMonitorData() {
     dataLoadError = `本站监控数据加载失败：${error.message}。当前库存未知。`;
     state.payload = null;
     state.products = [];
+    state.records = [];
+    renderDirectory([], false);
     state.selected.clear();
     hydrateFilterOptions();
     renderCounts();
@@ -681,8 +622,35 @@ async function loadMonitorData() {
   }
 }
 
-refreshClock();
+function showView(view) {
+  activeView = view === "providers" ? "providers" : "inventory";
+  setHidden("[data-inventory-view]", activeView !== "inventory");
+  setHidden("[data-directory-view]", activeView !== "providers");
+  setText("[data-view-title]", activeView === "providers" ? "VPS 厂商目录" : "VPS 库存与价格");
+  document.querySelectorAll(".primary-nav [data-view]").forEach((button) => { button.classList.toggle("is-active", button.dataset.view === activeView); button.setAttribute("aria-current", button.dataset.view === activeView ? "page" : "false"); });
+  syncQuery();
+}
+function syncQuery() {
+  const url = new URL(window.location.href);
+  for (const key of ["view", "category", "q", "region", "provider", "ipType", "status", "currency", "sort"]) url.searchParams.delete(key);
+  if (activeView === "providers") url.searchParams.set("view", "providers");
+  if (state.activeCategory !== "all") url.searchParams.set("category", state.activeCategory);
+  for (const [key, value] of Object.entries(state.filters)) if (value && value !== "all" && key !== "price") url.searchParams.set(key === "search" ? "q" : key, value);
+  if (state.activeSort !== "recommend") url.searchParams.set("sort", state.activeSort);
+  window.history?.replaceState(null, "", url.href);
+}
+function readQuery() {
+  const query = new URL(window.location.href).searchParams;
+  activeView = query.get("view") === "providers" ? "providers" : "inventory";
+  state.activeCategory = productCategories.includes(query.get("category")) ? query.get("category") : "all";
+  state.activeSort = ["price", "stock", "updated"].includes(query.get("sort")) ? query.get("sort") : "recommend";
+  for (const key of ["search", "region", "provider", "ipType", "status", "currency"]) state.filters[key] = query.get(key === "search" ? "q" : key) || (key === "search" ? "" : "all");
+  document.querySelectorAll("[data-sort]").forEach((select) => { select.value = state.activeSort; });
+}
+
+readQuery();
 renderSummary();
 bindControls();
+renderDirectory([], false);
+showView(activeView);
 loadMonitorData();
-setInterval(refreshClock, 1000);

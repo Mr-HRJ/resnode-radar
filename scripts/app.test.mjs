@@ -62,12 +62,12 @@ function assertUnavailable(page) {
   assert.ok(page.document.querySelector("[data-monitor-status]").classList.contains("has-warning"));
   assert.equal(page.text("[data-trust-state]"), "本站监控数据不可用");
   assert.equal(page.text("[data-trust-freshness]"), "当前库存未知");
-  assert.equal(page.text("[data-monitor-summary]"), "当前库存未知");
+  assert.match(page.text("[data-monitor-summary]"), /本站监控数据加载失败.*当前库存未知/);
   for (const selector of ["[data-products]", "[data-mobile-products]"]) {
     assert.match(page.text(selector), /本站监控数据加载失败/);
     assert.doesNotMatch(page.text(selector), /Synthetic product/);
   }
-  for (const selector of ["[data-stat-total]", "[data-stat-available]", "[data-stat-unavailable]", "[data-stat-sources]", "[data-ring-pct]", "[data-trust-age]", "[data-sync]"]) {
+  for (const selector of ["[data-stat-total]", "[data-stat-available]", "[data-stat-unavailable]", "[data-stat-sources]", "[data-trust-age]", "[data-sync]"]) {
     assert.equal(page.text(selector), "-", selector);
   }
   assert.equal(page.text("[data-result-count]"), "显示 0 / 0 条");
@@ -174,4 +174,20 @@ test("ordinary VPS and residential categories work independently from IP filters
   assert.match(rows(), /普通原生 IP VPS/);
   assert.match(rows(), /普通 KVM VPS/);
   assert.match(rows(), /真实家庭宽带/);
+});
+
+test("directory diagnostics stay out of inventory; pagination and currency filters retain matching results", async (t) => {
+  const page = installPage(t);
+  const plans = Array.from({ length: 35 }, (_, i) => ({ id: `plan-${i}`, providerId: "lisahost", provider: "LisaHost", name: `Plan ${String(i + 1).padStart(2, '0')}`, category: "vps", price: `USD ${i+1}/month`, priceValue: i+1, status: "available", orderUrl: "https://lisahost.com/" }));
+  const diagnostic = { id:"diagnostic",providerId:"dmit",provider:"DMIT",name:"Access diagnostic",diagnostic:true,status:"blocked",evidence:"HTTP 403",sourceUrl:"https://www.dmit.io/" };
+  const cny = { ...plans[0], id:"cny", name:"CNY Plan", price:"CNY 9/month",priceValue:9 };
+  t.mock.method(globalThis,"fetch",async()=>new Response(JSON.stringify({...payload,products:[...plans,cny,diagnostic],summary:{total:37,available:36,blocked:1}})));
+  window.history = { replaceState(_,__,url) { window.location.href = url; } };
+  await import("../app.js?directory-pagination"); await new Promise(setImmediate);
+  assert.equal(page.document.querySelectorAll('[data-products] tr[data-key]').length,30);
+  assert.equal(page.text('[data-count-all]'),'36');assert.doesNotMatch(page.text('[data-products]'),/Access diagnostic/);
+  page.click('[data-page-next]');assert.equal(page.text('[data-page-label]'),'2 / 2');assert.equal(page.document.querySelectorAll('[data-products] tr[data-key]').length,6);
+  page.change('[data-filter-currency]','CNY');assert.equal(page.text('[data-page-label]'),'1 / 1');assert.match(page.text('[data-products]'),/CNY Plan/);assert.match(window.location.href,/currency=CNY/);
+  page.click('.primary-nav [data-view="providers"]');assert.equal(page.document.querySelector('[data-directory-view]').hidden,false);assert.equal(page.document.querySelector('[data-inventory-view]').hidden,true);assert.match(page.text('[data-provider-grid]'),/访问受限/);
+  page.click('[data-provider-inventory="lisahost"]');assert.equal(page.document.querySelector('[data-inventory-view]').hidden,false);assert.equal(page.document.querySelector('[data-filter-provider]').value,'LisaHost');assert.equal(page.document.querySelector('[data-filter-currency]').value,'all');
 });

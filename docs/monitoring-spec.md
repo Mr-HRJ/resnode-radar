@@ -4,6 +4,31 @@
 
 Build a real, source-backed VPS monitoring site. The public page must display only data produced by the monitor runtime from live provider pages or explicit monitor errors. It must not ship mocked stock, price, route, or status data.
 
+## Directory and public catalog coverage (2026-11-10)
+
+`providers.js` contains 62 deduplicated directory entries, each mapped to at
+least one `providerId` in `monitor/sources.json`. The MeowVPS directory supplies
+factual vendor metadata only; stock and prices come from official vendor pages
+or the existing explicitly labeled AaITR snapshot adapter.
+
+`public_catalog` walks published links on the configured official hosts, with
+bounded page counts and per-origin pacing. It retains partial failures in a
+`diagnostic: true` record with `raw.attempts`. Such records are shown in the
+provider directory rather than mixed into purchasable plans. `unknown` can also
+mean a real plan with public pricing but no usable availability signal.
+
+`collection.pageLimitReached` means more catalog links were discovered than the
+per-run budget allowed; it must not be presented as complete SKU coverage.
+`stockCount` is null unless an explicit nonnegative quantity is available.
+Negative API sentinel values are not displayed as quantities. The frontend's
+`pricing.js` preserves original currencies and only derives a monthly
+comparison amount from a known billing period, excluding configurable base
+prices.
+
+The current homepage uses `radar.css`, `directory.js`, and `pricing.js`; legacy
+review templates retain `styles.css`. Cloudflare publishes only the static
+allowlist in `scripts/build-cloudflare.mjs`.
+
 ## Current Evidence
 
 | Area | Evidence | Implication |
@@ -127,7 +152,7 @@ These labels are evidence and risk signals, not purchase advice.
 
 - Do not bypass Cloudflare, CAPTCHA, login, or payment walls.
 - Do not claim stock when the official page only proves an order button exists.
-- Do not scrape the reference site as a data source.
+- Do not use a reference directory or its reviews as stock or price evidence.
 - Do not require a custom server for the first version.
 
 ## Open Questions

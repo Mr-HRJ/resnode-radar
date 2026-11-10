@@ -18,7 +18,7 @@ export function buildCloudflare(outputDirectory = join(projectRoot, "dist")) {
 
   // Publish only browser assets. Collector code, Git metadata, dependencies and
   // the old bundled inventory snapshot are deliberately outside the upload.
-  for (const file of ["index.html", "styles.css", "app.js", "filter.js", "product.js", "state.js", "util.js", "favicon.svg", "assets", "reviews", "LICENSE"]) {
+  for (const file of ["index.html", "styles.css", "radar.css", "providers.js", "directory.js", "pricing.js", "app.js", "filter.js", "product.js", "state.js", "util.js", "favicon.svg", "assets", "reviews", "LICENSE"]) {
     cpSync(join(projectRoot, file), join(outputDirectory, file), { recursive: true });
   }
   for (const file of ["index.html", ...readdirSync(join(outputDirectory, "reviews")).filter((name) => name.endsWith(".html")).map((name) => `reviews/${name}`)]) {

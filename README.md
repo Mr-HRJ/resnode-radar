@@ -114,7 +114,31 @@ npm run monitor:validate
 
 GitHub Actions runs `.github/workflows/monitor.yml` every 30 minutes and commits `data/products.json` when live provider data changes.
 
-Current adapters cover RackNerd, VIRCS, LisaHost, ZoroCloud, CstoneCloud, 学长网络, YINNET, PoloCloud, ZLIDC, and AaITR. Ordinary VPS sources include RackNerd's official KVM plan table, ZoroCloud's CN2/9929/TRI product groups, and LisaHost's non-residential groups. ZoroCloud requests are spaced by 10 seconds per origin to avoid burst rate limits. Source categories are maintained from provider catalogs in `monitor/sources.json`, independently of the frontend's IP-text classification. `available` means the parser found a provider-backed positive stock count or an official order path; when stock count is not stated, the evidence field labels it as an order entry rather than precise stock.
+The directory contains 62 unique providers: all 57 entries from the public
+[MeowVPS directory](https://meowvps.com/VPS/) observed on 2026-11-10, merged with
+this site's existing providers. `providers.js` holds factual directory metadata;
+`monitor/sources.json` configures an automated read for every provider. Directory
+inclusion is not a claim that every provider exposes usable stock.
+
+The collector keeps the existing provider adapters and adds a bounded official
+catalog parser, USVPS24/NodeMach public page payloads, and Miraigrid/100TB public
+product APIs. NodeMach replaces the retired VIRCS product endpoints. Public
+catalog discovery follows only configured official hosts, excludes checkout and
+language mirrors, and spaces requests by 2 seconds (10 seconds for ZoroCloud).
+Each generic source checks at most 12 pages unless explicitly configured.
+
+Plans appear in the inventory view; failed reads and unparseable/login-only
+catalogs appear in the provider directory with diagnostics. A positive exact
+stock count, an official availability flag, and an order link are distinct
+signals. No challenge or login is bypassed. A partial crawl may omit product
+groups; the provider detail shows that limitation.
+
+The responsive UI supports ordinary/residential categories, provider and region
+search, currency filters, pagination, source details, and comparison. Prices
+keep their original currency and billing cycle. Sorting groups currencies and
+uses a monthly equivalent only when the billing period is known; it does not
+assume exchange rates or treat a yearly payment as a monthly payment.
+
 
 ## License
 
