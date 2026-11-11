@@ -1,4 +1,5 @@
-import { priceQuote, comparePrices } from "./pricing.js";
+import { priceQuote, comparePrices, monthlyCny } from "./pricing.js";
+import { matchesRoute } from "./discovery.js";
 import { state } from "./state.js";
 import { text, normalizeSearch } from "./util.js";
 import { productCategory, priceBandFor, orderabilityRank, statusRank, stableCompare } from "./product.js";
@@ -18,6 +19,12 @@ export function matchesFilters(product) {
   if (state.filters.status !== "all" && product.status !== state.filters.status) return false;
   if (state.filters.currency && state.filters.currency !== "all" && priceQuote(product).currency !== state.filters.currency) return false;
   if (state.filters.price !== "all" && priceBandFor(product) !== state.filters.price) return false;
+  if (state.filters.route && !matchesRoute(product, state.filters.route)) return false;
+  if (state.savedOnly && !state.saved.has(product._stableKey)) return false;
+  if (state.filters.billing && state.filters.billing !== "all") {
+    const months = priceQuote(product).months;
+    if (state.filters.billing === "long" ? !(months > 12) : state.filters.billing === "unknown" ? months !== null : months !== Number(state.filters.billing)) return false;
+  }
   return true;
 }
 
@@ -30,6 +37,9 @@ export function visibleProducts() {
   return [...list].sort((a, b) => {
     if (state.activeSort === "region") {
       return text(a.region, "").localeCompare(text(b.region, ""), "zh-CN") || stableCompare(a, b);
+    }
+    if (state.activeSort === "cny") {
+      return (monthlyCny(a, state.payload?.exchangeRates) ?? Infinity) - (monthlyCny(b, state.payload?.exchangeRates) ?? Infinity) || comparePrices(a, b) || stableCompare(a, b);
     }
     if (state.activeSort === "price") {
       return comparePrices(a, b) || orderabilityRank(a) - orderabilityRank(b) || stableCompare(a, b);

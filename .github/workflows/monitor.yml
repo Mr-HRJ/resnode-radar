@@ -29,6 +29,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Update ECB reference rates
+        run: npm run fx:update
+
       - name: Run monitor
         run: npm run monitor
 
@@ -37,12 +40,13 @@ jobs:
 
       - name: Commit monitor data
         run: |
-          if git diff --quiet -- data/products.json; then
+          git add data/products.json
+          if [ -f data/fx.json ]; then git add data/fx.json; fi
+          if git diff --cached --quiet -- data/products.json data/fx.json; then
             echo "No monitor data changes"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/products.json
           git commit -m "Update monitored VPS data"
           git push

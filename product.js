@@ -1,4 +1,6 @@
 import { text, normalizeSearch } from "./util.js";
+import { savedKey } from "./saved.js";
+import { productSearchText } from "./discovery.js";
 
 export const statusLabels = {
   available: "可订购",
@@ -54,23 +56,11 @@ export function statusRank(status) {
 }
 
 export function searchableText(product) {
-  return normalizeSearch([product.provider, product.name, product.region, product.route, product.note, product.evidence].filter(Boolean).join(" "));
+  return productSearchText(product);
 }
 
 export function stableProductKey(product, index) {
-  return [
-    product.id,
-    product.sourceId,
-    product.provider,
-    product.name,
-    product.region,
-    product.route,
-    product.price,
-    product.orderUrl || product.sourceUrl,
-    index
-  ]
-    .map((part) => encodeURIComponent(text(part, "")))
-    .join("|");
+  return savedKey(product) || `row:${index}`;
 }
 
 export function inferIpType(product) {

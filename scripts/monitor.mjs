@@ -9,7 +9,18 @@ import { parseRacknerdKvm } from "./adapters/racknerd-kvm.mjs";
 import { monitorPublicCatalog } from "./adapters/public-catalog.mjs";
 import { cleanPublicUrl, catalogUrlAllowed } from "./adapters/catalog-pages.mjs";
 import { createOriginPacer } from "./request-pacing.mjs";
+import { trackEvents } from "./radar-events.mjs";
+import { readFxSnapshot } from "./fx-rates.mjs";
 
+// Read persisted state before collection. FX refresh is a separate command, so
+// importing/running the monitor never adds a currency-provider request.
+let previousPayload = null;
+try {
+  previousPayload = JSON.parse(readFileSync("data/products.json", "utf8"));
+} catch (error) {
+  if (error.code !== "ENOENT") console.warn(`Previous monitor snapshot unavailable: ${error.message}`);
+}
+const exchangeRates = readFxSnapshot();
 const sources = JSON.parse(readFileSync("monitor/sources.json", "utf8"));
 const generatedAt = new Date().toISOString();
 const userAgent = "Mozilla/5.0 ResNodeRadar/0.2 (+https://github.com/Mr-HRJ/resnode-radar)";
@@ -938,6 +949,8 @@ const payload = {
   generatedAt,
   sourceCount: sources.length,
   summary,
+  ...trackEvents(previousPayload, { generatedAt, products }),
+  ...(exchangeRates ? { exchangeRates } : {}),
   products
 };
 

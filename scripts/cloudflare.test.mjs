@@ -82,6 +82,10 @@ test("deployment package contains browser assets and license with the deployment
       assert.ok(!files.includes(excluded), excluded);
     }
     assert.ok(files.includes("LICENSE"));
+    for (const file of files.filter((name) => name.endsWith('.js'))) {
+      const code = readFileSync(join(output, file), 'utf8');
+      for (const [, dependency] of code.matchAll(/from\s+["']\.\/([^"']+)["']/g)) assert.ok(files.includes(dependency), `${file} requires packaged ${dependency}`);
+    }
     const html = readFileSync(join(output, "index.html"), "utf8");
     assert.match(html, /https:\/\/resnode-radar\.haorenjie1997\.workers\.dev\//);
     assert.match(html, /https:\/\/github\.com\/Mr-HRJ\/resnode-radar/);

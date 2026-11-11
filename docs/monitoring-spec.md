@@ -25,9 +25,35 @@ Negative API sentinel values are not displayed as quantities. The frontend's
 comparison amount from a known billing period, excluding configurable base
 prices.
 
-The current homepage uses `radar.css`, `directory.js`, and `pricing.js`; legacy
-review templates retain `styles.css`. Cloudflare publishes only the static
-allowlist in `scripts/build-cloudflare.mjs`.
+The current homepage uses `radar.css`, `directory.js`, `discovery.js`,
+`product-view.js`, `saved.js`, and `pricing.js`; legacy review templates retain
+`styles.css`. Cloudflare publishes only the static allowlist in
+`scripts/build-cloudflare.mjs`. Four navigable views cover discovery, providers,
+observed changes, and buying guidance. See [product behavior](product-experience.md).
+
+## Observed changes and reference exchange rates (2026-11-11)
+
+`schemaVersion: 1` retains all existing record fields and adds `events`,
+`eventTracking`, and optional `exchangeRates` to the top-level payload.
+`scripts/radar-events.mjs` compares consecutive observations with unique,
+compatible identities and timestamps. Stock events require both observations to
+have known states; missing products, unknown/blocked sources, newly discovered
+catalogs and Reader snapshots never create apparent restocks or sellouts. Price
+events require unchanged currency, billing period and variant specifications.
+The first run establishes an empty baseline. History retains seven days and at
+most 300 events.
+
+`scripts/fx-rates.mjs` reads official ECB daily XML into `data/fx.json` before
+scheduled monitoring. `monitor.mjs` embeds a validated local snapshot without
+making an additional request. Failed FX updates preserve the cache and its
+original date. The frontend keeps original bills visible, excludes unknown
+cycles and configurable starting prices from monthly estimates, and stops using
+foreign exchange rates older than seven days. CNY estimates are not settlement
+amounts and exclude fees/taxes.
+
+The visible browser rereads the published snapshot every five minutes and marks
+provider snapshots older than 90 minutes as stale. Refreshing does not trigger a
+provider crawl. Local bookmarks do not send notifications.
 
 ## Current Evidence
 
@@ -111,7 +137,7 @@ testing/headless
 | P0 | Replace mock table with generated monitor data | `app.js`, `data/products.json` | UI renders only monitor JSON | `npm run monitor && npm run check` |
 | P0 | Implement live adapters | `scripts/monitor.mjs`, `scripts/adapters/*.mjs`, `monitor/sources.json` | VIRCS, LisaHost, ZoroCloud, CstoneCloud, 学长网络, YINNET, PoloCloud, ZLIDC produce records; AaITR Reader snapshot or blocked state is visible | inspect generated JSON |
 | P0 | Add scheduled publishing | `.github/workflows/monitor.yml` or backend worker | Scheduler can run `npm run monitor && npm run monitor:validate` and publish JSON | live scheduler run |
-| P1 | Add history and diff alerts | `data/history/*.json`, notification script | Stock changes can be tracked over time | dry-run diff |
+| P1 — implemented | Record stock and comparable price changes | `scripts/radar-events.mjs`, `data/products.json` | Conservative events persist between scheduled runs | offline multi-run collector tests |
 | P1 | Add provider-specific detail pages | `reviews/*.html` | Rows link to source-backed detail | browser QA |
 | P2 | Add Telegram/Bark/email notifications | future script | Opt-in alert destination works | secret-backed action |
 

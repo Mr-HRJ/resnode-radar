@@ -1,656 +1,427 @@
-import { renderDirectory, bindDirectory, providerFor } from "./directory.js";
+import { renderDirectory, bindDirectory } from "./directory.js";
 import { priceQuote } from "./pricing.js";
 import { state } from "./state.js";
-import { setText, setHidden, debounce, formatDateTime, formatRelativeAge, text, escapeHtml, safeUrl } from "./util.js";
-import { statusLabels, categoryNames, productCategories, productCategory, ipTypeCategories, ipTypeOrder, priceBands, statusClass, statusRank, normalizeProduct, priceBandFor, numericStockCount } from "./product.js";
+import { setText, setHidden, debounce, formatDateTime, formatRelativeAge, text, escapeHtml as html, safeUrl } from "./util.js";
+import { statusLabels, categoryNames, productCategories, productCategory, ipTypeCategories, ipTypeOrder, statusRank, normalizeProduct, numericStockCount } from "./product.js";
 import { filterBaseProducts, visibleProducts } from "./filter.js";
+import { routeOptions, monitorFreshness } from "./discovery.js";
+import { loadSaved, saveSaved } from "./saved.js";
+import { icon, hydrateIcons } from "./icons.js";
+import { tableRowHtml, cardHtml, compareHtml } from "./product-view.js";
 
-let dataLoadError = "";
-let page = 1;
 const pageSize = 30;
-let activeView = "inventory";
+const maxCompare = 4;
+const views = {
+  inventory: { title: "发现好 VPS，少一点折腾。", description: "从建站开发到家宽住宅，把配置、线路与价格放在一起，找到适合你的下一台 VPS。" },
+  providers: { title: "发现更多，值得了解的厂商。", description: "从品牌、地区和产品特征出发，查看公开套餐与每一家厂商的采集状态。" },
+  activity: { title: "库存与价格的变化，都在这里。", description: "关注真实的可订购状态与价格变化，回到来源确认每一次发现。" },
+  guide: { title: "选购 VPS，先把这些弄明白。", description: "读懂线路、算清账单、核对库存证据，为下一台 VPS 做好功课。" }
+};
+const selectBindings = [
+  ["region", "[data-filter-region]"], ["provider", "[data-filter-provider]"], ["ipType", "[data-filter-ip-type]"],
+  ["status", "[data-filter-status]"], ["currency", "[data-filter-currency]"], ["billing", "[data-filter-billing]"]
+];
+let dataLoadError = "", page = 1, activeView = "inventory", layout = "table", eventType = "all", loadSequence = 0, toastTimer;
+let lastLoadAt = 0, loading = false;
+const each = (selector, fn) => document.querySelectorAll(selector).forEach(fn);
+const bind = (selector, event, fn) => each(selector, (node) => node.addEventListener(event, fn));
+const focusProductControl = (attribute, key, location) => {
+  const node = [...document.querySelectorAll(`[${attribute}]`)].find((n) => n.getAttribute(attribute) === key && (!location || n.dataset.detailLocation === location) && (typeof n.getClientRects !== "function" || n.getClientRects().length > 0));
+  node?.focus?.({ preventScroll: true });
+};
 
-function toggleTheme() {
-  const current = document.documentElement.getAttribute("data-theme");
-  const next = current === "dark" ? "light" : "dark";
-  document.documentElement.setAttribute("data-theme", next);
-  try {
-    localStorage.setItem("fff-ui-theme", next);
-  } catch {
-    /* localStorage 不可用时忽略 */
-  }
-  syncThemeToggle();
+function toast(message) {
+  const node = document.querySelector("[data-toast]");
+  if (!node) return;
+  node.textContent = message;
+  node.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { node.hidden = true; }, 3200);
 }
-
 function syncThemeToggle() {
   const isDark = document.documentElement.getAttribute("data-theme") === "dark";
-  document.querySelectorAll("[data-theme-toggle]").forEach((btn) => {
-    btn.textContent = isDark ? "☀" : "☾";
+  each("[data-theme-toggle]", (button) => {
+    button.innerHTML = icon(isDark ? "sun" : "moon");
+    button.setAttribute("aria-label", isDark ? "切换到浅色模式" : "切换到深色模式");
   });
 }
-
-function renderEvidenceBadge(product) {
-  const badge = product._evidenceBadge;
-  return `<span class="chip chip-evidence ${escapeHtml(badge.className)}">${escapeHtml(badge.label)}</span>`;
-}
-
-function riskTagSeverity(tag) {
-  const severity = String(tag?.severity || "").toLowerCase();
-  return severity === "low" || severity === "medium" || severity === "high" ? severity : "medium";
-}
-
-function renderRiskTags(product) {
-  const tags = Array.isArray(product.riskTags) ? product.riskTags : [];
-  return tags
-    .filter((tag) => tag && hasDisplayValue(tag.label))
-    .map((tag) => {
-      const severity = riskTagSeverity(tag);
-      const title = hasDisplayValue(tag.value) ? text(tag.value) : text(tag.label);
-      return `<span class="chip chip-risk is-${escapeHtml(severity)}" title="${escapeHtml(title)}">${escapeHtml(text(tag.label))}</span>`;
-    })
-    .join("");
-}
-
-function productHref(product) {
-  return safeUrl(product.orderUrl || product.sourceUrl || product.finalUrl);
-}
-
-function hasDisplayValue(value) {
-  if (value === undefined || value === null) return false;
-  const valueText = String(value).trim();
-  return valueText !== "" && valueText !== "-" && valueText !== "—";
-}
-
-function displayValue(value, fallback) {
-  return hasDisplayValue(value) ? text(value) : fallback;
-}
-
-function renderSpecCell(product) {
-  const lines = [];
-  if (hasDisplayValue(product.hardware)) {
-    lines.push(`<span class="spec-line spec-hw">${escapeHtml(text(product.hardware))}</span>`);
-  }
-  if (hasDisplayValue(product.bandwidth)) {
-    lines.push(`<span class="spec-line spec-bw">${escapeHtml(text(product.bandwidth))}</span>`);
-  }
-  return lines.length > 0 ? lines.join("") : '<span class="spec-empty">规格未标明</span>';
-}
-
-function detailRowHtml(product) {
-  const stock = numericStockCount(product);
-  const sourceHref = safeUrl(product.sourceUrl || product.finalUrl);
-  return `
-    <tr class="row-detail">
-      <td colspan="7">
-        <div class="row-detail-inner">
-          <dl class="detail-grid">
-            <div><dt>产品</dt><dd>${escapeHtml(text(product.name))}</dd></div>
-            <div><dt>商家</dt><dd>${escapeHtml(text(product.provider))}</dd></div>
-            <div><dt>产品类别</dt><dd>${escapeHtml(categoryNames[productCategory(product)])}</dd></div>
-            <div><dt>区域 / 线路</dt><dd>${escapeHtml(text(product.region))} · ${escapeHtml(text(product.route))}</dd></div>
-            <div><dt>IP 类型</dt><dd>${escapeHtml(product._ipType.label)}</dd></div>
-            <div><dt>硬件配置</dt><dd>${escapeHtml(displayValue(product.hardware, "配置未标明"))}</dd></div>
-            <div><dt>流量 / 带宽</dt><dd>${escapeHtml(displayValue(product.bandwidth, "流量未标明"))}</dd></div>
-            <div><dt>价格</dt><dd>${escapeHtml(displayValue(product.price, "价格未标明"))}</dd></div>
-            <div><dt>库存</dt><dd>${stock !== null ? escapeHtml(String(stock)) : "未注明"}</dd></div>
-            <div><dt>状态</dt><dd>${escapeHtml(text(product.statusLabel, statusLabels[product.status] ?? product.status))}</dd></div>
-            <div><dt>证据口径</dt><dd>${escapeHtml(product._evidenceBadge.label)}</dd></div>
-            <div><dt>风险标签</dt><dd class="detail-risk-tags">${renderRiskTags(product) || "—"}</dd></div>
-            <div><dt>抓取时间</dt><dd>${escapeHtml(formatDateTime(product.fetchedAt))}</dd></div>
-            <div><dt>来源</dt><dd><a href="${escapeHtml(sourceHref)}" target="_blank" rel="nofollow noopener">${escapeHtml(text(product.sourceUrl || product.finalUrl, "—"))}</a></dd></div>
-          </dl>
-          <p class="detail-evidence">${escapeHtml(text(product.evidence))}</p>
-        </div>
-      </td>
-    </tr>
-  `;
-}
-
-function priceHtml(product) {
-  const q = priceQuote(product);
-  if (q.amount === null) return '<span class="spec-empty">价格未标明</span>';
-  return `<strong><small>${escapeHtml(q.currency || "币种待核对")}</small>${q.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong><span class="price-cycle">${escapeHtml(q.period)}${q.baseOnly ? "起" : ""}</span>${q.monthly !== null && q.months > 1 ? `<span class="price-equivalent">折合 ${escapeHtml(q.currency || "")} ${(q.monthly).toFixed(2)}/月</span>` : ""}`;
-}
-function renderTable(resetPage = false) {
-  if (resetPage) page = 1;
-  syncActiveCategory();
-  document.querySelectorAll("[data-title-category]").forEach((node) => { node.textContent = categoryNames[state.activeCategory]; });
-  syncTableSortIndicator();
-  syncQuery();
-  const all = visibleProducts();
-  const pages = Math.max(1, Math.ceil(all.length / pageSize));
-  page = Math.min(page, pages);
-  const list = all.slice((page - 1) * pageSize, page * pageSize);
-  setText("[data-page-label]", `${page} / ${pages}`);
-  document.querySelectorAll("[data-page-prev]").forEach((b) => { b.disabled = page <= 1; });
-  document.querySelectorAll("[data-page-next]").forEach((b) => { b.disabled = page >= pages; });
-  if (list.length === 0) {
-    renderEmpty(dataLoadError || "没有符合条件的套餐。试试减少筛选条件，或到厂商目录查看采集状态。");
-    renderSelectedCount();
-    return;
-  }
-  const tableBody = document.querySelector("[data-products]");
-  if (tableBody) tableBody.innerHTML = list.map((product) => {
-    const checked = state.selected.has(product._stableKey) ? "checked" : "";
-    const isOpen = state.expanded.has(product._stableKey);
-    const isActionable = product.status === "available" && product.orderUrl;
-    const href = productHref(product);
-    const provider = providerFor(product)?.name || product.provider;
-    const main = `<tr data-key="${escapeHtml(product._stableKey)}" class="${isOpen ? "is-open" : ""}">
-      <td class="cell-check"><input data-select="${escapeHtml(product._stableKey)}" type="checkbox" ${checked} aria-label="选择 ${escapeHtml(provider)} ${escapeHtml(text(product.name))} 对比" /></td>
-      <td class="cell-product"><a class="prov" href="${escapeHtml(href)}" target="_blank" rel="nofollow noopener">${escapeHtml(provider)}</a><span class="prov-sub">${escapeHtml(text(product.name))}</span></td>
-      <td class="cell-region"><span>${escapeHtml(text(product.region, "地区未注明"))}</span><span class="chip chip-ip ${escapeHtml(product._ipType.className)}">${escapeHtml(product._ipType.label)}</span></td>
-      <td class="cell-spec">${product.route ? `<span class="route-line">${escapeHtml(product.route)}</span>` : ""}${renderSpecCell(product)}</td>
-      <td class="cell-price">${priceHtml(product)}</td>
-      <td class="cell-status"><span class="chip chip-status ${escapeHtml(statusClass(product.status))}">${escapeHtml(text(product.statusLabel, statusLabels[product.status]))}</span>${renderEvidenceBadge(product)}</td>
-      <td><a class="link ${isActionable ? "" : "is-soft"}" href="${escapeHtml(href)}" target="_blank" rel="nofollow noopener">${isActionable ? "官网购买" : "查看官网"} ↗</a><button type="button" class="detail-button" data-detail="${escapeHtml(product._stableKey)}" aria-expanded="${isOpen}">${isOpen ? "收起详情" : "详情与来源"}</button></td>
-    </tr>`;
-    return isOpen ? main + detailRowHtml(product) : main;
-  }).join("");
-  document.querySelectorAll("[data-detail]").forEach((button) => button.addEventListener("click", () => {
-    const key = button.dataset.detail;
-    if (state.expanded.has(key)) state.expanded.delete(key); else state.expanded.add(key);
-    renderTable(false);
-    const current = [...document.querySelectorAll("[data-detail]")].find((b) => b.dataset.detail === key);
-    current?.focus?.();
-  }));
-  renderMobileCards(list);
-  renderResultCount(all.length);
-  bindRowSelection();
-  renderSelectedCount();
-}
-
-function renderMobileCards(list, emptyMessage = "没有符合条件的套餐。请减少筛选条件，或查看厂商目录。") {
-  const container = document.querySelector("[data-mobile-products]");
-  if (!container) return;
-  if (!list.length) { container.innerHTML = `<p class="empty-row">${escapeHtml(emptyMessage)}</p>`; return; }
-  container.innerHTML = list.map((product) => {
-    const provider = providerFor(product)?.name || product.provider;
-    const checked = state.selected.has(product._stableKey) ? "checked" : "";
-    return `<article class="mobile-product-card"><div class="mobile-card-head"><label><input data-select="${escapeHtml(product._stableKey)}" type="checkbox" ${checked} aria-label="选择 ${escapeHtml(provider)} ${escapeHtml(text(product.name))} 对比" /><span>${escapeHtml(provider)}</span></label><span class="chip chip-status ${escapeHtml(statusClass(product.status))}">${escapeHtml(text(product.statusLabel, statusLabels[product.status]))}</span></div>
-      <h3>${escapeHtml(text(product.name))}</h3><p class="mobile-card-specs">${escapeHtml(text(product.region, "地区未注明"))} / ${escapeHtml(categoryNames[productCategory(product)])}<br>${escapeHtml(displayValue(product.hardware, "配置未注明"))}<br>${escapeHtml([product.route, product.bandwidth].filter(Boolean).join(" / "))}</p>
-      <div class="mobile-card-footer"><div class="cell-price">${priceHtml(product)}</div><a class="link" href="${escapeHtml(productHref(product))}" target="_blank" rel="nofollow noopener">${product.status === "available" ? "官网购买" : "查看官网"} ↗</a></div>
-      <details><summary>IP 特征与来源证据</summary><dl><div><dt>IP 特征</dt><dd>${escapeHtml(product._ipType.label)}</dd></div><div><dt>抓取时间</dt><dd>${escapeHtml(formatDateTime(product.fetchedAt))}</dd></div><div><dt>证据</dt><dd>${renderEvidenceBadge(product)}</dd></div><div><dt>提示</dt><dd>${renderRiskTags(product)}</dd></div></dl><p class="detail-evidence">${escapeHtml(text(product.evidence))}</p><a href="${escapeHtml(safeUrl(product.sourceUrl))}" target="_blank" rel="noopener nofollow">查看官方来源</a></details></article>`;
-  }).join("");
-}
-
-function renderEmpty(message) {
-  const tableBody = document.querySelector("[data-products]");
-  if (tableBody) {
-    tableBody.innerHTML = `
-      <tr>
-        <td class="empty-row" colspan="7">${escapeHtml(message)}</td>
-      </tr>
-    `;
-  }
-  renderMobileCards([], message);
-  renderResultCount(0);
-}
-
-function renderResultCount(count) {
-  const total = filterBaseProducts().length;
-  document.querySelectorAll("[data-result-count]").forEach((node) => {
-    node.textContent = count > pageSize ? `显示 ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, count)} / ${count} 条` : `显示 ${count} / ${total} 条`;
-  });
-}
-
-function renderSelectedCount() {
-  document.querySelectorAll("[data-selected-count]").forEach((node) => {
-    node.textContent = String(state.selected.size);
-  });
-  document.querySelectorAll("[data-open-compare]").forEach((button) => {
-    button.disabled = state.selected.size < 2;
-  });
-}
-
-function bindRowSelection() {
-  document.querySelectorAll("[data-select]").forEach((input) => {
-    input.addEventListener("change", () => {
-      if (input.checked) state.selected.add(input.dataset.select);
-      else state.selected.delete(input.dataset.select);
-      const escapedKey = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(input.dataset.select) : input.dataset.select.replaceAll('"', '\\"');
-      document.querySelectorAll(`[data-select="${escapedKey}"]`).forEach((peer) => {
-        peer.checked = input.checked;
-      });
-      renderSelectedCount();
-    });
-  });
-}
-
-function syncActiveCategory() {
-  document.querySelectorAll("[data-category]").forEach((item) => {
-    item.classList.toggle("is-active", item.dataset.category === state.activeCategory);
-  });
-  document.querySelectorAll("[data-ip-type]").forEach((item) => {
-    item.classList.toggle("is-active", item.dataset.ipType === state.filters.ipType);
-  });
-}
-
-function renderIpDist() {
-  const container = document.querySelector("[data-ip-dist]");
-  if (!container) return;
-  const products = filterBaseProducts();
-  const total = products.length || 1;
-  container.innerHTML = ipTypeCategories
-    .map((cat) => {
-      const count = products.filter((p) => p._ipType.value === cat.value).length;
-      const pct = ((count / total) * 100).toFixed(1);
-      return `
-        <button class="dist-row" data-ip-type="${cat.value}" type="button">
-          <span class="dist-dot" style="--c:${cat.dot}"></span>
-          <span class="dist-name">${cat.label}</span>
-          <span class="dist-track"><span class="dist-fill" style="--c:${cat.dot};width:${pct}%"></span></span>
-          <span class="dist-count">${count}</span>
-          <span class="dist-pct">${pct}%</span>
-        </button>
-      `;
-    })
-    .join("");
-  container.querySelectorAll("[data-ip-type]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.filters.ipType = btn.dataset.ipType;
-      syncFilterControls();
-      renderTable(true);
-      document.querySelector("#products")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  });
-  syncActiveCategory();
-}
-
-function renderCounts() {
-  const counts = { all: state.products.length };
-  for (const category of productCategories) {
-    counts[category] = state.products.filter((p) => productCategory(p) === category).length;
-  }
-
-  for (const [category, count] of Object.entries(counts)) {
-    setText(`[data-count-${category}]`, count);
-    if (category === "unclassified") setHidden(`[data-category="${category}"]`, count === 0);
-  }
-
-  if (state.activeCategory !== "all" && counts[state.activeCategory] === 0) {
-    state.activeCategory = "all";
-  }
-  syncActiveCategory();
-  renderIpDist();
+function toggleTheme() {
+  const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem("fff-ui-theme", next); } catch { /* Keep the theme for this visit. */ }
+  syncThemeToggle();
 }
 
 function renderSummary() {
   setText("[data-sync]", state.payload ? formatDateTime(state.payload.generatedAt) : "-");
-  setText(
-    "[data-monitor-summary]",
-    state.payload
-      ? `来源 ${state.payload.sourceCount} 个，记录 ${state.payload.summary.total} 条，可订购 ${state.payload.summary.available ?? 0} 条，不可订购 ${state.payload.summary.unavailable ?? 0} 条，被阻断 ${state.payload.summary.blocked ?? 0} 条，失败 ${state.payload.summary.error ?? 0} 条。`
-      : dataLoadError || "监控数据尚未加载。"
-  );
-
-  const statusNodes = document.querySelectorAll("[data-monitor-status]");
+  const freshness = monitorFreshness(state.payload?.generatedAt);
+  setText("[data-freshness]", state.payload ? freshness.label : "正在读取数据");
+  setHidden("[data-stale-notice]", !state.payload || !freshness.stale);
+  setText("[data-monitor-summary]", state.payload
+    ? `来源 ${state.payload.sourceCount} 个，记录 ${state.payload.summary.total} 条，可订购 ${state.payload.summary.available ?? 0} 条，不可订购 ${state.payload.summary.unavailable ?? 0} 条，访问受限 ${state.payload.summary.blocked ?? 0} 条，失败 ${state.payload.summary.error ?? 0} 条。`
+    : dataLoadError || "监控数据尚未加载。");
   if (!state.payload) {
-    statusNodes.forEach((status) => {
-      status.textContent = dataLoadError ? "本站数据加载失败" : "加载监控数据中";
-      status.classList.toggle("has-warning", Boolean(dataLoadError));
-    });
-    setText("[data-stat-total]", "-");
-    setText("[data-stat-available]", "-");
-    setText("[data-stat-unavailable]", "-");
-    setText("[data-stat-sources]", "-");
+    each("[data-monitor-status]", (node) => { node.textContent = dataLoadError ? "本站数据加载失败" : "加载监控数据中"; node.classList.toggle("has-warning", Boolean(dataLoadError)); });
+    for (const selector of ["[data-stat-total]", "[data-stat-available]", "[data-stat-unavailable]", "[data-stat-sources]", "[data-stat-exact]", "[data-trust-age]"]) setText(selector, "-");
     setText("[data-trust-state]", dataLoadError ? "本站监控数据不可用" : "等待真实监控数据");
-    setText("[data-trust-age]", "-");
     setText("[data-trust-freshness]", dataLoadError ? "当前库存未知" : "加载中");
-
+    setText("[data-fx-note]", "");
     return;
   }
-
   setText("[data-stat-total]", state.products.length);
   setText("[data-stat-available]", state.products.filter((p) => p.status === "available").length);
+  setText("[data-stat-exact]", state.products.filter((p) => p.status === "available" && numericStockCount(p) > 0).length);
   setText("[data-stat-unavailable]", state.payload.summary.unavailable ?? 0);
   setText("[data-stat-sources]", state.payload.sourceCount);
-
-  const directProblems = (state.payload.summary.blocked ?? 0) + (state.payload.summary.error ?? 0);
-  const snapshotCount = state.products.filter((product) => product._evidenceBadge.value === "snapshot").length;
-  const unavailableCount = state.products.filter((product) => product.status === "unavailable").length;
-  const hasProblems = directProblems > 0;
-  statusNodes.forEach((status) => {
-    status.textContent = hasProblems ? "监控有异常源" : "监控正常";
-    status.classList.toggle("has-warning", hasProblems);
-  });
-
+  const hasProblems = (state.payload.summary.blocked ?? 0) + (state.payload.summary.error ?? 0) > 0;
+  each("[data-monitor-status]", (node) => { node.textContent = hasProblems ? "监控有异常源" : "监控正常"; node.classList.toggle("has-warning", hasProblems); });
+  const snapshots = state.products.filter((p) => p._evidenceBadge.value === "snapshot").length;
   setText("[data-trust-state]", `已加载 ${state.products.length} 条真实记录`);
   setText("[data-trust-age]", formatRelativeAge(state.payload.generatedAt));
-  setText(
-    "[data-trust-freshness]",
-    snapshotCount > 0
-      ? `${snapshotCount} 条第三方快照需复核`
-      : unavailableCount > 0
-        ? `${unavailableCount} 条不可订购`
-        : "官方入口可核验"
-  );
-
+  setText("[data-trust-freshness]", snapshots ? `${snapshots} 条第三方快照需复核` : "官方入口可核验");
+  const fx = state.payload.exchangeRates;
+  setText("[data-fx-note]", fx?.date ? `人民币参考汇率：ECB ${fx.date}，非实际扣款价。` : "汇率暂不可用，价格保留原币种。");
 }
-
-function renderSkeleton() {
-  const tableBody = document.querySelector("[data-products]");
-  if (!tableBody) return;
-  tableBody.innerHTML = Array.from({ length: 8 }, (_, i) => `
-    <tr class="skel-row">
-      <td colspan="7"><span class="skel" style="width:${58 + (i % 3) * 12}%"></span></td>
-    </tr>
-  `).join("");
+function renderCounts() {
+  setText("[data-count-all]", state.products.length);
+  for (const category of productCategories) {
+    const count = state.products.filter((p) => productCategory(p) === category).length;
+    setText(`[data-count-${category}]`, count);
+    if (category === "unclassified") setHidden(`[data-category="${category}"]`, count === 0);
+  }
+  renderIpDist();
 }
-
+function renderIpDist() {
+  const container = document.querySelector("[data-ip-dist]");
+  if (!container) return;
+  const products = filterBaseProducts();
+  container.innerHTML = ipTypeCategories.map((type) => `<button class="dist-row" data-ip-type="${type.value}" type="button">${html(type.label)}<span class="dist-count">${products.filter((p) => p._ipType.value === type.value).length}</span></button>`).join("");
+  bind("[data-ip-type]", "click", (event) => { state.filters.ipType = event.currentTarget.dataset.ipType; syncFilterControls(); renderTable(true); });
+}
+function renderResultCount(count) {
+  const total = filterBaseProducts().length;
+  setText("[data-result-count]", count > pageSize ? `显示 ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, count)} / ${count} 条` : `显示 ${count} / ${total} 条`);
+}
+function renderSelectedCount() {
+  setText("[data-selected-count]", state.selected.size);
+  setText("[data-saved-count]", state.saved.size);
+  setHidden("[data-compare-dock]", state.selected.size === 0);
+  document.body?.classList.toggle("has-comparison", state.selected.size > 0);
+  each("[data-open-compare]", (button) => { button.disabled = state.selected.size < 2; });
+  const names = state.products.filter((p) => state.selected.has(p._stableKey));
+  const holder = document.querySelector("[data-compare-names]");
+  if (holder) holder.innerHTML = names.map((p) => `<span title="${html(text(p.name))}">${html(p.provider)}</span>`).join("");
+}
+function emptyHtml(message) {
+  return `${icon(dataLoadError ? "info" : state.savedOnly ? "bookmark" : "search")}<h3>${dataLoadError ? "暂时无法读取库存" : state.savedOnly ? "这里还没有匹配的收藏" : "没有找到匹配的套餐"}</h3><p>${html(message)}</p><button type="button" data-empty-action>${dataLoadError ? "重新读取数据" : "查看全部套餐"}</button>`;
+}
+function renderEmpty(message) {
+  const markup = emptyHtml(message);
+  const body = document.querySelector("[data-products]");
+  if (body) body.innerHTML = `<tr><td class="empty-row" colspan="7">${markup}</td></tr>`;
+  const cards = document.querySelector("[data-mobile-products]");
+  if (cards) cards.innerHTML = `<div class="empty-state">${markup}</div>`;
+  bind("[data-empty-action]", "click", () => dataLoadError ? loadMonitorData() : clearAllFilters());
+  renderResultCount(0);
+}
+function syncFilterControls() {
+  each("[data-search]", (input) => { input.value = state.filters.search; });
+  for (const [key, selector] of selectBindings) each(selector, (select) => { select.value = state.filters[key]; });
+  each("[data-sort]", (select) => { select.value = state.activeSort; });
+  each("[data-available-only]", (input) => { input.checked = state.filters.status === "available"; });
+}
+function syncActiveControls() {
+  for (const [attribute, value] of [["category", state.activeCategory], ["region", state.filters.region], ["route", state.filters.route], ["ip-type", state.filters.ipType]]) {
+    each(`[data-${attribute}]`, (button) => { const active = button.getAttribute(`data-${attribute}`) === value; button.classList.toggle("is-active", active); button.setAttribute("aria-pressed", String(active)); });
+  }
+  each("[data-saved-filter]", (button) => { button.classList.toggle("is-active", state.savedOnly); button.setAttribute("aria-pressed", String(state.savedOnly)); });
+  setHidden("[data-saved-indicator]", !state.savedOnly);
+  const count = Object.entries(state.filters).filter(([key, value]) => key !== "price" && value && value !== "all").length;
+  setText("[data-filter-count]", count);
+  setHidden("[data-filter-count]", count === 0);
+  const active = document.querySelector("[data-active-filters]");
+  if (!active) return;
+  const labels = { search: "搜索", region: "地区", provider: "厂商", ipType: "IP", status: "库存", currency: "币种", billing: "周期", route: "线路" };
+  active.innerHTML = Object.entries(state.filters).filter(([key, value]) => labels[key] && value && value !== "all").map(([key, value]) => {
+    const selector = selectBindings.find(([field]) => key === field)?.[1];
+    const selected = selector ? [...document.querySelectorAll(`${selector} option`)].find((option) => option.getAttribute("value") === value)?.textContent : null;
+    const title = selected || (key === "route" ? routeOptions.find((option) => option.value === value)?.label : value) || value;
+    return `<button type="button" data-remove-filter="${key}" aria-label="移除${labels[key]}筛选">${labels[key]}：${html(title)}${icon("x")}</button>`;
+  }).join("");
+  active.hidden = active.innerHTML === "";
+  bind("[data-remove-filter]", "click", (event) => { const key = event.currentTarget.dataset.removeFilter; state.filters[key] = key === "search" ? "" : "all"; syncFilterControls(); renderTable(true); });
+}
+function renderTable(resetPage = false) {
+  if (resetPage) page = 1;
+  syncActiveControls();
+  setText("[data-title-category]", categoryNames[state.activeCategory]);
+  syncQuery();
+  const all = visibleProducts();
+  const pages = Math.max(1, Math.ceil(all.length / pageSize));
+  page = Math.max(1, Math.min(page, pages));
+  setText("[data-page-label]", `${page} / ${pages}`);
+  each("[data-page-prev]", (button) => { button.disabled = page <= 1; });
+  each("[data-page-next]", (button) => { button.disabled = page >= pages; });
+  const list = all.slice((page - 1) * pageSize, page * pageSize);
+  if (!list.length) {
+    renderEmpty(dataLoadError || (state.savedOnly ? "点击套餐旁的书签即可收藏。收藏保存在本机；本轮未采集到或不符合筛选条件的收藏不会出现在这里。" : "试试减少筛选条件，或到商家导航查看采集状态。"));
+  } else {
+    const table = document.querySelector("[data-products]");
+    if (table) table.innerHTML = list.map(tableRowHtml).join("");
+    const cards = document.querySelector("[data-mobile-products]");
+    if (cards) cards.innerHTML = list.map(cardHtml).join("");
+    bindProductControls();
+    renderResultCount(all.length);
+  }
+  renderSelectedCount();
+}
+function bindProductControls() {
+  bind("[data-select]", "change", (event) => {
+    const input = event.currentTarget, key = input.dataset.select;
+    if (input.checked && !state.selected.has(key) && state.selected.size >= maxCompare) { input.checked = false; toast("最多对比 4 个方案，请先取消一个。"); return; }
+    if (input.checked) state.selected.add(key); else state.selected.delete(key);
+    each("[data-select]", (peer) => { if (peer.dataset.select === key) peer.checked = input.checked; });
+    each("[data-key]", (row) => { if (row.dataset.key === key) row.classList.toggle("is-selected", input.checked); });
+    renderSelectedCount();
+  });
+  bind("[data-detail]", "click", (event) => {
+    const { detail: key, detailLocation } = event.currentTarget.dataset;
+    if (state.expanded.has(key)) state.expanded.delete(key); else state.expanded.add(key);
+    renderTable();
+    focusProductControl("data-detail", key, detailLocation);
+  });
+  bind("[data-save]", "click", (event) => {
+    const key = event.currentTarget.dataset.save;
+    const saved = !state.saved.has(key);
+    if (saved) state.saved.add(key); else state.saved.delete(key);
+    const stored = saveSaved(state.saved);
+    renderTable();
+    toast(stored ? saved ? "已收藏，可在「我的收藏」中查看" : "已取消收藏" : "本次访问已保存；浏览器存储不可用，关闭页面后不会保留。");
+    focusProductControl("data-save", key);
+  });
+}
+function clearAllFilters(render = true) {
+  state.activeCategory = "all";
+  state.savedOnly = false;
+  resetFilters(render);
+}
+function resetFilters(render = true) {
+  for (const key of Object.keys(state.filters)) state.filters[key] = key === "search" ? "" : "all";
+  syncFilterControls();
+  renderIpDist();
+  if (render) renderTable(true);
+}
+function countedOptions(list, getValue, getLabel = getValue) {
+  const values = new Map();
+  for (const item of list) {
+    const value = getValue(item);
+    if (!value) continue;
+    const option = values.get(value) || { value, label: getLabel(item), count: 0 };
+    option.count += 1; values.set(value, option);
+  }
+  return [...values.values()].sort((a, b) => text(a.label).localeCompare(text(b.label), "zh-CN"));
+}
+function populateSelect(selector, allLabel, options, key) {
+  const rendered = [...options];
+  if (state.filters[key] !== "all" && !rendered.some((option) => option.value === state.filters[key])) rendered.push({ value: state.filters[key], label: state.filters[key], count: null });
+  each(selector, (select) => { select.innerHTML = `<option value="all">${allLabel}</option>${rendered.map((option) => `<option value="${html(option.value)}">${html(option.count === null ? `${option.label}（当前筛选）` : `${option.label} (${option.count})`)}</option>`).join("")}`; select.value = state.filters[key]; });
+}
+function hydrateFilterOptions() {
+  populateSelect("[data-filter-region]", "全部地区", countedOptions(state.products, (p) => p.region), "region");
+  populateSelect("[data-filter-provider]", "全部厂商", countedOptions(state.products, (p) => p.provider), "provider");
+  populateSelect("[data-filter-ip-type]", "全部 IP 特征", countedOptions(state.products, (p) => p._ipType.value, (p) => p._ipType.label).sort((a, b) => ipTypeOrder.indexOf(a.value) - ipTypeOrder.indexOf(b.value)), "ipType");
+  populateSelect("[data-filter-status]", "全部状态", countedOptions(state.products, (p) => p.status, (p) => statusLabels[p.status] || p.status).sort((a, b) => statusRank(a.value) - statusRank(b.value)), "status");
+  populateSelect("[data-filter-currency]", "全部币种", countedOptions(state.products, (p) => priceQuote(p).currency), "currency");
+}
 function openCompare() {
   const chosen = state.products.filter((product) => state.selected.has(product._stableKey));
+  if (chosen.length < 2) return;
   const grid = document.querySelector("[data-compare-grid]");
-  if (!grid) return;
-  grid.innerHTML = chosen
-    .map(
-      (product) => `
-        <article class="compare-card">
-          <h3>${escapeHtml(text(product.provider))}</h3>
-          <p>${escapeHtml(text(product.name))}</p>
-          <dl>
-            <div><dt>区域</dt><dd>${escapeHtml(text(product.region))}</dd></div>
-            <div><dt>类型</dt><dd>${escapeHtml(product._ipType.label)}</dd></div>
-            <div><dt>线路</dt><dd>${escapeHtml(text(product.route))}</dd></div>
-            <div><dt>配置</dt><dd>${escapeHtml(displayValue(product.hardware, "配置未标明"))}</dd></div>
-            <div><dt>流量</dt><dd>${escapeHtml(displayValue(product.bandwidth, "流量未标明"))}</dd></div>
-            <div><dt>价格</dt><dd>${escapeHtml(displayValue(product.price, "价格未标明"))}</dd></div>
-            <div><dt>状态</dt><dd>${escapeHtml(text(product.statusLabel, statusLabels[product.status] ?? product.status))}</dd></div>
-            <div><dt>证据</dt><dd>${escapeHtml(product._evidenceBadge.label)}</dd></div>
-            <div><dt>风险</dt><dd class="detail-risk-tags">${renderRiskTags(product) || "—"}</dd></div>
-            <div><dt>抓取</dt><dd>${escapeHtml(formatDateTime(product.fetchedAt))}</dd></div>
-          </dl>
-          <p class="evidence">${escapeHtml(text(product.evidence))}</p>
-        </article>
-      `
-    )
-    .join("");
+  if (grid) grid.innerHTML = compareHtml(chosen);
   document.querySelector("[data-compare-dialog]")?.showModal();
 }
-
-function countedOptions(list, valueGetter, labelGetter = valueGetter) {
-  const counts = new Map();
-  for (const item of list) {
-    const value = valueGetter(item);
-    if (!value) continue;
-    const current = counts.get(value) || { value, label: labelGetter(item), count: 0 };
-    current.count += 1;
-    counts.set(value, current);
-  }
-  return [...counts.values()].sort((a, b) => text(a.label, "").localeCompare(text(b.label, ""), "zh-CN"));
+function renderEvents() {
+  const container = document.querySelector("[data-event-list]");
+  if (!container) return;
+  const labels = { restock: "恢复可订购", soldout: "变为不可订购", price: "价格变化" };
+  const icons = { restock: "check", soldout: "minus", price: "wallet" };
+  const classes = { restock: "is-available", soldout: "is-unavailable", price: "is-unknown" };
+  const all = (Array.isArray(state.payload?.events) ? state.payload.events : []).filter((event) => labels[event.type] && Date.parse(event.at) >= Date.now() - 7 * 86400000).sort((a, b) => b.at.localeCompare(a.at));
+  const events = all.filter((event) => eventType === "all" || event.type === eventType);
+  setText("[data-event-count]", `${events.length} 条动态 · 近 7 天`);
+  each("[data-event-type]", (button) => { const selected = button.dataset.eventType === eventType; button.classList.toggle("is-active", selected); button.setAttribute("aria-pressed", String(selected)); });
+  container.innerHTML = events.length ? events.map((event) => `<article class="event-row"><div><span class="chip ${classes[event.type]}">${icon(icons[event.type])}${labels[event.type]}</span><p><time datetime="${html(event.at)}">${html(formatDateTime(event.at))}</time></p></div><div><h3>${html(event.provider)} · ${html(event.name)}</h3><p>${html(event.region || "地区未注明")}</p></div><div class="event-price">${event.type === "price" ? `<del>${html(event.previousPrice || "先前价格未注明")}</del>` : ""}${html(event.price || "价格未公开")}</div><a href="${html(safeUrl(event.orderUrl))}" target="_blank" rel="nofollow noopener">核对官方来源 ↗</a></article>`).join("")
+    : `<div class="empty-state">${icon(dataLoadError ? "info" : "activity")}<h2>${dataLoadError ? "动态数据暂不可用" : all.length ? "这个分类暂无变化" : "等待下一次值得关注的变化"}</h2><p>${html(dataLoadError || (all.length ? "可以切换其他动态类型，查看近期库存与价格变化。" : state.payload?.eventTracking?.startedAt ? `已于 ${formatDateTime(state.payload.eventTracking.startedAt)} 建立采集基线。后续发现恢复可订购、变为不可订购或价格变化时，将记录在这里。` : "采集历史尚未建立。首次记录用于建立基线，不会将已有套餐标成刚刚补货。"))}</p></div>`;
 }
 
-function populateSelect(selector, allLabel, options, currentValue) {
-  document.querySelectorAll(selector).forEach((select) => {
-    if (!(select instanceof HTMLSelectElement)) return;
-    const previous = options.some((option) => option.value === currentValue) ? currentValue : "all";
-    select.innerHTML = [
-      `<option value="all">${escapeHtml(allLabel)}</option>`,
-      ...options.map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(`${option.label} (${option.count})`)}</option>`)
-    ].join("");
-    select.value = previous;
-  });
-}
-
-function validFilterValue(key, options) {
-  if (state.filters[key] !== "all" && !options.some((option) => option.value === state.filters[key])) {
-    state.filters[key] = "all";
-  }
-  return state.filters[key];
-}
-
-function hydrateFilterOptions() {
-  const regionOptions = countedOptions(state.products, (product) => product.region);
-  const providerOptions = countedOptions(state.products, (product) => product.provider);
-  const ipTypeOptions = countedOptions(
-    state.products,
-    (product) => product._ipType.value,
-    (product) => product._ipType.label
-  ).sort((a, b) => ipTypeOrder.indexOf(a.value) - ipTypeOrder.indexOf(b.value));
-  const statusOptions = countedOptions(
-    state.products,
-    (product) => product.status,
-    (product) => statusLabels[product.status] ?? product.statusLabel ?? product.status
-  ).sort((a, b) => statusRank(a.value) - statusRank(b.value));
-  const priceOptions = priceBands
-    .map((band) => ({
-      value: band.value,
-      label: band.label,
-      count: state.products.filter((product) => priceBandFor(product) === band.value).length
-    }))
-    .filter((band) => band.count > 0);
-
-  populateSelect("[data-filter-region]", "全部区域", regionOptions, validFilterValue("region", regionOptions));
-  populateSelect("[data-filter-provider]", "全部商家", providerOptions, validFilterValue("provider", providerOptions));
-  populateSelect("[data-filter-ip-type]", "全部 IP 类型", ipTypeOptions, validFilterValue("ipType", ipTypeOptions));
-  populateSelect("[data-filter-status]", "全部状态", statusOptions, validFilterValue("status", statusOptions));
-  const currencyOptions = countedOptions(state.products, (p) => priceQuote(p).currency);
-  populateSelect("[data-filter-currency]", "全部币种", currencyOptions, validFilterValue("currency", currencyOptions));
-  populateSelect("[data-filter-price]", "全部价格", priceOptions, validFilterValue("price", priceOptions));
-}
-
-function syncFilterControls() {
-  document.querySelectorAll("[data-search]").forEach((input) => {
-    input.value = state.filters.search;
-  });
-  const selectBindings = [
-    ["[data-filter-region]", state.filters.region],
-    ["[data-filter-provider]", state.filters.provider],
-    ["[data-filter-ip-type]", state.filters.ipType],
-    ["[data-filter-status]", state.filters.status],
-    ["[data-filter-price]", state.filters.price],
-    ["[data-filter-currency]", state.filters.currency]
-  ];
-  for (const [selector, value] of selectBindings) {
-    document.querySelectorAll(selector).forEach((select) => {
-      if ("value" in select) select.value = value;
-    });
+function syncQuery(push = false) {
+  const url = new URL(window.location.href);
+  for (const key of ["view", "category", "q", "region", "provider", "ipType", "status", "currency", "sort", "route", "billing", "saved"]) url.searchParams.delete(key);
+  if (activeView !== "inventory") url.searchParams.set("view", activeView);
+  if (state.activeCategory !== "all") url.searchParams.set("category", state.activeCategory);
+  for (const [key, value] of Object.entries(state.filters)) if (value && value !== "all" && key !== "price") url.searchParams.set(key === "search" ? "q" : key, value);
+  if (state.activeSort !== "recommend") url.searchParams.set("sort", state.activeSort);
+  if (state.savedOnly) url.searchParams.set("saved", "1");
+  if (url.hash === "#guide") url.hash = "";
+  if (url.href !== window.location.href) {
+    if (push && window.history?.pushState) window.history.pushState(null, "", url.href);
+    else window.history?.replaceState(null, "", url.href);
   }
 }
-
-function resetFilters() {
-  state.filters.search = "";
-  state.filters.region = "all";
-  state.filters.provider = "all";
-  state.filters.ipType = "all";
-  state.filters.status = "all";
-  state.filters.price = "all";
-  state.filters.currency = "all";
+function readQuery() {
+  const url = new URL(window.location.href), query = url.searchParams;
+  activeView = Object.hasOwn(views, query.get("view")) ? query.get("view") : url.hash === "#guide" ? "guide" : "inventory";
+  state.activeCategory = productCategories.includes(query.get("category")) ? query.get("category") : "all";
+  state.activeSort = ["price", "cny", "stock", "updated"].includes(query.get("sort")) ? query.get("sort") : "recommend";
+  state.savedOnly = query.get("saved") === "1";
+  for (const key of Object.keys(state.filters)) state.filters[key] = key === "price" ? "all" : query.get(key === "search" ? "q" : key) || (key === "search" ? "" : "all");
+  if (!routeOptions.some((option) => option.value === state.filters.route)) state.filters.route = "all";
+  if (!["all", "1", "3", "6", "12", "long", "unknown"].includes(state.filters.billing)) state.filters.billing = "all";
   syncFilterControls();
-  renderTable(true);
 }
-
-const debouncedRender = debounce(() => renderTable(true), 200);
-
-function syncTableSortIndicator() {
-  document.querySelectorAll("[data-sort-col]").forEach((th) => {
-    th.classList.toggle("is-active", th.dataset.sortCol === state.activeSort);
-  });
+function showView(view, push = false) {
+  activeView = Object.hasOwn(views, view) ? view : "inventory";
+  for (const [name, selector] of [["inventory", "[data-inventory-view]"], ["providers", "[data-directory-view]"], ["activity", "[data-activity-view]"], ["guide", "[data-guide-view]"]]) setHidden(selector, name !== activeView);
+  const title = document.querySelector("[data-view-title]");
+  if (title) title.innerHTML = activeView === "inventory" ? "发现好 VPS，<span>少一点折腾。</span>" : html(views[activeView].title);
+  setText("[data-view-description]", views[activeView].description);
+  each(".primary-nav [data-view]", (button) => { const current = button.dataset.view === activeView; button.classList.toggle("is-active", current); button.setAttribute("aria-current", current ? "page" : "false"); });
+  document.title = `${activeView === "inventory" ? "发现好 VPS，少一点折腾" : activeView === "providers" ? "商家导航" : activeView === "activity" ? "库存动态" : "选购指南"} · VPS 节点雷达`;
+  if (activeView === "activity") renderEvents();
+  syncQuery(push);
+  if (push) document.querySelector("#main")?.scrollIntoView({ block: "start" });
 }
-
-function bindFilterControl(selector, key) {
-  document.querySelectorAll(selector).forEach((control) => {
-    const eventName = key === "search" ? "input" : "change";
-    control.addEventListener(eventName, (event) => {
-      state.filters[key] = event.target.value;
-      if (key === "search") debouncedRender();
-      else renderTable(true);
-    });
-  });
+function setLayout(value) {
+  layout = value === "cards" ? "cards" : "table";
+  document.querySelector(".inventory-panel")?.classList.toggle("is-card-layout", layout === "cards");
+  each("[data-layout]", (button) => { const active = button.dataset.layout === layout; button.classList.toggle("is-active", active); button.setAttribute("aria-pressed", String(active)); });
+  try { localStorage.setItem("resnode-radar:layout", layout); } catch { /* View remains usable without storage. */ }
 }
-
-function bindControls() {
-  document.querySelectorAll("[data-mobile-filter-toggle]").forEach((button) => button.addEventListener("click", () => {
-    const expanded = button.getAttribute("aria-expanded") !== "true";
-    button.setAttribute("aria-expanded", String(expanded));
-    button.textContent = expanded ? "收起筛选" : "展开筛选";
-    document.querySelector(".filter-bar")?.classList.toggle("filters-expanded", expanded);
-  }));
-  document.querySelectorAll("form.filter-bar, form.directory-filters").forEach((form) => form.addEventListener("submit", (event) => event.preventDefault()));
-  document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
-  document.querySelectorAll("[data-page-prev], [data-page-next]").forEach((button) => button.addEventListener("click", () => { page += button.hasAttribute("data-page-next") ? 1 : -1; renderTable(); document.querySelector("#products")?.scrollIntoView({ block: "start" }); }));
-  bindDirectory({ showInventory(provider) { state.activeCategory = "all"; resetFilters(); state.filters.provider = provider.inventoryNames.find((name) => state.products.some((p) => p.provider === name)) || "all"; syncFilterControls(); showView("inventory"); renderTable(true); document.querySelector("#products")?.scrollIntoView({ block: "start" }); } });
-  document.querySelectorAll("[data-category]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.activeCategory = button.dataset.category;
-      resetFilters();
-      renderIpDist();
-      document.querySelector("#products")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  });
-
-  document.querySelectorAll("[data-sort]").forEach((sort) => {
-    sort.addEventListener("change", (event) => {
-      state.activeSort = event.target.value;
-      syncTableSortIndicator();
-      renderTable(true);
-    });
-  });
-
-  document.querySelectorAll("[data-sort-col]").forEach((th) => {
-    th.addEventListener("click", () => {
-      state.activeSort = th.dataset.sortCol;
-      document.querySelectorAll("[data-sort]").forEach((sel) => {
-        if (sel instanceof HTMLSelectElement) sel.value = state.activeSort;
-      });
-      syncTableSortIndicator();
-      renderTable(true);
-    });
-  });
-
-  bindFilterControl("[data-search]", "search");
-  bindFilterControl("[data-filter-region]", "region");
-  bindFilterControl("[data-filter-provider]", "provider");
-  bindFilterControl("[data-filter-ip-type]", "ipType");
-  bindFilterControl("[data-filter-status]", "status");
-  bindFilterControl("[data-filter-price]", "price");
-  bindFilterControl("[data-filter-currency]", "currency");
-
-  document.querySelectorAll("[data-filter-reset]").forEach((button) => {
-    button.addEventListener("click", resetFilters);
-  });
-  document.querySelectorAll("[data-refresh]").forEach((button) => {
-    button.addEventListener("click", () => loadMonitorData());
-  });
-  document.querySelectorAll("[data-open-compare]").forEach((button) => {
-    button.addEventListener("click", openCompare);
-  });
-  document.querySelectorAll("[data-clear-compare]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.selected.clear();
-      renderTable(false);
-    });
-  });
-
-  document.querySelectorAll("[data-copy]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      const command = button.dataset.copy;
-      try {
-        if (navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(command);
-        } else {
-          const textarea = document.createElement("textarea");
-          textarea.value = command;
-          textarea.style.position = "fixed";
-          textarea.style.opacity = "0";
-          document.body.append(textarea);
-          textarea.select();
-          document.execCommand("copy");
-          textarea.remove();
-        }
-        const original = button.textContent;
-        button.textContent = "已复制";
-        window.setTimeout(() => {
-          button.textContent = original;
-        }, 1200);
-      } catch {
-        button.textContent = "复制失败";
-      }
-    });
-  });
-
-  const toTop = document.querySelector("[data-to-top]");
-  if (toTop) {
-    window.addEventListener(
-      "scroll",
-      () => {
-        toTop.classList.toggle("is-visible", window.scrollY > 500);
-      },
-      { passive: true }
-    );
-    toTop.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
-  }
-
-  document.querySelectorAll("[data-theme-toggle]").forEach((btn) => {
-    btn.addEventListener("click", toggleTheme);
-  });
-  syncThemeToggle();
+function setLoading(isLoading) {
+  loading = isLoading;
+  each("[data-refresh]", (button) => { button.disabled = loading; button.setAttribute("aria-busy", String(loading)); });
+  document.querySelector(".inventory-panel")?.classList.toggle("is-loading", loading && Boolean(state.payload));
 }
-
 async function loadMonitorData() {
+  const requestId = ++loadSequence;
+  lastLoadAt = Date.now();
   dataLoadError = "";
+  setLoading(true);
   if (!state.payload) {
     renderSummary();
-    renderMobileCards([], "加载监控数据中…");
+    const body = document.querySelector("[data-products]");
+    if (body) body.innerHTML = Array.from({ length: 6 }, (_, i) => `<tr class="skel-row"><td colspan="7"><span class="skel" style="width:${55 + i % 3 * 12}%"></span></td></tr>`).join("");
+    const cards = document.querySelector("[data-mobile-products]");
+    if (cards) cards.innerHTML = '<div class="empty-state">加载监控数据中…</div>';
   }
-  renderSkeleton();
   try {
-    const response = await fetch(`data/products.json?t=${Date.now()}`, { cache: "no-store" });
+    const response = await fetch(`data/products.json?t=${Date.now()}`, { cache: "no-store", signal: AbortSignal.timeout(20000) });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    state.payload = await response.json();
-    state.records = Array.isArray(state.payload.products) ? state.payload.products : [];
+    const payload = await response.json();
+    if (requestId !== loadSequence) return;
+    if (!payload || !Array.isArray(payload.products) || !payload.summary || typeof payload.summary !== "object" || !Number.isFinite(Date.parse(payload.generatedAt))) throw new Error("数据格式无效");
+    state.payload = payload;
+    state.records = payload.products.filter((record) => record && typeof record === "object");
     state.products = state.records.filter((p) => !p.diagnostic && !["blocked", "error"].includes(p.status)).map(normalizeProduct);
+    const keys = new Set(state.products.map((p) => p._stableKey));
+    state.selected = new Set([...state.selected].filter((key) => keys.has(key)));
+    state.expanded = new Set([...state.expanded].filter((key) => keys.has(key)));
     renderDirectory(state.records, true);
-    state.selected.clear();
+    hydrateFilterOptions();
+    syncFilterControls();
+    renderCounts();
+    renderSummary();
+    renderTable();
+    renderEvents();
+    const compare = document.querySelector("[data-compare-dialog]");
+    if (compare?.open) { if (state.selected.size < 2) compare.close(); else { const grid = document.querySelector("[data-compare-grid]"); if (grid) grid.innerHTML = compareHtml(state.products.filter((p) => state.selected.has(p._stableKey))); } }
+  } catch (error) {
+    if (requestId !== loadSequence) return;
+    dataLoadError = `本站监控数据加载失败：${error.message}。当前库存未知。`;
+    state.payload = null; state.products = []; state.records = []; state.selected.clear(); state.expanded.clear();
+    document.querySelector("[data-compare-dialog]")?.close?.();
+    renderDirectory([], false);
     hydrateFilterOptions();
     syncFilterControls();
     renderCounts();
     renderSummary();
     renderTable(true);
-  } catch (error) {
-    dataLoadError = `本站监控数据加载失败：${error.message}。当前库存未知。`;
-    state.payload = null;
-    state.products = [];
-    state.records = [];
-    renderDirectory([], false);
-    state.selected.clear();
-    hydrateFilterOptions();
-    renderCounts();
-    renderSummary();
-    renderEmpty(dataLoadError);
-    renderSelectedCount();
+    renderEvents();
+  } finally {
+    if (requestId === loadSequence) setLoading(false);
   }
 }
+function bindControls() {
+  bind("form.filter-bar, form.directory-filters", "submit", (event) => event.preventDefault());
+  bind("[data-mobile-filter-toggle]", "click", (event) => {
+    const button = event.currentTarget, expanded = button.getAttribute("aria-expanded") !== "true";
+    button.setAttribute("aria-expanded", String(expanded));
+    setHidden("#advanced-filters", !expanded);
+  });
+  bind("[data-view]", "click", (event) => showView(event.currentTarget.dataset.view, true));
+  bind("[data-category]", "click", (event) => { state.activeCategory = event.currentTarget.dataset.category; resetFilters(); });
+  bind("[data-region]", "click", (event) => { state.filters.region = event.currentTarget.dataset.region; syncFilterControls(); renderTable(true); });
+  bind("[data-route]", "click", (event) => { state.filters.route = event.currentTarget.dataset.route; renderTable(true); });
+  bind("[data-layout]", "click", (event) => setLayout(event.currentTarget.dataset.layout));
+  const debouncedRender = debounce(() => renderTable(true), 180);
+  bind("[data-search]", "input", (event) => { state.filters.search = event.target.value; debouncedRender(); });
+  for (const [key, selector] of selectBindings) bind(selector, "change", (event) => { state.filters[key] = event.target.value; syncFilterControls(); renderTable(true); });
+  bind("[data-sort]", "change", (event) => { state.activeSort = event.target.value; renderTable(true); });
+  bind("[data-available-only]", "change", (event) => { state.filters.status = event.target.checked ? "available" : "all"; syncFilterControls(); renderTable(true); });
+  bind("[data-filter-reset]", "click", resetFilters);
+  bind("[data-saved-filter]", "click", () => { state.savedOnly = !state.savedOnly; renderTable(true); });
+  bind("[data-open-saved]", "click", () => { clearAllFilters(false); state.savedOnly = true; showView("inventory", true); renderTable(true); document.querySelector("#products")?.scrollIntoView({ block: "start" }); });
+  bind("[data-page-prev], [data-page-next]", "click", (event) => { page += event.currentTarget.hasAttribute("data-page-next") ? 1 : -1; renderTable(); document.querySelector("#products")?.scrollIntoView({ block: "start" }); });
+  bind("[data-refresh]", "click", loadMonitorData);
+  bind("[data-open-compare]", "click", openCompare);
+  bind("[data-clear-compare]", "click", () => { state.selected.clear(); renderTable(); });
+  bind("[data-theme-toggle]", "click", toggleTheme);
+  bind("[data-event-type]", "click", (event) => { eventType = event.currentTarget.dataset.eventType; renderEvents(); });
+  bind("[data-guide-category]", "click", (event) => { clearAllFilters(false); state.activeCategory = event.currentTarget.dataset.guideCategory; showView("inventory", true); renderTable(true); });
+  bind("[data-guide-route]", "click", (event) => { clearAllFilters(false); state.filters.route = event.currentTarget.dataset.guideRoute; showView("inventory", true); renderTable(true); });
+  bindDirectory({ showInventory(provider) {
+    clearAllFilters(false);
+    state.filters.provider = provider.inventoryNames.find((name) => state.products.some((p) => p.provider === name)) || "all";
+    syncFilterControls(); showView("inventory", true); renderTable(true); document.querySelector("#products")?.scrollIntoView({ block: "start" });
+  } });
+  bind("dialog", "click", (event) => {
+    if (event.target !== event.currentTarget) return;
+    const box = event.currentTarget.getBoundingClientRect?.();
+    if (box && (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom)) event.currentTarget.close();
+  });
+  const toTop = document.querySelector("[data-to-top]");
+  window.addEventListener("scroll", () => toTop?.classList.toggle("is-visible", window.scrollY > 600), { passive: true });
+  toTop?.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+  window.addEventListener("popstate", () => { readQuery(); showView(activeView); renderTable(true); });
+  window.addEventListener("storage", (event) => { if (event.key === "resnode-radar:saved:v1") { state.saved = loadSaved(); renderTable(); } });
+  const refreshIfDue = () => {
+    if (document.visibilityState !== "visible" || loading) return;
+    renderSummary();
+    if (Date.now() - lastLoadAt >= 5 * 60000) loadMonitorData();
+  };
+  setInterval(refreshIfDue, 60000);
+  document.addEventListener?.("visibilitychange", refreshIfDue);
+  document.addEventListener?.("keydown", (event) => {
+    if (event.key !== "/" || event.ctrlKey || event.metaKey || event.altKey || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.isContentEditable || document.querySelector("dialog[open]")) return;
+    event.preventDefault();
+    if (activeView !== "inventory") showView("inventory", true);
+    document.querySelector("[data-search]")?.focus();
+  });
+}
 
-function showView(view) {
-  activeView = view === "providers" ? "providers" : "inventory";
-  setHidden("[data-inventory-view]", activeView !== "inventory");
-  setHidden("[data-directory-view]", activeView !== "providers");
-  setText("[data-view-title]", activeView === "providers" ? "VPS 厂商目录" : "VPS 库存与价格");
-  document.querySelectorAll(".primary-nav [data-view]").forEach((button) => { button.classList.toggle("is-active", button.dataset.view === activeView); button.setAttribute("aria-current", button.dataset.view === activeView ? "page" : "false"); });
-  syncQuery();
-}
-function syncQuery() {
-  const url = new URL(window.location.href);
-  for (const key of ["view", "category", "q", "region", "provider", "ipType", "status", "currency", "sort"]) url.searchParams.delete(key);
-  if (activeView === "providers") url.searchParams.set("view", "providers");
-  if (state.activeCategory !== "all") url.searchParams.set("category", state.activeCategory);
-  for (const [key, value] of Object.entries(state.filters)) if (value && value !== "all" && key !== "price") url.searchParams.set(key === "search" ? "q" : key, value);
-  if (state.activeSort !== "recommend") url.searchParams.set("sort", state.activeSort);
-  window.history?.replaceState(null, "", url.href);
-}
-function readQuery() {
-  const query = new URL(window.location.href).searchParams;
-  activeView = query.get("view") === "providers" ? "providers" : "inventory";
-  state.activeCategory = productCategories.includes(query.get("category")) ? query.get("category") : "all";
-  state.activeSort = ["price", "stock", "updated"].includes(query.get("sort")) ? query.get("sort") : "recommend";
-  for (const key of ["search", "region", "provider", "ipType", "status", "currency"]) state.filters[key] = query.get(key === "search" ? "q" : key) || (key === "search" ? "" : "all");
-  document.querySelectorAll("[data-sort]").forEach((select) => { select.value = state.activeSort; });
-}
-
+state.payload = null;
+state.products = [];
+state.records = [];
+state.selected.clear();
+state.expanded.clear();
+state.saved = loadSaved();
+hydrateIcons();
 readQuery();
 renderSummary();
 bindControls();
 renderDirectory([], false);
 showView(activeView);
+syncThemeToggle();
+try { setLayout(localStorage.getItem("resnode-radar:layout")); } catch { setLayout("table"); }
+renderSelectedCount();
 loadMonitorData();

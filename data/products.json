@@ -10,6 +10,51 @@
     "blocked": 19,
     "error": 0
   },
+  "events": [],
+  "eventTracking": {
+    "startedAt": "2026-11-10T17:21:34.960Z",
+    "retentionDays": 7,
+    "limit": 300
+  },
+  "exchangeRates": {
+    "base": "CNY",
+    "date": "2026-11-10",
+    "source": "European Central Bank euro foreign exchange reference rates",
+    "sourceUrl": "https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html",
+    "rates": {
+      "EUR": 7.4801,
+      "USD": 6.67032281077,
+      "JPY": 0.0421699176908,
+      "CZK": 0.307355056087,
+      "DKK": 1.0006287289,
+      "GBP": 8.95337841882,
+      "HUF": 0.020607471486,
+      "PLN": 1.70506040574,
+      "RON": 1.39966692863,
+      "SEK": 0.680565917569,
+      "CHF": 8.12789307834,
+      "ISK": 0.0545196793003,
+      "NOK": 0.704639442325,
+      "TRY": 0.132812624843,
+      "AUD": 4.60483870968,
+      "BRL": 1.20148738294,
+      "CAD": 4.7187105728,
+      "CNY": 1,
+      "HKD": 0.85027224262,
+      "IDR": 0.000369290271109,
+      "ILS": 2.10665502577,
+      "INR": 0.0710148436128,
+      "KRW": 0.00498155251871,
+      "MXN": 0.359511301865,
+      "MYR": 1.6445563275,
+      "NZD": 3.75412797992,
+      "PHP": 0.106040544372,
+      "SGD": 5.21806766655,
+      "THB": 0.199352379937,
+      "ZAR": 0.406834510853
+    },
+    "fetchedAt": "2026-11-11T14:54:30.159Z"
+  },
   "products": [
     {
       "id": "catalog-quicksrv:plan:37fa6e1234de0a9d",

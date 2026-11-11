@@ -26,6 +26,16 @@ data-first: no fallback mock products are shown when live provider parsing fails
 - Validates generated data before publishing it.
 - Serves a static frontend from `index.html`.
 - Separates ordinary VPS (`category: vps`) from residential/ISP-focused VPS (`category: home`). IP labels remain an independent filter; a native IP claim alone does not imply residential hosting.
+- Provides four complete views: plan discovery, provider directory, observed stock/price changes, and a buying guide.
+- Supports shareable region, route, provider, IP, currency, billing-cycle and availability filters; desktop tables/cards; responsive mobile cards; local bookmarks; and side-by-side comparison of up to four plans.
+- Preserves original bills and adds an optional CNY monthly estimate using dated ECB reference rates. Unknown cycles, configurable starting prices and unavailable/stale rates do not produce converted estimates.
+- Records changes between comparable collector observations, retaining up to 300 events for seven days. An initial observation establishes a baseline; a missing or blocked product does not become a sellout.
+
+See the [product and interaction notes](docs/product-experience.md) for the browsing flows and data boundaries.
+
+[Desktop preview](assets/site-desktop.png) · [Mobile preview](assets/site-mobile.png)
+
+Previews show the checked-in snapshot and its original collection time, not current stock.
 
 ## What It Is Not
 
@@ -133,11 +143,26 @@ stock count, an official availability flag, and an order link are distinct
 signals. No challenge or login is bypassed. A partial crawl may omit product
 groups; the provider detail shows that limitation.
 
-The responsive UI supports ordinary/residential categories, provider and region
-search, currency filters, pagination, source details, and comparison. Prices
-keep their original currency and billing cycle. Sorting groups currencies and
-uses a monthly equivalent only when the billing period is known; it does not
-assume exchange rates or treat a yearly payment as a monthly payment.
+The responsive UI supports four views, ordinary/residential categories, provider
+aliases and hardware search, region and network-route shortcuts, currency and
+billing filters, removable filter chips, pagination, source details, local
+bookmarks, and comparison of up to four plans. Filters are represented in the URL.
+The browser rereads the published snapshot every five minutes while visible and
+marks snapshots older than 90 minutes as stale. Refreshing never triggers a
+provider crawl.
+
+Original prices and billing cycles stay visible. `npm run fx:update` reads the
+ECB daily XML into `data/fx.json`; the collector embeds valid rates into the
+inventory payload. CNY estimates use known fixed billing periods, retain the
+reference date, exclude fees/taxes, and stop converting foreign currencies when
+rates exceed seven days. A failed FX update preserves the previous reference
+date. It does not fabricate rates or block stock collection.
+
+The collector also embeds `events` and `eventTracking`. Only comparable,
+chronologically ordered observations can create stock/price events; unknown,
+blocked, missing, or third-party snapshot records cannot create apparent
+restocks or sellouts. The first run establishes an empty baseline. Bookmarks are
+local browser data and do not send email or push notifications.
 
 
 ## License

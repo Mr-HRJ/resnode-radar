@@ -22,6 +22,7 @@
     "deploy:cloudflare": "npm run build:cloudflare && npx --yes wrangler@4.160.0 deploy",
     "assets": "node scripts/generate-assets.mjs",
     "monitor": "node scripts/monitor.mjs",
+    "fx:update": "node scripts/fx-rates.mjs",
     "monitor:validate": "node scripts/validate-monitor-data.mjs",
     "serve": "python3 -m http.server 4173"
   },

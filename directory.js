@@ -14,7 +14,7 @@ export function providerHealth(provider, records, loaded = true) {
   return { state, label: labels[state], plans, issues, records: own, known, available: plans.filter((r) => r.status === "available").length, attempted: own.length > 0 };
 }
 
-let directoryRecords = [], loaded = false, callbacks = {}, filters = { search: "", region: "all", status: "all" };
+let directoryRecords = [], loaded = false, callbacks = {}, activeProviderId = null, filters = { search: "", region: "all", status: "all" };
 const regionNames = { US: "美国", JP: "日本", CNHK: "香港", CNTW: "台湾", SG: "新加坡", CN: "中国大陆", DE: "德国", UK: "英国", other: "其他地区" };
 const html = escapeHtml;
 export function renderDirectory(records = directoryRecords, hasData = loaded) {
@@ -50,23 +50,27 @@ export function renderDirectory(records = directoryRecords, hasData = loaded) {
       if (providerHealth(p, directoryRecords, loaded).plans.length) callbacks.showInventory?.(p); else showProviderDetail(p.id);
     }));
   }
+  if (activeProviderId && document.querySelector("[data-provider-dialog]")?.open) showProviderDetail(activeProviderId);
 }
 function showProviderDetail(id) {
+  activeProviderId = id;
   const p = providers.find((p) => p.id === id), h = providerHealth(p, directoryRecords, loaded);
   const body = document.querySelector("[data-provider-detail-body]");
   if (!body) return;
   const issue = h.issues[0];
   const paths = [...new Map(h.records.flatMap((r) => [r, ...(r.raw?.attempts ?? []).filter((a) => a.url).map((a) => ({ sourceUrl: a.url }))]).map((r) => [r.sourceUrl, r])).values()];
-  body.innerHTML = `<h2 id="provider-detail-title">${html(p.name)}</h2><span class="health-tag is-${h.state}">${html(h.label)}</span><p>${h.plans.length} 个套餐周期，其中 ${h.available} 个可订购。${h.attempted ? "已纳入每 30 分钟的自动采集。" : "等待下一次监控数据。"}</p>
+  body.innerHTML = `<h2 id="provider-detail-title">${html(p.name)}</h2><span class="health-tag is-${h.state}">${html(h.label)}</span><p>${loaded ? `${h.plans.length} 个套餐周期，其中 ${h.available} 个可订购。${h.attempted ? "已纳入每 30 分钟的自动采集。" : "等待下一次监控数据。"}` : "本站监控数据暂不可用，当前库存未知。请稍后重新读取数据或前往官网核对。"}</p>
     ${issue ? `<p class="collection-note">${html(issue.evidence || issue.error)}</p>` : ""}
     ${h.records.some((r) => r.collection?.pageLimitReached) ? '<p class="collection-note">本轮已达到公开页面采集上限，可能还有未覆盖的产品组。</p>' : ""}
     <dl class="detail-grid"><div><dt>最后检查</dt><dd>${html(formatDateTime(h.records[0]?.fetchedAt))}</dd></div><div><dt>目录来源</dt><dd><a href="${html(safeUrl(p.directorySource))}" target="_blank" rel="noopener nofollow">查看目录出处</a></dd></div></dl>
     <h3>已检查的官方来源</h3><ul class="source-links">${paths.slice(0,15).map((r) => `<li><a href="${html(safeUrl(r.sourceUrl))}" target="_blank" rel="noopener nofollow">${html(r.sourceUrl)}</a></li>`).join("") || '<li>尚无采集记录</li>'}</ul>
     <p class="muted">公开目录中的地区与特征用于查找厂商，不代表本站已验证所有机房或 IP 属性。访问受限与解析异常不能用于判断缺货。</p><a class="button primary" href="${html(safeUrl(p.website))}" target="_blank" rel="noopener nofollow">前往官网核对 ↗</a>`;
-  document.querySelector("[data-provider-dialog]")?.showModal();
+  const dialog = document.querySelector("[data-provider-dialog]");
+  if (!dialog?.open) dialog?.showModal();
 }
 export function bindDirectory(options) {
   callbacks = options;
+  activeProviderId = null;
   filters = { search: "", region: "all", status: "all" };
   for (const key of ["search", "region", "status"]) {
     document.querySelectorAll(`[data-directory-${key}]`).forEach((input) => input.addEventListener(key === "search" ? "input" : "change", (event) => { filters[key] = event.target.value; renderDirectory(); }));

@@ -4,6 +4,8 @@ export const state = {
   records: [],
   activeCategory: "all",
   activeSort: "recommend",
+  savedOnly: false,
+  saved: new Set(),
   filters: {
     search: "",
     region: "all",
@@ -11,7 +13,9 @@ export const state = {
     ipType: "all",
     status: "all",
     price: "all",
-    currency: "all"
+    currency: "all",
+    route: "all",
+    billing: "all"
   },
   selected: new Set(),
   expanded: new Set()

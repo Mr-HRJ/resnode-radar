@@ -3,27 +3,24 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta
-      name="description"
-      content="VPS 节点雷达汇集 VPS 供应商的库存、订购入口、配置和线路信息，标明官方抓取、第三方快照及失败证据，帮助跨境运营者比较方案。库存和价格以供应商页面为准。"
-    />
-    <title>VPS 库存比价与厂商目录 · VPS 节点雷达</title>
+    <meta name="theme-color" content="#f7f8f7" />
+    <meta name="description" content="VPS 节点雷达，帮你发现适合自己的 VPS。比较全球 VPS 套餐、价格、线路与库存，查看 62 家厂商的采集状态，收藏心仪方案并横向对比。" />
+    <title>VPS 节点雷达 · 发现好 VPS，少一点折腾</title>
     <link rel="canonical" href="https://majiayu000.github.io/resnode-radar/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="VPS 节点雷达" />
     <meta property="og:locale" content="zh_CN" />
-    <meta property="og:title" content="VPS 库存比价与厂商目录 · VPS 节点雷达" />
-    <meta property="og:description" content="比较 VPS 库存、订购入口、配置和线路，查看官方抓取、第三方快照及失败证据。库存和价格以供应商页面为准。" />
+    <meta property="og:title" content="VPS 节点雷达 · 发现好 VPS，少一点折腾" />
+    <meta property="og:description" content="配置、线路、价格与库存，一处看清。发现全球 VPS，收藏、筛选、比较适合你的方案。" />
     <meta property="og:url" content="https://majiayu000.github.io/resnode-radar/" />
     <meta property="og:image" content="https://majiayu000.github.io/resnode-radar/assets/inventory-preview.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="VPS 节点雷达库存界面截图；数值为截图时的记录" />
+    <meta property="og:image:alt" content="VPS 节点雷达套餐探索界面；数据为截图时的采集记录" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="VPS 库存比价与厂商目录 · VPS 节点雷达" />
-    <meta name="twitter:description" content="比较 VPS 库存、订购入口、配置和线路，查看来源证据。库存和价格以供应商页面为准。" />
+    <meta name="twitter:title" content="VPS 节点雷达 · 发现好 VPS，少一点折腾" />
+    <meta name="twitter:description" content="比较 VPS 配置、线路、价格与库存，找到适合自己的下一台 VPS。" />
     <meta name="twitter:image" content="https://majiayu000.github.io/resnode-radar/assets/inventory-preview.png" />
-    <meta name="twitter:image:alt" content="VPS 节点雷达库存界面截图；数值为截图时的记录" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <script>
       try { document.documentElement.dataset.theme = localStorage.getItem("fff-ui-theme") || "light"; } catch { document.documentElement.dataset.theme = "light"; }
@@ -31,71 +28,99 @@
     <link rel="stylesheet" href="radar.css" />
   </head>
   <body>
-    <a class="skip-link" href="#products">跳到库存结果</a>
+    <a class="skip-link" href="#main">跳到主要内容</a>
+    <div class="announcement"><div class="announcement-inner"><span><span class="announcement-dot" aria-hidden="true"></span> 每一条信息，都有来源可循。</span><span class="announcement-extra">公开页面采集 · 每 30 分钟更新</span><button type="button" data-view="guide">了解数据口径 <span aria-hidden="true">↗</span></button></div></div>
     <header class="site-header">
       <div class="header-inner">
-        <a class="brand" href="./" aria-label="VPS 节点雷达首页"><span class="brand-mark" aria-hidden="true"><i></i></span><span>VPS <strong>节点雷达</strong></span></a>
-        <nav class="primary-nav" aria-label="主导航"><button type="button" data-view="inventory" class="is-active">库存比价</button><button type="button" data-view="providers">厂商目录 <span data-provider-count>62</span></button><a href="#guide">选购说明</a></nav>
-        <div class="header-actions"><a href="https://github.com/majiayu000/resnode-radar" target="_blank" rel="noopener" class="source-link">开源项目 ↗</a><button class="icon-button" data-theme-toggle type="button" aria-label="切换深浅模式">☾</button></div>
+        <a class="brand" href="./" aria-label="VPS 节点雷达首页">
+          <svg class="brand-mark" viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="18" cy="18" r="13" stroke="currentColor" stroke-width="2.5"/><path d="m28 28 7 7M8 20l7-7 6 7 10-13" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="21" cy="20" r="2.5" fill="var(--accent)"/></svg>
+          <span>VPS <strong>节点雷达</strong><small>FIND YOUR NEXT NODE</small></span>
+        </a>
+        <nav class="primary-nav" aria-label="主导航">
+          <button type="button" data-view="inventory" class="is-active" aria-current="page">套餐探索</button>
+          <button type="button" data-view="providers">商家导航 <span data-provider-count>62</span></button>
+          <button type="button" data-view="activity">库存动态</button>
+          <button type="button" data-view="guide">选购指南</button>
+        </nav>
+        <div class="header-actions">
+          <button type="button" class="saved-nav" data-open-saved><span data-icon="bookmark"></span><span class="saved-nav-label">我的收藏</span><b data-saved-count>0</b></button>
+          <button class="icon-button theme-toggle" data-theme-toggle type="button" aria-label="切换深浅模式"><span data-icon="moon"></span></button>
+          <a href="https://github.com/majiayu000/resnode-radar" target="_blank" rel="noopener" class="icon-button source-link" aria-label="查看 GitHub 开源项目"><span data-icon="github"></span></a>
+        </div>
       </div>
     </header>
-    <main class="workspace">
+    <main class="workspace" id="main">
       <section class="intro">
-        <div><h1 data-view-title>VPS 库存与价格</h1><p>从普通云服务器到家宽住宅，找到适合自己的配置与线路。</p></div>
-        <div class="sync-info"><span class="status-pill" data-monitor-status>加载监控数据中</span><span>最近检查 <time data-sync>—</time></span><small>每 30 分钟自动采集 · 以官网下单时为准</small></div>
+        <div class="intro-copy"><div class="eyebrow"><span class="tiny-radar" aria-hidden="true"></span> EXPLORE. COMPARE. DISCOVER.</div><h1 data-view-title>发现好 VPS，<span>少一点折腾。</span></h1><p data-view-description>从建站开发到家宽住宅，把配置、线路与价格放在一起，找到适合你的下一台 VPS。</p></div>
+        <div class="sync-info"><span class="status-pill" data-monitor-status>加载监控数据中</span><span>最近采集 <time data-sync>—</time></span><div><span data-freshness>正在读取数据</span><button type="button" class="refresh-button" data-refresh><span data-icon="refresh"></span>刷新数据</button></div></div>
       </section>
       <section class="overview" aria-label="监控概览">
-        <div><strong data-provider-count>62</strong><span>收录厂商</span></div>
-        <div><strong data-provider-coverage>—</strong><span>本轮已检查</span></div>
-        <div><strong data-provider-live>—</strong><span>已取得库存信号</span></div>
-        <div><strong data-stat-total>—</strong><span>套餐与计费周期</span></div>
-        <div class="stat-available"><strong data-stat-available>—</strong><span>可订购</span></div>
-        <button type="button" class="overview-issues" data-view="providers"><span><b data-provider-issues>—</b> 家需核对采集状态</span><span aria-hidden="true">↗</span></button>
+        <div class="stat"><div class="stat-top"><span>收录厂商</span><span data-icon="store"></span></div><div class="stat-value"><strong data-provider-count>62</strong><span>家</span></div><p><span data-provider-coverage>—</span> 家已检查 <span class="stat-divider">/</span> <span data-provider-live>—</span> 家有库存信号</p></div>
+        <div class="stat"><div class="stat-top"><span>发现 VPS 套餐</span><span data-icon="server"></span></div><div class="stat-value"><strong data-stat-total>—</strong><span>个</span></div><p>普通 VPS · 住宅 / 家宽 · 多种计费周期</p></div>
+        <div class="stat"><div class="stat-top"><span>可订购方案</span><span class="stat-status" data-icon="check-circle"></span></div><div class="stat-value"><strong data-stat-available>—</strong><span>个</span></div><p>有订购入口或官方可用信号</p></div>
+        <div class="stat"><div class="stat-top"><span>明确库存方案</span><span data-icon="layers"></span></div><div class="stat-value"><strong data-stat-exact>—</strong><span>个</span></div><p>官方公开了大于零的库存数量</p></div>
       </section>
-      <section data-inventory-view aria-label="库存比价">
-        <div class="provider-strip-head"><span>快速定位厂商</span><button type="button" class="text-button" data-view="providers">查看全部厂商 ↗</button></div>
+      <div class="stale-notice" data-stale-notice hidden><span data-icon="clock"></span><span>这份采集数据已超过 90 分钟，当前库存可能变化。下单前请在官网核对。</span><button type="button" data-refresh class="text-button">重新读取</button></div>
+      <section data-inventory-view aria-label="套餐探索">
+        <div class="provider-strip-head"><span><span data-icon="store"></span> 快速直达</span><button type="button" class="text-button" data-view="providers">全部 <span data-provider-count>62</span> 家厂商 <span aria-hidden="true">↗</span></button></div>
         <div class="provider-shortcuts" data-provider-shortcuts></div>
-        <section id="products" class="inventory-panel">
-          <div class="inventory-topline"><nav class="category-tabs" aria-label="产品分类">
-            <button type="button" class="is-active" data-category="all">全部产品 <b data-count-all>0</b></button>
-            <button type="button" data-category="vps">普通 VPS <b data-count-vps>0</b></button>
-            <button type="button" data-category="home">家宽 / 住宅 VPS <b data-count-home>0</b></button>
-            <button type="button" data-category="unclassified" hidden>待分类 <b data-count-unclassified>0</b></button>
-          </nav><button type="button" class="refresh-button" data-refresh><span aria-hidden="true">↻</span> 重新加载</button></div>
-          <form class="filter-bar" action="#products" aria-label="筛选库存">
-            <label class="search-field"><span>搜索产品</span><input type="search" data-search name="q" placeholder="搜索商家、配置、CN2 / 9929 等线路" autocomplete="off" /></label>
-            <label><span>地区</span><select data-filter-region name="region"><option value="all">全部地区</option></select></label>
+        <div class="browse-heading"><nav class="category-tabs" aria-label="产品分类">
+          <button type="button" class="is-active" data-category="all"><span data-icon="layers"></span>全部套餐 <b data-count-all>0</b></button>
+          <button type="button" data-category="vps"><span data-icon="server"></span>普通 VPS <b data-count-vps>0</b></button>
+          <button type="button" data-category="home"><span data-icon="home"></span>家宽 / 住宅 <b data-count-home>0</b></button>
+          <button type="button" data-category="unclassified" hidden>待分类 <b data-count-unclassified>0</b></button>
+        </nav><button type="button" class="saved-filter" data-saved-filter aria-pressed="false"><span data-icon="bookmark"></span>只看收藏</button></div>
+        <form class="filter-bar" aria-label="筛选 VPS 套餐" action="#products">
+          <div class="search-row"><label class="search-field"><span class="sr-only">搜索套餐、厂商、配置或线路</span><span data-icon="search"></span><input type="search" data-search name="q" placeholder="搜索套餐、厂商、配置或线路，例如 CN2 GIA、4GB…" autocomplete="off" /><kbd aria-hidden="true">/</kbd></label><button class="filter-toggle" data-mobile-filter-toggle type="button" aria-expanded="false" aria-controls="advanced-filters"><span data-icon="sliders"></span>更多筛选 <b data-filter-count hidden>0</b><span data-icon="chevron-down"></span></button></div>
+          <div class="quick-filter-row"><span class="filter-row-label">热门地区</span><div class="filter-pills" data-region-pills><button type="button" data-region="all" class="is-active">全部</button><button type="button" data-region="美国">🇺🇸 美国</button><button type="button" data-region="日本">🇯🇵 日本</button><button type="button" data-region="香港">🇭🇰 香港</button><button type="button" data-region="台湾"><span class="region-code">TW</span> 台湾</button><button type="button" data-region="新加坡">🇸🇬 新加坡</button><button type="button" data-region="德国">🇩🇪 德国</button><button type="button" data-region="英国">🇬🇧 英国</button></div></div>
+          <div class="quick-filter-row route-filter-row"><span class="filter-row-label">网络线路</span><div class="filter-pills" data-route-pills><button type="button" data-route="all" class="is-active">不限线路</button><button type="button" data-route="cn2">CN2 GIA / GT</button><button type="button" data-route="9929">联通 9929</button><button type="button" data-route="cmin2">移动 CMIN2</button><button type="button" data-route="bgp">国际 BGP</button><button type="button" data-route="other">其他 / 未注明</button></div><button class="text-button filter-reset" data-filter-reset type="button"><span data-icon="reset"></span>重置筛选</button></div>
+          <div class="advanced-filters" id="advanced-filters" hidden>
+            <label><span>全部地区</span><select data-filter-region name="region"><option value="all">不限地区</option></select></label>
             <label><span>厂商</span><select data-filter-provider name="provider"><option value="all">全部厂商</option></select></label>
             <label><span>IP 特征</span><select data-filter-ip-type name="ipType"><option value="all">全部 IP 特征</option></select></label>
             <label><span>库存状态</span><select data-filter-status name="status"><option value="all">全部状态</option></select></label>
-            <label><span>币种</span><select data-filter-currency name="currency"><option value="all">全部币种</option></select></label>
-            <button class="mobile-filter-toggle" data-mobile-filter-toggle type="button" aria-expanded="false">展开筛选</button><button class="text-button filter-reset" data-filter-reset type="button">重置</button>
-          </form>
-          <div class="result-toolbar"><h2><span data-title-category>全部产品</span><span class="result-count" data-result-count>显示 0 / 0 条</span></h2><label class="sort-label">排序 <select data-sort><option value="recommend">可订购优先</option><option value="price">币种 / 折合月价</option><option value="stock">库存数量优先</option><option value="updated">最近检查</option></select></label></div>
-          <div class="table-wrap"><table class="inventory-table"><caption class="sr-only">VPS 套餐、原币种价格与库存状态。点击详情查看来源。</caption><thead><tr><th scope="col" class="cell-check"><span class="sr-only">加入对比</span></th><th scope="col">厂商 / 套餐</th><th scope="col">地区 / IP</th><th scope="col">配置 / 网络</th><th scope="col">价格</th><th scope="col">库存状态</th><th scope="col">操作</th></tr></thead><tbody data-products><tr><td colspan="7" class="empty-row">正在加载库存数据…</td></tr></tbody></table></div>
+            <label><span>原始币种</span><select data-filter-currency name="currency"><option value="all">全部币种</option></select></label>
+            <label><span>计费周期</span><select data-filter-billing name="billing"><option value="all">全部周期</option><option value="1">月付</option><option value="3">季付</option><option value="6">半年付</option><option value="12">年付</option><option value="long">两年 / 三年</option><option value="unknown">其他 / 未注明</option></select></label>
+          </div>
+        </form>
+        <section id="products" class="inventory-panel" aria-label="套餐结果">
+          <div class="result-toolbar"><div class="result-title"><h2 data-title-category>全部产品</h2><span class="result-count" data-result-count aria-live="polite">正在加载…</span><span class="saved-indicator" data-saved-indicator hidden>已筛选收藏</span></div><div class="result-controls"><label class="available-toggle"><input type="checkbox" data-available-only /><span>只看可订购</span></label><span class="toolbar-divider"></span><label class="sort-label"><span data-icon="sort"></span><span class="sr-only">排序方式</span><select data-sort><option value="recommend">可订购优先</option><option value="price">原币种 / 折合月价</option><option value="cny">参考人民币月价</option><option value="stock">明确库存优先</option><option value="updated">最近采集</option></select></label><div class="layout-switch" aria-label="显示方式"><button class="is-active" type="button" data-layout="table" aria-label="表格视图" aria-pressed="true"><span data-icon="list"></span></button><button type="button" data-layout="cards" aria-label="卡片视图" aria-pressed="false"><span data-icon="grid"></span></button></div></div></div>
+          <div class="active-filters" data-active-filters hidden></div>
+          <div class="table-wrap"><table class="inventory-table"><caption class="sr-only">VPS 套餐、地区、硬件配置、网络、原币种价格及库存证据。每行可收藏、加入对比或查看详情。</caption><thead><tr><th scope="col" class="cell-check"><span class="sr-only">加入对比</span></th><th scope="col">厂商 / 套餐</th><th scope="col">地区 / IP 特征</th><th scope="col">配置 / 网络</th><th scope="col">价格 <span class="th-note">原币种</span></th><th scope="col">库存状态</th><th scope="col" class="cell-actions-heading">操作</th></tr></thead><tbody data-products><tr><td colspan="7" class="empty-row">正在读取采集数据…</td></tr></tbody></table></div>
           <div class="mobile-cards" data-mobile-products></div>
-          <div class="table-bottom"><p>价格保留原币种；折合月价仅用于同币种比较，不含汇率换算。</p><div class="pagination"><button type="button" data-page-prev aria-label="上一页">‹</button><span data-page-label>1 / 1</span><button type="button" data-page-next aria-label="下一页">›</button></div></div>
-          <div class="compare-dock"><span>已选 <b data-selected-count>0</b> 个方案</span><button data-open-compare type="button" disabled>开始对比</button><button data-clear-compare type="button" class="text-button">清空</button><small>勾选至少 2 个方案，查看配置与来源差异。</small></div>
+          <div class="table-bottom"><p><span data-icon="info"></span>折合月价仅用于比较，实际按标注周期付费。<span data-fx-note></span></p><div class="pagination"><button type="button" data-page-prev aria-label="上一页"><span data-icon="chevron-left"></span></button><span data-page-label>1 / 1</span><button type="button" data-page-next aria-label="下一页"><span data-icon="chevron-right"></span></button></div></div>
         </section>
-        <details class="monitor-details"><summary>采集口径与数据状态 <span data-trust-age>—</span></summary><div class="monitor-details-body"><p><strong data-trust-state>等待真实监控数据</strong> · <span data-trust-freshness>加载中</span></p><p data-monitor-summary>监控数据尚未加载。</p><p><span data-stat-unavailable>—</span> 条不可订购，来自 <span data-stat-sources>—</span> 个采集入口。公开页面访问受限、库存未公开与售罄分别记录。厂商详情可查看失败原因。</p><div class="ip-dist" data-ip-dist></div></div></details>
+        <details class="monitor-details"><summary><span><span data-icon="shield"></span> 关于这份数据 <span class="monitor-summary-inline" data-trust-age>—</span></span><span data-icon="chevron-down"></span></summary><div class="monitor-details-body"><p><strong data-trust-state>等待真实监控数据</strong> · <span data-trust-freshness>加载中</span></p><p data-monitor-summary>监控数据尚未加载。</p><p><span data-stat-unavailable>—</span> 条不可订购，来自 <span data-stat-sources>—</span> 个采集入口。<span data-provider-issues>—</span> 家厂商的公开库存或部分页面需要核对。<button type="button" class="text-button" data-view="providers">查看厂商采集状态 ↗</button></p><div class="ip-dist" data-ip-dist aria-label="按 IP 特征浏览"></div><p class="muted">IP 与线路标签来自公开页面描述，未逐项实测。订购入口、明确库存和第三方快照分别标注。</p></div></details>
+        <section class="learn-strip"><div><span class="eyebrow">BEFORE YOU BUY</span><h2>选对一台，比多买几台更重要。</h2></div><button type="button" data-view="guide"><span data-icon="route"></span><span>读懂线路<small>CN2、9929、CMIN2 有何区别</small></span><span data-icon="arrow-up-right"></span></button><button type="button" data-view="guide"><span data-icon="wallet"></span><span>算清成本<small>原币种、付费周期与续费价格</small></span><span data-icon="arrow-up-right"></span></button><button type="button" data-view="guide"><span data-icon="shield"></span><span>核对证据<small>可下单不等于有精确库存</small></span><span data-icon="arrow-up-right"></span></button></section>
       </section>
-      <section data-directory-view class="directory-view" hidden>
-        <div class="directory-intro"><h2>从厂商找到合适的 VPS</h2><p>合并 MeowVPS 厂商目录与现有监控来源，去重收录 62 家；所有厂商均已配置自动采集。标签来自目录，库存状态来自本轮检查。</p></div>
-        <form class="directory-filters" aria-label="筛选厂商"><label class="search-field"><span>厂商名称 / 别名</span><input type="search" data-directory-search placeholder="搜索 DMIT、搬瓦工、家宽…" /></label><label><span>服务地区</span><select data-directory-region><option value="all">全部地区</option><option value="US">美国</option><option value="JP">日本</option><option value="CNHK">香港</option><option value="CNTW">台湾</option><option value="SG">新加坡</option><option value="DE">德国</option><option value="UK">英国</option><option value="other">其他地区</option></select></label><label><span>采集状态</span><select data-directory-status><option value="all">全部状态</option><option value="active">已取得库存信号</option><option value="limited">受限 / 库存待核对</option></select></label><button type="button" class="text-button" data-directory-reset>重置</button><span data-directory-count>62 家厂商</span></form>
-        <div class="provider-grid" data-provider-grid></div>
-        <p class="directory-attribution">厂商目录参考 <a href="https://meowvps.com/VPS/" target="_blank" rel="noopener">MeowVPS</a>（2026-11-10），并合并本站原有来源。只整理品牌、官网、地区和产品特征；不沿用评分、推荐结论或推广参数。</p>
+      <section data-directory-view class="directory-view" aria-label="厂商目录" hidden>
+        <form class="directory-filters" aria-label="筛选厂商"><label class="search-field"><span data-icon="search"></span><span class="sr-only">厂商名称或别名</span><input type="search" data-directory-search placeholder="搜索厂商名称、别名或特征，例如 DMIT、搬瓦工、家宽…" /></label><label><span class="sr-only">服务地区</span><select data-directory-region><option value="all">全部服务地区</option><option value="US">美国</option><option value="JP">日本</option><option value="CNHK">香港</option><option value="CNTW">台湾</option><option value="SG">新加坡</option><option value="DE">德国</option><option value="UK">英国</option><option value="other">其他地区</option></select></label><label><span class="sr-only">采集状态</span><select data-directory-status><option value="all">全部采集状态</option><option value="active">已取得库存信号</option><option value="limited">受限 / 库存待核对</option></select></label><button type="button" class="text-button" data-directory-reset>重置</button></form>
+        <div class="section-topline"><h2>发现更多厂商</h2><span data-directory-count>62 家厂商</span></div><div class="provider-grid" data-provider-grid></div>
+        <p class="directory-attribution">目录参考 <a href="https://meowvps.com/VPS/" target="_blank" rel="noopener">MeowVPS</a>（2026-11-10），并合并本站原有来源。地区与特征用于发现厂商；收录不代表推荐，也不代表所有套餐都有公开库存。</p>
       </section>
-      <section class="guide-section" id="guide"><div class="guide-heading"><h2>看懂数据，再做选择</h2><p>把配置、线路、计费和库存证据放在一起看。</p></div><div class="guide-columns">
-        <article><span class="guide-symbol" aria-hidden="true">≋</span><h3>先选用途与线路</h3><p>普通 VPS 适合建站、开发与通用计算。住宅和家宽是 IP / 接入特征，原生 IP 不等于家宽；按地区与线路筛选，再核对商家说明。</p></article>
-        <article><span class="guide-symbol" aria-hidden="true">¥</span><h3>核对实际账单</h3><p>月付、季付与年付分别保留。折合月价不是月付价格；起步配置、安装费、税费、续费与优惠条件需要在官网确认。</p></article>
-        <article><span class="guide-symbol" aria-hidden="true">◷</span><h3>分清库存与采集状态</h3><p>库存数字来自官方公开信息；可订购入口不保证实时余量。访问受限与采集异常无法判断缺货，点击厂商的采集详情可查看原因。</p></article>
-      </div></section>
-      <section class="faq-section" id="faq"><h2>常见问题</h2><details><summary>点击“重新加载”会立即检查所有厂商吗？</summary><p>它会重新读取本站已有数据。后台计划每 30 分钟运行一次，实际完成时间显示在页面顶部。</p></details><details><summary>为什么某些厂商没有套餐或库存？</summary><p>部分官网需要登录、使用动态页面或限制自动访问。它们仍在监控名单中，采集结果明确标注为访问受限、库存未公开或解析异常；不会用历史价格冒充当前库存。</p></details><details><summary>这些厂商和 IP 类型都经过实测吗？</summary><p>目录标签与 IP 特征来自公开页面文字，不代表已逐家实测。只有明确记录的库存信号可以核对；是否适合你的业务仍需结合官网说明和实际测试。</p></details></section>
+      <section data-activity-view class="activity-view" aria-label="库存动态" hidden>
+        <div class="activity-explainer"><div class="activity-icon"><span data-icon="activity"></span></div><div><h2>让变化，有迹可循。</h2><p>对比相邻采集轮次，记录可订购状态和标价变化。这里显示的是发现变化的时间。</p></div><button type="button" data-refresh class="secondary-button"><span data-icon="refresh"></span>刷新动态</button></div>
+        <div class="activity-toolbar"><nav class="filter-pills" aria-label="动态类型"><button type="button" data-event-type="all" class="is-active">全部动态</button><button type="button" data-event-type="restock">恢复可订购</button><button type="button" data-event-type="soldout">变为不可订购</button><button type="button" data-event-type="price">价格变化</button></nav><span data-event-count></span></div>
+        <div class="event-list" data-event-list></div><p class="activity-footnote" data-event-note>保留近 7 天、最多 300 条变化。页面访问受限或产品未被本轮发现，不作为售罄依据。</p>
+      </section>
+      <section data-guide-view class="guide-view" id="guide" aria-label="VPS 选购指南" hidden>
+        <div class="guide-intro"><span class="eyebrow">A LITTLE KNOWLEDGE GOES A LONG WAY</span><h2>从需求出发，找到合适的节点。</h2><p>没有适合所有人的 VPS。先确认用途，再比较线路、配置、账单和服务条款。</p></div>
+        <div class="guide-columns">
+          <article class="guide-card"><span class="guide-number">01</span><span class="guide-symbol" data-icon="server"></span><h3>先明确，你用它做什么</h3><p>建站、开发和通用计算，优先考虑内存、CPU、磁盘及备份。住宅 / 家宽产品则需要额外核对 IP 属性、NAT 限制和使用条款。</p><button type="button" class="text-button" data-guide-category="vps">探索普通 VPS →</button></article>
+          <article class="guide-card"><span class="guide-number">02</span><span class="guide-symbol" data-icon="route"></span><h3>线路要结合所在地来看</h3><p>延迟和晚高峰体验与地区、运营商、去回程有关。线路名称来自商家说明；不要把一个 CN2 或 9929 标签等同于实测质量。</p><button type="button" class="text-button" data-guide-route="cn2">查看 CN2 方案 →</button></article>
+          <article class="guide-card"><span class="guide-number">03</span><span class="guide-symbol" data-icon="wallet"></span><h3>关注完整的持有成本</h3><p>年付折合月价并不代表可以按月付款。确认原币种、安装费、税费、优惠期限、续费价格，以及退款和超额流量规则。</p><button type="button" class="text-button" data-view="inventory">回到套餐比价 →</button></article>
+        </div>
+        <section class="route-guide"><div class="section-topline"><h2>常见线路，一眼读懂</h2><span>名称用于识别，不代表性能排名</span></div><div class="guide-table-wrap"><table class="guide-table"><thead><tr><th>网络 / 标签</th><th>通常代表什么</th><th>下单前建议核对</th></tr></thead><tbody><tr><td>CN2 GIA / GT</td><td>中国电信 CN2 网络的不同产品定位</td><td>是否双程、具体接入段、晚高峰表现</td></tr><tr><td>联通 9929</td><td>常用于标示联通精品网络 AS9929</td><td>本地运营商的去回程与测试 IP</td></tr><tr><td>移动 CMIN2</td><td>中国移动国际精品网络相关标识</td><td>机房、实际路由及其他运营商体验</td></tr><tr><td>国际 BGP</td><td>接入国际上游，具体组合随机房而异</td><td>目标用户所在地、国际带宽及丢包</td></tr><tr><td>住宅 / 双 ISP / 原生 IP</td><td>IP 或接入特征；原生 IP 不等同于家宽</td><td>ASN、IP 归属、共享情况及商家使用限制</td></tr></tbody></table></div></section>
+        <section class="faq-section" id="faq"><div><span class="eyebrow">GOOD QUESTIONS</span><h2>你可能还想知道</h2></div><div class="faq-list"><details open><summary>“可订购”是否表示现在一定有货？<span data-icon="plus"></span></summary><p>不一定。可订购包括官网提供订购入口、官方可用标志或明确的正数库存。每个套餐都会显示具体依据。只有商家公开数量时，才显示“精确库存”；支付前请以官网为准。</p></details><details><summary>点击刷新，会马上检查所有商家吗？<span data-icon="plus"></span></summary><p>刷新会重新读取本站最新的采集结果；页面在前台时，每 5 分钟自动重新读取。后台计划每 30 分钟检查一次，调度可能延迟；顶部显示实际采集时间，超过 90 分钟会提醒。刷新不会直接请求所有商家。</p></details><details><summary>为什么有的厂商没有套餐？<span data-icon="plus"></span></summary><p>有的官网需要登录、动态加载或限制自动访问，也可能没有公开库存。它们会保留在厂商目录，采集详情中显示结果和来源。采集受限不能用于判断售罄。</p></details><details><summary>人民币参考价怎么计算？<span data-icon="plus"></span></summary><p>只有标明币种和计费周期的固定价格才能折合月价。参考人民币价使用带日期的欧洲央行汇率；无可用汇率、周期不明或可选配置的起步价不换算。参考价不含手续费和税费，实际扣款金额可能不同。</p></details><details><summary>收藏会发送补货通知吗？<span data-icon="plus"></span></summary><p>收藏保存在当前浏览器，方便下次查看与比较。它不发送邮件或推送，清除浏览器数据会移除收藏。库存动态页可查看相邻采集轮次中的变化。</p></details><details><summary>数据来源与本站是什么关系？<span data-icon="plus"></span></summary><p>本站独立整理公开信息，不代表供应商。套餐详情保留来源、采集时间和证据；第三方快照单独标注。购买、退款和售后均由对应供应商负责。</p></details></div></section>
+      </section>
+      <noscript><div class="empty-state"><h2>请开启 JavaScript 查看监控数据</h2><p>套餐筛选与对比需要 JavaScript。你也可以直接查看 <a href="data/products.json">原始采集数据</a>。</p></div></noscript>
     </main>
-    <footer class="footer"><a class="brand footer-brand" href="./">VPS 节点雷达</a><p>独立整理公开信息，库存与价格以供应商页面为准。</p><div><a href="https://github.com/majiayu000/resnode-radar">项目源码</a><a href="https://github.com/majiayu000/resnode-radar/issues">反馈数据问题</a><a href="https://github.com/majiayu000/resnode-radar/blob/main/LICENSE">MIT License</a></div></footer>
-    <dialog class="modal" data-compare-dialog aria-labelledby="compare-title"><form method="dialog"><div class="modal-head"><h2 id="compare-title">产品参数对比</h2><button class="icon-button" aria-label="关闭对比" type="submit">×</button></div><div class="compare-grid" data-compare-grid></div></form></dialog>
-    <dialog class="modal provider-modal" data-provider-dialog aria-labelledby="provider-detail-title"><form method="dialog"><button class="icon-button modal-close" type="submit" aria-label="关闭厂商详情">×</button></form><div data-provider-detail-body></div></dialog>
-    <button class="to-top" data-to-top type="button" aria-label="回到顶部">↑</button>
+    <footer class="footer"><div class="footer-main"><a class="brand footer-brand" href="./">◎ VPS 节点雷达</a><p>发现、比较，选一台适合自己的 VPS。<br><span>独立整理公开信息，价格和库存以供应商页面为准。</span></p></div><div class="footer-links"><a href="https://github.com/majiayu000/resnode-radar" target="_blank" rel="noopener">开源项目 ↗</a><a href="https://github.com/majiayu000/resnode-radar/issues" target="_blank" rel="noopener">反馈问题 ↗</a><a href="https://github.com/majiayu000/resnode-radar/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a><span>ResNode Radar</span></div></footer>
+    <div class="compare-dock" data-compare-dock hidden><span class="compare-dock-icon" data-icon="columns"></span><div><strong>已选 <b data-selected-count>0</b> 个方案</strong><small>最多 4 个，选好再比较</small></div><div class="compare-dock-names" data-compare-names></div><button data-clear-compare type="button" class="text-button">清空</button><button data-open-compare type="button" class="primary-button" disabled>开始对比 <span data-icon="arrow-right"></span></button></div>
+    <dialog class="modal compare-modal" data-compare-dialog aria-labelledby="compare-title"><form method="dialog" class="modal-head"><div><span class="eyebrow">SIDE BY SIDE</span><h2 id="compare-title">找到更适合你的那一台</h2><p>原始配置与价格并列展示，差异一目了然。</p></div><button class="icon-button" aria-label="关闭对比" type="submit"><span data-icon="x"></span></button></form><div class="compare-grid" data-compare-grid></div></dialog>
+    <dialog class="modal provider-modal" data-provider-dialog aria-labelledby="provider-detail-title"><form method="dialog"><button class="icon-button modal-close" type="submit" aria-label="关闭厂商详情"><span data-icon="x"></span></button></form><div data-provider-detail-body></div></dialog>
+    <div class="toast" data-toast role="status" aria-live="polite" hidden></div>
+    <button class="to-top icon-button" data-to-top type="button" aria-label="回到顶部"><span data-icon="arrow-up"></span></button>
     <script src="app.js" type="module"></script>
   </body>
 </html>
