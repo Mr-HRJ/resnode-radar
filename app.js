@@ -4,7 +4,7 @@ import { state } from "./state.js";
 import { setText, setHidden, debounce, formatDateTime, formatRelativeAge, text, escapeHtml as html, safeUrl } from "./util.js";
 import { statusLabels, categoryNames, productCategories, productCategory, ipTypeCategories, ipTypeOrder, statusRank, normalizeProduct, numericStockCount } from "./product.js";
 import { filterBaseProducts, visibleProducts } from "./filter.js";
-import { routeOptions, monitorFreshness } from "./discovery.js";
+import { routeOptions, monitorFreshness, productRegions } from "./discovery.js";
 import { loadSaved, saveSaved } from "./saved.js";
 import { icon, hydrateIcons } from "./icons.js";
 import { tableRowHtml, cardHtml, compareHtml } from "./product-view.js";
@@ -227,7 +227,7 @@ function populateSelect(selector, allLabel, options, key) {
   each(selector, (select) => { select.innerHTML = `<option value="all">${allLabel}</option>${rendered.map((option) => `<option value="${html(option.value)}">${html(option.count === null ? `${option.label}（当前筛选）` : `${option.label} (${option.count})`)}</option>`).join("")}`; select.value = state.filters[key]; });
 }
 function hydrateFilterOptions() {
-  populateSelect("[data-filter-region]", "全部地区", countedOptions(state.products, (p) => p.region), "region");
+  populateSelect("[data-filter-region]", "全部地区", countedOptions(state.products.flatMap(productRegions), (region) => region), "region");
   populateSelect("[data-filter-provider]", "全部厂商", countedOptions(state.products, (p) => p.provider), "provider");
   populateSelect("[data-filter-ip-type]", "全部 IP 特征", countedOptions(state.products, (p) => p._ipType.value, (p) => p._ipType.label).sort((a, b) => ipTypeOrder.indexOf(a.value) - ipTypeOrder.indexOf(b.value)), "ipType");
   populateSelect("[data-filter-status]", "全部状态", countedOptions(state.products, (p) => p.status, (p) => statusLabels[p.status] || p.status).sort((a, b) => statusRank(a.value) - statusRank(b.value)), "status");

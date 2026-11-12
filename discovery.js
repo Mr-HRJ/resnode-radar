@@ -179,12 +179,17 @@ export function monitorFreshness(generatedAt, now = Date.now()) {
   return { stale: age > 90 * 60000, label };
 }
 
+export function productRegions(product) {
+  return [...new Set([product?.region, ...(Array.isArray(product?.regions) ? product.regions : [])]
+    .filter((value) => typeof value === "string" && value.trim()).map((value) => value.trim()))];
+}
+
 export function productSearchText(product) {
   const providerName = normalizeSearch(plain(product?.provider));
   const provider = providers.find((entry) => entry.id === product?.providerId ||
     [entry.id, entry.name, ...entry.aliases, ...entry.inventoryNames].some((name) => normalizeSearch(name) === providerName));
   return normalizeSearch([
-    product?.provider, provider?.name, ...(provider?.aliases || []), product?.name, product?.region,
+    product?.provider, provider?.name, ...(provider?.aliases || []), product?.name, ...productRegions(product),
     product?.route, product?.carrier, product?.hardware, product?.bandwidth,
     ...featureEntries(product).flat(), ...Object.values(productSpecs(product)).filter((value) => value !== "未标明")
   ].map(plain).filter(Boolean).join(" "));

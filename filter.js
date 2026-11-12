@@ -1,5 +1,5 @@
 import { priceQuote, comparePrices, monthlyCny } from "./pricing.js";
-import { matchesRoute } from "./discovery.js";
+import { matchesRoute, productRegions } from "./discovery.js";
 import { state } from "./state.js";
 import { text, normalizeSearch } from "./util.js";
 import { productCategory, priceBandFor, orderabilityRank, statusRank, stableCompare } from "./product.js";
@@ -13,7 +13,7 @@ export function filterBaseProducts() {
 export function matchesFilters(product) {
   const query = normalizeSearch(state.filters.search).trim();
   if (query && !query.split(/\s+/).every((part) => product._searchText.includes(part))) return false;
-  if (state.filters.region !== "all" && product.region !== state.filters.region) return false;
+  if (state.filters.region !== "all" && !productRegions(product).includes(state.filters.region)) return false;
   if (state.filters.provider !== "all" && product.provider !== state.filters.provider) return false;
   if (state.filters.ipType !== "all" && product._ipType.value !== state.filters.ipType) return false;
   if (state.filters.status !== "all" && product.status !== state.filters.status) return false;

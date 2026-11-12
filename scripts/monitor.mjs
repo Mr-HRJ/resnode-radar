@@ -7,6 +7,7 @@ import { parseLagomProductList } from "./adapters/lagom-product-list.mjs";
 import { parseZlidcProductWrap } from "./adapters/zlidc-product-wrap.mjs";
 import { parseRacknerdKvm } from "./adapters/racknerd-kvm.mjs";
 import { monitorPublicCatalog } from "./adapters/public-catalog.mjs";
+import { buildSkylinePublicCatalogRequest, buildNeburstPublicCatalogRequest, NEBURST_PUBLIC_CATALOG_URL } from "./adapters/dynamic-catalogs.mjs";
 import { cleanPublicUrl, catalogUrlAllowed } from "./adapters/catalog-pages.mjs";
 import { createOriginPacer } from "./request-pacing.mjs";
 import { trackEvents } from "./radar-events.mjs";
@@ -177,6 +178,18 @@ async function fetchHtml(source, targetUrl = source.url, restrictAaitr = false) 
     return value;
   };
   const initialUrl = validateUrl(targetUrl);
+  if (source.catalogFormat === "neburst" && initialUrl !== NEBURST_PUBLIC_CATALOG_URL) {
+    throw new Error("Neburst collection requires its public pricing URL");
+  }
+  let publicClientScript = null;
+  if (source.catalogFormat === "skyline") {
+    if (initialUrl !== "https://api.skylineconnect.io/v1/api/payment/payment_product_list" || !source.publicClientScript) {
+      throw new Error("Skyline collection requires its public product-list URL and published client script");
+    }
+    const client = await fetchHtml({ ...source, catalogFormat: null }, source.publicClientScript);
+    if (!client.ok) throw new Error(`Skyline public client script returned HTTP ${client.statusCode}`);
+    publicClientScript = client.html;
+  }
   let lastError;
   for (let attempt = 0; attempt <= fetchRetries; attempt += 1) {
     await waitForRequestSlot(initialUrl, source.requestIntervalMs);
@@ -185,11 +198,15 @@ async function fetchHtml(source, targetUrl = source.url, restrictAaitr = false) 
     try {
       let currentUrl = initialUrl;
       let response;
+      const publicRequest = publicClientScript ? buildSkylinePublicCatalogRequest(publicClientScript)
+        : source.catalogFormat === "neburst" ? buildNeburstPublicCatalogRequest({ userAgent }) : null;
       for (let redirects = 0; ; redirects += 1) {
         response = await fetch(currentUrl, {
+          ...(publicRequest ? { method: publicRequest.method, body: publicRequest.body } : {}),
           headers: {
             "user-agent": userAgent,
-            accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+            accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            ...publicRequest?.headers
           },
           redirect: restrictAaitr || restrictCatalog ? "manual" : "follow",
           signal: controller.signal
@@ -197,6 +214,7 @@ async function fetchHtml(source, targetUrl = source.url, restrictAaitr = false) 
         const location = response.headers.get("location");
         if (!(restrictAaitr || restrictCatalog) || ![301, 302, 303, 307, 308].includes(response.status) || !location) break;
         await response.body?.cancel();
+        if (publicRequest) throw new Error(`${source.provider} public catalog redirected unexpectedly`);
         if (redirects === 20) throw new Error("AaITR HTTP redirect limit exceeded");
         currentUrl = validateUrl(location, currentUrl);
       }

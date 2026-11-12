@@ -5,7 +5,7 @@
 此部署基于 [ResNode Radar](https://github.com/majiayu000/resnode-radar)，保留原项目 MIT 许可证。
 
 - Cloudflare Workers Static Assets 提供网页。
-- 本仓库的 `monitor.yml` 每 30 分钟运行采集器，校验并提交 `data/products.json`，同时覆盖普通 VPS 和家宽 / 住宅产品。
+- 本仓库的 `monitor.yml` 计划于每小时第 7、37 分钟运行采集器，校验并提交 `data/products.json`，同时覆盖普通 VPS 和家宽 / 住宅产品。实际执行以 Actions 运行记录和采集时间为准。
 - Worker 的 `/data/products.json` 读取本仓库 `main` 分支的公开数据，边缘缓存 60 秒；无需为库存更新重新部署网页。库存动态和参考汇率随同一个数据文件返回，不需要新接口。
 - `fx:update` 在定时采集前更新欧洲央行参考汇率；采集器将经过校验的汇率和库存变化记录一并写入 `data/products.json`。更新失败时保留汇率原始日期。
 - 数据源不可用时接口返回 503，页面显示库存未知。采集失败和被阻断的商家仍使用原项目的状态标记。

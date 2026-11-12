@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#f7f8f7" />
-    <meta name="description" content="VPS 节点雷达，帮你发现适合自己的 VPS。比较全球 VPS 套餐、价格、线路与库存，查看 62 家厂商的采集状态，收藏心仪方案并横向对比。" />
+    <meta name="description" content="VPS 节点雷达，帮你发现适合自己的 VPS。比较全球 VPS 套餐、价格、线路与库存，查看 65 家厂商的采集状态，收藏心仪方案并横向对比。" />
     <title>VPS 节点雷达 · 发现好 VPS，少一点折腾</title>
     <link rel="canonical" href="https://majiayu000.github.io/resnode-radar/" />
     <meta property="og:type" content="website" />
@@ -29,7 +29,7 @@
   </head>
   <body>
     <a class="skip-link" href="#main">跳到主要内容</a>
-    <div class="announcement"><div class="announcement-inner"><span><span class="announcement-dot" aria-hidden="true"></span> 每一条信息，都有来源可循。</span><span class="announcement-extra">公开页面采集 · 每 30 分钟更新</span><button type="button" data-view="guide">了解数据口径 <span aria-hidden="true">↗</span></button></div></div>
+    <div class="announcement"><div class="announcement-inner"><span><span class="announcement-dot" aria-hidden="true"></span> 每一条信息，都有来源可循。</span><span class="announcement-extra">公开来源采集 · 计划每 30 分钟检查</span><button type="button" data-view="guide">了解数据口径 <span aria-hidden="true">↗</span></button></div></div>
     <header class="site-header">
       <div class="header-inner">
         <a class="brand" href="./" aria-label="VPS 节点雷达首页">
@@ -38,7 +38,7 @@
         </a>
         <nav class="primary-nav" aria-label="主导航">
           <button type="button" data-view="inventory" class="is-active" aria-current="page">套餐探索</button>
-          <button type="button" data-view="providers">商家导航 <span data-provider-count>62</span></button>
+          <button type="button" data-view="providers">商家导航 <span data-provider-count>65</span></button>
           <button type="button" data-view="activity">库存动态</button>
           <button type="button" data-view="guide">选购指南</button>
         </nav>
@@ -55,14 +55,14 @@
         <div class="sync-info"><span class="status-pill" data-monitor-status>加载监控数据中</span><span>最近采集 <time data-sync>—</time></span><div><span data-freshness>正在读取数据</span><button type="button" class="refresh-button" data-refresh><span data-icon="refresh"></span>刷新数据</button></div></div>
       </section>
       <section class="overview" aria-label="监控概览">
-        <div class="stat"><div class="stat-top"><span>收录厂商</span><span data-icon="store"></span></div><div class="stat-value"><strong data-provider-count>62</strong><span>家</span></div><p><span data-provider-coverage>—</span> 家已检查 <span class="stat-divider">/</span> <span data-provider-live>—</span> 家有库存信号</p></div>
+        <div class="stat"><div class="stat-top"><span>收录厂商</span><span data-icon="store"></span></div><div class="stat-value"><strong data-provider-count>65</strong><span>家</span></div><p><span data-provider-coverage>—</span> 家已检查 <span class="stat-divider">/</span> <span data-provider-live>—</span> 家有库存信号</p></div>
         <div class="stat"><div class="stat-top"><span>发现 VPS 套餐</span><span data-icon="server"></span></div><div class="stat-value"><strong data-stat-total>—</strong><span>个</span></div><p>普通 VPS · 住宅 / 家宽 · 多种计费周期</p></div>
         <div class="stat"><div class="stat-top"><span>可订购方案</span><span class="stat-status" data-icon="check-circle"></span></div><div class="stat-value"><strong data-stat-available>—</strong><span>个</span></div><p>有订购入口或官方可用信号</p></div>
         <div class="stat"><div class="stat-top"><span>明确库存方案</span><span data-icon="layers"></span></div><div class="stat-value"><strong data-stat-exact>—</strong><span>个</span></div><p>官方公开了大于零的库存数量</p></div>
       </section>
       <div class="stale-notice" data-stale-notice hidden><span data-icon="clock"></span><span>这份采集数据已超过 90 分钟，当前库存可能变化。下单前请在官网核对。</span><button type="button" data-refresh class="text-button">重新读取</button></div>
       <section data-inventory-view aria-label="套餐探索">
-        <div class="provider-strip-head"><span><span data-icon="store"></span> 快速直达</span><button type="button" class="text-button" data-view="providers">全部 <span data-provider-count>62</span> 家厂商 <span aria-hidden="true">↗</span></button></div>
+        <div class="provider-strip-head"><span><span data-icon="store"></span> 快速直达</span><button type="button" class="text-button" data-view="providers">全部 <span data-provider-count>65</span> 家厂商 <span aria-hidden="true">↗</span></button></div>
         <div class="provider-shortcuts" data-provider-shortcuts></div>
         <div class="browse-heading"><nav class="category-tabs" aria-label="产品分类">
           <button type="button" class="is-active" data-category="all"><span data-icon="layers"></span>全部套餐 <b data-count-all>0</b></button>
@@ -95,8 +95,8 @@
       </section>
       <section data-directory-view class="directory-view" aria-label="厂商目录" hidden>
         <form class="directory-filters" aria-label="筛选厂商"><label class="search-field"><span data-icon="search"></span><span class="sr-only">厂商名称或别名</span><input type="search" data-directory-search placeholder="搜索厂商名称、别名或特征，例如 DMIT、搬瓦工、家宽…" /></label><label><span class="sr-only">服务地区</span><select data-directory-region><option value="all">全部服务地区</option><option value="US">美国</option><option value="JP">日本</option><option value="CNHK">香港</option><option value="CNTW">台湾</option><option value="SG">新加坡</option><option value="DE">德国</option><option value="UK">英国</option><option value="other">其他地区</option></select></label><label><span class="sr-only">采集状态</span><select data-directory-status><option value="all">全部采集状态</option><option value="active">已取得库存信号</option><option value="limited">受限 / 库存待核对</option></select></label><button type="button" class="text-button" data-directory-reset>重置</button></form>
-        <div class="section-topline"><h2>发现更多厂商</h2><span data-directory-count>62 家厂商</span></div><div class="provider-grid" data-provider-grid></div>
-        <p class="directory-attribution">目录参考 <a href="https://meowvps.com/VPS/" target="_blank" rel="noopener">MeowVPS</a>（2026-11-10），并合并本站原有来源。地区与特征用于发现厂商；收录不代表推荐，也不代表所有套餐都有公开库存。</p>
+        <div class="section-topline"><h2>发现更多厂商</h2><span data-directory-count>65 家厂商</span></div><div class="provider-grid" data-provider-grid></div>
+        <p class="directory-attribution">目录参考 <a href="https://meowvps.com/VPS/" target="_blank" rel="noopener">MeowVPS</a>（2026-11-10），并合并本站原有来源及新增官方目录。地区与特征用于发现厂商；收录不代表推荐，也不代表所有套餐都有公开库存。</p>
       </section>
       <section data-activity-view class="activity-view" aria-label="库存动态" hidden>
         <div class="activity-explainer"><div class="activity-icon"><span data-icon="activity"></span></div><div><h2>让变化，有迹可循。</h2><p>对比相邻采集轮次，记录可订购状态和标价变化。这里显示的是发现变化的时间。</p></div><button type="button" data-refresh class="secondary-button"><span data-icon="refresh"></span>刷新动态</button></div>

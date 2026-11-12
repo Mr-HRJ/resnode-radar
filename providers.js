@@ -1,4 +1,4 @@
-// Factual vendor directory. MeowVPS snapshot: 2026-11-10. No ratings or affiliate IDs copied.
+// Factual vendor directory; each entry links to its directory or official source. No ratings or affiliate IDs copied.
 export const providers = [
   {
     "id": "digitalfyre",
@@ -191,7 +191,7 @@ export const providers = [
       "V.PS(小秘书)",
       "小秘书"
     ],
-    "website": "https://vps.hosting/",
+    "website": "https://v.ps/",
     "regions": [
       "JP",
       "SG",
@@ -797,7 +797,7 @@ export const providers = [
       "Evoxt(益沃斯)",
       "益沃斯"
     ],
-    "website": "https://console.evoxt.com/",
+    "website": "https://evoxt.com/",
     "regions": [
       "DE",
       "US",
@@ -1371,5 +1371,38 @@ export const providers = [
     "inventoryNames": [
       "RackNerd"
     ]
+  },
+  {
+    "id": "zgovps",
+    "name": "ZgoCloud (ZGOVPS)",
+    "aliases": ["ZgoCloud", "ZGOVPS"],
+    "website": "https://zgovps.com/",
+    "regions": ["CNHK", "JP", "US", "DE"],
+    "features": ["AMD EPYC", "NVMe"],
+    "directorySource": "https://zgovps.com/",
+    "reviewedAt": "2026-11-12",
+    "inventoryNames": ["ZgoCloud"]
+  },
+  {
+    "id": "berohost",
+    "name": "BERO HOST",
+    "aliases": ["BEROHOST", "BERO HOST"],
+    "website": "https://bero-host.de/",
+    "regions": [],
+    "features": ["AMD Ryzen", "预付费"],
+    "directorySource": "https://bero-host.de/server/prepaid-ryzen-vserver-mieten",
+    "reviewedAt": "2026-11-12",
+    "inventoryNames": ["BERO HOST"]
+  },
+  {
+    "id": "spartan",
+    "name": "Spartan Host",
+    "aliases": ["SPARTAN", "Spartan Host", "斯巴达"],
+    "website": "https://spartanhost.org/vps",
+    "regions": ["US"],
+    "features": ["KVM", "NVMe"],
+    "directorySource": "https://spartanhost.org/vps",
+    "reviewedAt": "2026-11-12",
+    "inventoryNames": ["Spartan Host"]
   }
 ];

@@ -4,6 +4,7 @@ import { parse } from "node-html-parser";
 const pricePattern = /(?:US\$|CA\$|C\$|HK\$|A\$|[¥￥$€£]|\b(?:USD|CNY|CAD|EUR|GBP|HKD|RMB)\b)\s*[0-9][0-9,.]*|[0-9][0-9,.]*\s*(?:元|USD\b|CNY\b|CAD\b|EUR\b|GBP\b|HKD\b)/i;
 const specsPattern = /\b(?:vCPU|vCore|CPU|RAM|DDR[345]|KVM|VDS|VPS|NVMe|SSD|HDD)\b|\d\s*(?:GB|MB|TB|G)[\s/]|内存|記憶體|云服务器|雲伺服器|虚拟服务器/i;
 const excludedPattern = /独立服务器|獨立伺服器|独服|獨服|裸金属|bare\s*metal|dedicated\s*server|域名注册|域名註冊|domain\s*registration|reseller\s*hosting|shared\s*hosting|cpanel\s*hosting|SSL\s*certificates/i;
+const nonProductNamePattern = /^(?:Additional Services|Simple pricing|Popular Plans)$/i;
 const hardwarePattern = /\d+\s*(?:vCPU|vCore|CPU|Cores?\b|核)|(?:CPU|内存|RAM|Memory)\s*[:：]?\s*\d+|\d+\s*(?:GB|MB|G)\s*(?:RAM|DDR|内存)|\d+\s*(?:GB|MB)\s+(?:Memory|内存)/i;
 const orderPattern = /订购|訂購|购买|購買|立即开通|部署|選購|Order|Buy|Purchase|Deploy|Configure|Get started/i;
 const cardSelector = ".package, .product, .product-card, .card-product, .fh-product-card, .pricing-card, .pricing-box, .pricing-plan, .plan, .plan-card, .price-box, #products .card, [data-product-id], [itemtype*='Product']";
@@ -29,6 +30,12 @@ export function catalogUrlAllowed(url, source) {
   return target.hostname === baseHost || target.hostname.endsWith(`.${baseHost}`) || (source.allowedOrigins ?? []).includes(target.origin);
 }
 
+function documentBaseUrl(root, pageUrl, source) {
+  const href = root.querySelector("base[href]")?.getAttribute("href");
+  const base = cleanPublicUrl(href, pageUrl);
+  return base && catalogUrlAllowed(base, source) ? base : pageUrl;
+}
+
 function isCatalogLink(url, label) {
   const u = new URL(url);
   const route = u.searchParams.get("rp") || u.pathname;
@@ -42,9 +49,10 @@ function isCatalogLink(url, label) {
 
 export function discoverCatalogLinks(html, base, source) {
   const root = parse(html);
+  const documentBase = documentBaseUrl(root, base, source);
   const links = new Map();
   for (const anchor of root.querySelectorAll("a[href]")) {
-    const href = cleanPublicUrl(anchor.getAttribute("href"), base);
+    const href = cleanPublicUrl(anchor.getAttribute("href"), documentBase);
     const label = clean(anchor.text);
     if (!href || !catalogUrlAllowed(href, source) || !isCatalogLink(href, label)) continue;
     const score = /vps|vds|kvm|cn2|9929|云服务器|雲伺服器|家宽|住宅/i.test(`${href} ${label}`) ? 2 : 1;
@@ -110,15 +118,16 @@ export function parseCatalogPage(source, result, helpers) {
   const pageTitle = clean(root.querySelector("h1")?.text || root.querySelector("title")?.text);
   const base = result.finalUrl || source.url;
   if ((source.excludePaths ?? []).some((path) => base.toLowerCase().includes(path.toLowerCase()))) return [];
+  const documentBase = documentBaseUrl(root, base, source);
   const records = [];
-  for (const node of candidates(root, base)) {
+  for (const node of candidates(root, documentBase)) {
     const lines = textLines(node);
     const value = clean(lines.join(" "));
     if (!hardwarePattern.test(value) || value.length > 4000) continue;
     const nameNode = [source.nameSelector, ".package-title", ".product-title", ".product-name", ".plan-name", ".aether-plan-title", "[itemprop='name']", "h2", "h3", "h4", "h5"].filter(Boolean).map((selector) => node.querySelector(selector)).find((n) => n && !pricePattern.test(clean(n.text)) && !/^\d+(\.\d+)?$/.test(clean(n.text)));
     let name = clean(nameNode?.text || node.querySelector("td")?.text || lines.find((line) => !/^(?:\d+\s*(?:可用|Available)|Sold Out|缺货中)/i.test(line)));
     name = name.replace(/^(?:Sold Out|缺货中)\s*/i, "").replace(/\s*\d+\s*(?:Available|可用)\s*$/i, "").trim();
-    if (!name || name.length > 140 || /[?？]$/.test(name) || pricePattern.test(name) || /^(?:News|place new order|choose your plan|全方位解决方案|购买产品|ESTIMATE|Order Summary)/i.test(name) || excludedPattern.test(name) || (excludedPattern.test(`${pageTitle} ${source.pageLabel || ""}`) && !/\b(?:VPS|VDS|KVM)\b/i.test(name))) continue;
+    if (!name || name.length > 140 || nonProductNamePattern.test(name) || /[?？]$/.test(name) || pricePattern.test(name) || /^(?:News|place new order|choose your plan|全方位解决方案|购买产品|ESTIMATE|Order Summary)/i.test(name) || excludedPattern.test(name) || (excludedPattern.test(`${pageTitle} ${source.pageLabel || ""}`) && !/\b(?:VPS|VDS|KVM)\b/i.test(name))) continue;
     const priceNode = [source.priceSelector, ".price-ammount", ".price-amount", ".price-cls", ".price", ".package-price", ".product-price", ".pricing-price"].filter(Boolean).map((selector) => node.querySelector(selector)).find(Boolean);
     const priceText = clean(`${source.priceSelector && source.currency ? `${source.currency} ` : ""}${priceNode?.text ?? ""}`);
     const priceMatch = (pricePattern.test(priceText) ? priceText : value).match(pricePattern);
@@ -129,7 +138,7 @@ export function parseCatalogPage(source, result, helpers) {
     const cycleNode = clean(node.querySelector(".price-cycle, .cycle, .billing-cycle, .price-period, .text-small.text-muted")?.text);
     const nearPrice = value.slice(value.indexOf(priceMatch[0]), value.indexOf(priceMatch[0]) + priceMatch[0].length + 55);
     const period = cycleNode || (nearPrice.match(/(?:\/\s*(?:mo(?:nth)?|yr|year|月|年|季|小时|hour)|per\s+(?:month|year|hour)|monthly|quarterly|annually|yearly|每月|每年|每季|月付|月缴|月繳|年付|年缴|季付)/i)?.[0] ?? "");
-    const orders = orderLinks(node, base);
+    const orders = orderLinks(node, documentBase);
     const order = orders.find((a) => !a.node.hasAttribute("disabled") && a.node.getAttribute("aria-disabled") !== "true" && !a.node.classList.contains("disabled"));
     const soldOut = /Sold Out|Out of Stock|售罄|已售完|缺货|無庫存|无库存/i.test(value);
     const stock = value.match(/(?:库存|庫存)\s*[:：]?\s*(\d+)|(\d+)\s*(?:可用|Available\b|in stock\b)/i);

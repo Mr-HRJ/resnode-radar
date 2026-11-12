@@ -59,8 +59,9 @@ function showProviderDetail(id) {
   if (!body) return;
   const issue = h.issues[0];
   const paths = [...new Map(h.records.flatMap((r) => [r, ...(r.raw?.attempts ?? []).filter((a) => a.url).map((a) => ({ sourceUrl: a.url }))]).map((r) => [r.sourceUrl, r])).values()];
-  body.innerHTML = `<h2 id="provider-detail-title">${html(p.name)}</h2><span class="health-tag is-${h.state}">${html(h.label)}</span><p>${loaded ? `${h.plans.length} 个套餐周期，其中 ${h.available} 个可订购。${h.attempted ? "已纳入每 30 分钟的自动采集。" : "等待下一次监控数据。"}` : "本站监控数据暂不可用，当前库存未知。请稍后重新读取数据或前往官网核对。"}</p>
+  body.innerHTML = `<h2 id="provider-detail-title">${html(p.name)}</h2><span class="health-tag is-${h.state}">${html(h.label)}</span><p>${loaded ? `${h.plans.length} 个套餐周期，其中 ${h.available} 个可订购。${h.attempted ? "采集任务计划每 30 分钟运行，实际时间见下方记录。" : "等待下一次监控数据。"}` : "本站监控数据暂不可用，当前库存未知。请稍后重新读取数据或前往官网核对。"}</p>
     ${issue ? `<p class="collection-note">${html(issue.evidence || issue.error)}</p>` : ""}
+    ${[...new Set(h.records.map((r) => r.collection?.scopeNote).filter(Boolean))].map((note) => `<p class="collection-note">${html(note)}</p>`).join("")}
     ${h.records.some((r) => r.collection?.pageLimitReached) ? '<p class="collection-note">本轮已达到公开页面采集上限，可能还有未覆盖的产品组。</p>' : ""}
     <dl class="detail-grid"><div><dt>最后检查</dt><dd>${html(formatDateTime(h.records[0]?.fetchedAt))}</dd></div><div><dt>目录来源</dt><dd><a href="${html(safeUrl(p.directorySource))}" target="_blank" rel="noopener nofollow">查看目录出处</a></dd></div></dl>
     <h3>已检查的官方来源</h3><ul class="source-links">${paths.slice(0,15).map((r) => `<li><a href="${html(safeUrl(r.sourceUrl))}" target="_blank" rel="noopener nofollow">${html(r.sourceUrl)}</a></li>`).join("") || '<li>尚无采集记录</li>'}</ul>

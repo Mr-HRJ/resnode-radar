@@ -122,17 +122,19 @@ npm run monitor
 npm run monitor:validate
 ```
 
-GitHub Actions runs `.github/workflows/monitor.yml` every 30 minutes and commits `data/products.json` when live provider data changes.
+GitHub Actions is scheduled at minutes 7 and 37 of each hour and commits `data/products.json` after collection. Check actual Actions runs and the published collection timestamp; a configured schedule alone does not prove a run occurred.
 
-The directory contains 62 unique providers: all 57 entries from the public
+The directory contains 65 unique providers: all 57 entries from the public
 [MeowVPS directory](https://meowvps.com/VPS/) observed on 2026-11-10, merged with
-this site's existing providers. `providers.js` holds factual directory metadata;
+this site's existing providers and official ZgoCloud, BERO HOST, and Spartan Host catalogs. `providers.js` holds factual directory metadata;
 `monitor/sources.json` configures an automated read for every provider. Directory
 inclusion is not a claim that every provider exposes usable stock.
 
-The collector keeps the existing provider adapters and adds a bounded official
-catalog parser, USVPS24/NodeMach public page payloads, and Miraigrid/100TB public
-product APIs. NodeMach replaces the retired VIRCS product endpoints. Public
+The collector keeps the existing provider adapters and adds bounded official
+catalog parsing, USVPS24/NodeMach public page payloads, Miraigrid/100TB/Neburst/Skyline
+public product APIs, and dedicated EVOXT, V.PS, ZgoCloud, BERO HOST, and Spartan
+catalog adapters. See [source coverage and collection boundaries](docs/source-coverage.md).
+NodeMach replaces the retired VIRCS product endpoints. Public
 catalog discovery follows only configured official hosts, excludes checkout and
 language mirrors, and spaces requests by 2 seconds (10 seconds for ZoroCloud).
 Each generic source checks at most 12 pages unless explicitly configured.

@@ -603,11 +603,19 @@
     "id": "catalog-vps",
     "providerId": "vps",
     "provider": "V.PS(小秘书)",
-    "category": "unclassified",
+    "category": "vps",
     "adapter": "public_catalog",
-    "url": "https://vps.hosting/",
+    "catalogFormat": "vps",
+    "url": "https://v.ps/products/cloud-kvm-vps/",
+    "catalogUrls": [
+      "https://v.ps/products/mini-kvm-vps/",
+      "https://v.ps/products/performance-kvm-vps/"
+    ],
+    "allowedOrigins": ["https://vps.hosting"],
+    "coverageNote": "已覆盖 Cloud、Mini、Performance 产品系列的公开报价与规格；这些页面未声明实时库存，其他系列尚未接入。",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "discover": false,
+    "maxPages": 3
   },
   {
     "id": "catalog-greencloud",
@@ -903,11 +911,13 @@
     "id": "catalog-evoxt",
     "providerId": "evoxt",
     "provider": "Evoxt(益沃斯)",
-    "category": "unclassified",
+    "category": "vps",
     "adapter": "public_catalog",
-    "url": "https://console.evoxt.com/",
+    "catalogFormat": "evoxt",
+    "url": "https://evoxt.com/pricing/",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "discover": false,
+    "maxPages": 1
   },
   {
     "id": "catalog-taphip",
@@ -958,11 +968,14 @@
     "id": "catalog-neburst",
     "providerId": "neburst",
     "provider": "Neburst(奶爸)",
-    "category": "unclassified",
+    "category": "vps",
     "adapter": "public_catalog",
-    "url": "https://neburst.com/",
+    "catalogFormat": "neburst",
+    "url": "https://neburst.com/api/v1/public/pricing/cloud?include_unpriced=true",
+    "website": "https://neburst.com/pricing/cloud/",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "discover": false,
+    "maxPages": 1
   },
   {
     "id": "catalog-boil",
@@ -998,11 +1011,17 @@
     "id": "catalog-skyline",
     "providerId": "skyline",
     "provider": "Skyline Connect",
-    "category": "unclassified",
+    "category": "vps",
     "adapter": "public_catalog",
-    "url": "https://www.skylineconnect.io/",
+    "catalogFormat": "skyline",
+    "url": "https://api.skylineconnect.io/v1/api/payment/payment_product_list",
+    "publicClientScript": "https://www.skylineconnect.io/_next/static/chunks/2pec0zszfss4b.js",
+    "allowedOrigins": ["https://www.skylineconnect.io"],
+    "website": "https://www.skylineconnect.io/products",
+    "currency": "USD",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "discover": false,
+    "maxPages": 1
   },
   {
     "id": "catalog-wirecat",
@@ -1094,6 +1113,51 @@
     "catalogFormat": "nodemach",
     "url": "https://www.nodemach.com/products",
     "requestIntervalMs": 2000,
+    "discover": false
+  },
+  {
+    "id": "catalog-zgovps",
+    "providerId": "zgovps",
+    "provider": "ZgoCloud",
+    "category": "vps",
+    "adapter": "public_catalog",
+    "catalogFormat": "zgovps",
+    "url": "https://clients.zgovps.com/index.php?/cart/hongkong-amd-vps/",
+    "catalogUrls": ["https://clients.zgovps.com/index.php?/cart/los-angeles-amd-optimised-vps/"],
+    "coverageNote": "已覆盖香港 AMD 与洛杉矶 AMD Optimised 产品组及其公开计费周期，其他产品组尚未接入。",
+    "requestIntervalMs": 2000,
+    "maxPages": 2,
+    "discover": false
+  },
+  {
+    "id": "catalog-berohost",
+    "providerId": "berohost",
+    "provider": "BERO HOST",
+    "category": "vps",
+    "adapter": "public_catalog",
+    "catalogFormat": "berohost",
+    "url": "https://bero-host.de/server/prepaid-ryzen-vserver-mieten",
+    "coverageNote": "已覆盖 Ryzen 预付费 VPS；页面标注按 30 天计费，其他系列尚未接入。",
+    "requestIntervalMs": 2000,
+    "maxPages": 1,
+    "discover": false
+  },
+  {
+    "id": "catalog-spartan",
+    "providerId": "spartan",
+    "provider": "Spartan Host",
+    "category": "vps",
+    "adapter": "public_catalog",
+    "catalogFormat": "spartan",
+    "url": "https://billing.spartanhost.net/store/ddos-protected-ssd-premium-kvm-vps-seattle",
+    "catalogUrls": [
+      "https://billing.spartanhost.net/store/cmin2-premium-kvm-vps-seattle",
+      "https://billing.spartanhost.net/store/dallas-premium-vps"
+    ],
+    "coverageNote": "已覆盖西雅图 Premium、西雅图 CMIN2、达拉斯 Premium 官方商店产品组，其他系列尚未接入。",
+    "currency": "USD",
+    "requestIntervalMs": 2000,
+    "maxPages": 3,
     "discover": false
   }
 ]
