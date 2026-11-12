@@ -132,8 +132,8 @@ inclusion is not a claim that every provider exposes usable stock.
 
 The collector keeps the existing provider adapters and adds bounded official
 catalog parsing, USVPS24/NodeMach public page payloads, Miraigrid/100TB/Neburst/Skyline
-public product APIs, and dedicated EVOXT, V.PS, ZgoCloud, BERO HOST, and Spartan
-catalog adapters. See [source coverage and collection boundaries](docs/source-coverage.md).
+public product APIs, and dedicated EVOXT, V.PS, ZgoCloud, BERO HOST, Spartan,
+and GreenCloud catalog adapters. See [source coverage and collection boundaries](docs/source-coverage.md).
 NodeMach replaces the retired VIRCS product endpoints. Public
 catalog discovery follows only configured official hosts, excludes checkout and
 language mirrors, and spaces requests by 2 seconds (10 seconds for ZoroCloud).

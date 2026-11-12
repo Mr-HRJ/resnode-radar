@@ -13,6 +13,7 @@ VPSBBC's permitted `https://vpsbbc.com/llms-full.txt` listed 218 plans across te
 | ZgoCloud | Hong Kong AMD and Los Angeles AMD Optimised groups at `clients.zgovps.com` | Separate product/billing-cycle identities. Explicit sold-out text overrides enabled Continue controls. Continue establishes an order entry, not a unit count. |
 | BERO HOST | `https://bero-host.de/server/prepaid-ryzen-vserver-mieten` | German prices and sibling sold-out overlays. Preserve VAT and 30-day prepaid terms; selectable packages with no stock assertion remain unknown. |
 | Spartan Host | Seattle Premium, Seattle CMIN2 and Dallas Premium groups at `billing.spartanhost.net` | Read actual billing groups. Marketing-page purchase links cannot override explicit sold-out stock in the store. Other groups are not claimed as covered. |
+| GreenCloud | `https://www.greencloudvps.com/billing/store/{ssd-kvm-vps,budget-kvm-sale}/?language=english` | Two live public store groups with explicitly published USD monthly/annual quotes. Preserve zero and positive stock quantities; product order links without a quantity remain order-entry evidence. Other groups are outside this configured scope. |
 | Neburst | `https://neburst.com/api/v1/public/pricing/cloud` | Region/shape/billing combinations, public offering-availability signals, integer-cent prices and matching automatic promotions. A false cell in the full region/shape matrix does not establish a sold-out regional SKU. No unit count is inferred. |
 | Skyline Connect | `https://api.skylineconnect.io/v1/api/payment/payment_product_list` | Public anonymous product-list request. Separate billing SKUs; preserve base/configurable prices. `stocks`, `stocksSold`, and `enable` are retained as evidence without inventing remaining inventory. |
 
@@ -29,6 +30,8 @@ Generic catalog discovery respects a valid official-host HTML `<base href>` for 
 Diagnostics distinguish a challenge, HTTP denial, rate limiting, login redirect, and a page with no parsed products. A successful HTTP response with no products retains its actual URL/status and has no invented order entry.
 
 Normal browser loads of DMIT's public pricing page and VMISS's store remained restricted during inspection. LightLayer's account catalog redirected to the client area; its marketing application only exposed partial offers. ISIF's advertised public product API returned a challenge. Taipei101's calculator example is not a fixed purchasable plan. These results must not be converted into either stock or sellouts.
+
+Further public-source checks on 2026-11-12 confirmed that DMIT's `https://dmit.news/feed.xml` and linked official Telegram channels expose dated operational announcements, while VMISS's officially linked `https://t.me/s/vmiss_com` exposes service notices. Neither supplied a current VPS price catalog. VMISS's 2022 launch table has no billing cycle; DMIT's 2025 compensation offer has expired eligibility deadlines. These are not current quotes. VMISS's 2026-10-10 notice also terminates HK.BGP.DC2 on 2026-10-28, so a third-party directory retaining that family is not sufficient evidence of current availability.
 
 ## Runtime verification
 

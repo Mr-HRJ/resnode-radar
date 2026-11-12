@@ -2,6 +2,7 @@ import { parseCatalogApi, parseNodeMach } from "./catalog-api.mjs";
 import { parseMarketingCatalog } from "./marketing-catalogs.mjs";
 import { parseAdditionalCatalog } from "./additional-catalogs.mjs";
 import { parseDynamicCatalog } from "./dynamic-catalogs.mjs";
+import { parseGreenCloudCatalog } from "./greencloud-catalog.mjs";
 import { parse } from "node-html-parser";
 import { cleanPublicUrl, catalogUrlAllowed, discoverCatalogLinks, parseCatalogPage } from "./catalog-pages.mjs";
 
@@ -45,10 +46,11 @@ export async function monitorPublicCatalog(source, helpers) {
       const records = source.catalogFormat === "usvps24" ? parseUsvps24(source, result, helpers)
         : source.catalogFormat === "nodemach" ? parseNodeMach(source, result, helpers)
           : ["miraigrid", "100tb"].includes(source.catalogFormat) ? parseCatalogApi(source, result, helpers)
-            : ["evoxt", "vps"].includes(source.catalogFormat) ? parseMarketingCatalog(source, result, helpers)
-              : ["zgovps", "berohost", "spartan"].includes(source.catalogFormat) ? parseAdditionalCatalog(source, result, helpers)
-                : ["neburst", "skyline"].includes(source.catalogFormat) ? parseDynamicCatalog(source, result, helpers)
-                  : parseCatalogPage({ ...source, pageLabel: page.label }, result, helpers);
+            : source.catalogFormat === "greencloud" ? parseGreenCloudCatalog(source, result, helpers)
+              : ["evoxt", "vps"].includes(source.catalogFormat) ? parseMarketingCatalog(source, result, helpers)
+                : ["zgovps", "berohost", "spartan"].includes(source.catalogFormat) ? parseAdditionalCatalog(source, result, helpers)
+                  : ["neburst", "skyline"].includes(source.catalogFormat) ? parseDynamicCatalog(source, result, helpers)
+                    : parseCatalogPage({ ...source, pageLabel: page.label }, result, helpers);
       attempts.push({ ...attempted, status: records.length ? "parsed" : "no-products", products: records.length });
       for (const record of records) products.set(record.id, record);
       if (page.depth < 2 && source.discover !== false) {

@@ -621,11 +621,18 @@
     "id": "catalog-greencloud",
     "providerId": "greencloud",
     "provider": "GreenCloud(绿云)",
-    "category": "unclassified",
+    "category": "vps",
     "adapter": "public_catalog",
-    "url": "https://greencloudvps.com/billing/",
+    "catalogFormat": "greencloud",
+    "url": "https://www.greencloudvps.com/billing/store/ssd-kvm-vps/?language=english",
+    "catalogUrls": [
+      "https://www.greencloudvps.com/billing/store/budget-kvm-sale/?language=english"
+    ],
+    "currency": "USD",
+    "coverageNote": "已覆盖 SSD KVM VPS 与 Budget KVM Sale 官方产品组，保留月付、年付及明示库存；其他产品组尚未接入。无库存数字的套餐仅表示存在订购入口。",
     "requestIntervalMs": 2000,
-    "maxPages": 12,
+    "discover": false,
+    "maxPages": 2,
     "allowedOrigins": [
       "https://green.cloud"
     ]
