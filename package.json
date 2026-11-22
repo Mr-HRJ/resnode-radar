@@ -19,6 +19,7 @@
     "test": "node --test scripts/*.test.mjs",
     "check": "find . -maxdepth 1 -name '*.js' -print0 | xargs -0 -n1 node --check && find src -name '*.js' -print0 | xargs -0 -n1 node --check && find scripts -name '*.mjs' -print0 | xargs -0 -n1 node --check && node --check cloudflare/worker.mjs",
     "build:cloudflare": "node scripts/build-cloudflare.mjs",
+    "build:vps": "node scripts/build-vps.mjs",
     "deploy:cloudflare": "npm run build:cloudflare && npx --yes wrangler@4.160.0 deploy",
     "assets": "node scripts/generate-assets.mjs",
     "monitor": "node scripts/monitor.mjs",

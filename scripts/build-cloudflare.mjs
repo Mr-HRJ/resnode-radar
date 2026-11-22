@@ -19,9 +19,9 @@ export const BROWSER_ASSET_ALLOWLIST = [
   "LICENSE"
 ];
 
-export function buildCloudflare(outputDirectory = join(projectRoot, "dist")) {
+export function buildCloudflare(outputDirectory = join(projectRoot, "dist"), { siteUrl } = {}) {
   const config = JSON.parse(readFileSync(join(projectRoot, "wrangler.json"), "utf8"));
-  const site = new URL(config.vars.SITE_URL);
+  const site = new URL(siteUrl ?? config.vars.SITE_URL);
   if (site.protocol !== "https:" || site.pathname !== "/" || site.search || site.hash) {
     throw new Error("SITE_URL must be an HTTPS origin with a trailing slash");
   }
@@ -54,7 +54,7 @@ export function buildCloudflare(outputDirectory = join(projectRoot, "dist")) {
     join(outputDirectory, "robots.txt"),
     `User-agent: *\nAllow: /\nSitemap: ${site.href}sitemap.xml\n`
   );
-  console.log(`Cloudflare assets ready: ${outputDirectory}`);
+  console.log(`Browser assets ready: ${outputDirectory}`);
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
