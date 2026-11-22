@@ -2,6 +2,8 @@
 
 目标域名：`https://vps.bnoai.com/`。网站与采集都运行在 VPS，运行期间不依赖 GitHub Actions、Cloudflare Worker 或调度令牌。
 
+**当前状态（2026-11-22）：下述上线验收完成后，服务器开始清盘重装 Ubuntu。原 VPS 网站和采集服务已中断，尚未恢复。以下记录是重装前的验收结果，不代表当前服务在线。遵循全新安装的要求，本任务已停止服务器写入和自动恢复。** 本地项目、发布包和公开数据快照仍保留；域名仍指向原服务器 IP，GitHub 采集仍处于停用状态。
+
 ## 文件布局
 
 - `/opt/resnode-radar/releases/<release>/`：完整项目与生产依赖，由管理员维护。
@@ -29,9 +31,9 @@ journalctl -u resnode-radar --since '30 minutes ago' --no-pager
 
 访问日志使用 Nginx 的 logrotate 策略；采集日志由 journald 管理，部署时检查宿主的保留策略。服务重启测试后，观察至少两个完整采集周期，验证域名 HTTPS、快照更新时间、来源覆盖与真实失败信息。完成验证后，再停用 GitHub 定时采集；保留旧站点直到新站验收完成。
 
-## 本次上线验收
+## 重装前的上线验收
 
-2026-11-22 已上线至 `https://vps.bnoai.com/`，DNS 指向 `62.83.135.52`。当前版本目录为 `/opt/resnode-radar/releases/20261122T163908Z`，使用 Node.js 24.22.3。
+2026-11-22 曾上线至 `https://vps.bnoai.com/`，DNS 指向 `62.83.135.52`。当时版本目录为 `/opt/resnode-radar/releases/20261122T163908Z`，使用 Node.js 24.22.3。
 
 - 本地和 VPS 均通过 261 项测试；公开的 35 个静态文件与构建产物一致。
 - 两轮真实采集均通过 161 个源的覆盖校验，分别耗时约 239 秒和 231 秒。快照时间为 `16:41:37.110Z`、`16:51:37.335Z`，间隔 600.225 秒；公网数据接口已读取到第二轮结果。
@@ -41,3 +43,5 @@ journalctl -u resnode-radar --since '30 minutes ago' --no-pager
 - GitHub 的 `monitor.yml` 已停用，CI 保留。旧 Cloudflare 站点保留作为迁移前版本；生产入口改为 VPS 域名，不再需要 `GITHUB_DISPATCH_TOKEN`。
 
 后续发布需先验证新版本，再切换 `current` 链接并重启本项目服务。不要覆盖 `/var/lib/resnode-radar/data`，不要修改同机其他站点的 Nginx 配置或证书。若要恢复 GitHub 采集，可手动启用 `monitor.yml`，并先确认不会与 VPS 重复运行。
+
+本地 `logs/resnode-20261122T163908Z.tar.gz` 保存已部署的项目发布包，`logs/vps-release.json` 保存文件校验清单；`logs/vps-second-snapshot.json` 和 `logs/vps-cadence-verification.json` 保存第二轮公开快照及 600.225 秒节拍验证。它们不包含服务器证书私钥或 SSH 私钥，不能视为完整系统备份。
