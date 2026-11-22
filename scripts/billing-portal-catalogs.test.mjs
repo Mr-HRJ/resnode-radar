@@ -1,10 +1,28 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseHostbillOnestep, parseShandunCatalog, parseMoonvmCatalog } from "./adapters/billing-portal-catalogs.mjs";
+import { parseHostbillOnestep, parseShandunCatalog, parseMoonvmCatalog, parseHaloCloudCatalog } from "./adapters/billing-portal-catalogs.mjs";
 import { priceQuote } from "../pricing.js";
 
 const baseRecord = (source, result, values) => ({ sourceId: source.id, provider: source.provider, finalUrl: result.finalUrl, ...values });
 const page = (html, finalUrl) => ({ ok: true, statusCode: 200, finalUrl, html });
+
+test("HaloCloud public payload maps VPS groups, clamps negative sellouts and ignores unlimited quantity", () => {
+  const source = { id: 'catalog-halocloud', provider: 'HaloCloud', url: 'https://my.halocloud.net/index.php?rp=%2Fstore' };
+  const plan = { id: 1, name: 'HK Premium', groupId: 8, description: 'CPU 1 Core\nMemory 1024 MB\nDisk 10 GB\nBandwidth Shared 1 Gbps\nTraffic 1000 GB\nIPv4 1', pricing: { monthly: '3.50', annually: '42.00' }, stockcontrol: true, qty: -74 };
+  const payload = { result: 'success', data: { types: [{ id: 2, name: 'VPS' }], regions: [{ id: 1, name: 'Hong Kong' }], nodes: [{ id: 1, name: 'HK Premium', region_id: 1, supported_types_array: [2], product_group_id: 8 }] }, packages: [plan, { ...plan, id: 2, qty: 3 }, { ...plan, id: 3, stockcontrol: false, qty: 0 }], checkout: { logged_in: false } };
+  const html = (data) => `<script>window.__HcPurchaseAppData = {currencyPrefix: "$"};</script><script>window.__SimplifiedCartPayload = ${JSON.stringify(data)};</script>`;
+  const rows = parseHaloCloudCatalog(source, page(html(payload), source.url), { baseRecord });
+  assert.deepEqual(rows.map(p=>p.status), ['unavailable', 'available', 'available']);
+  assert.deepEqual(rows.map(p=>p.stockCount), [0, 3, null]);
+  assert.equal(rows[0].region, '香港');
+  assert.equal(rows[0].priceValue, 3.5);
+  assert.equal(priceQuote(rows[0]).monthly, 3.5);
+  assert.match(rows[0].hardware, /Memory 1024 MB/);
+  assert.equal(new URL(rows[0].orderUrl).searchParams.get('pid'), '1');
+  assert.equal(rows[0].raw.checkout, undefined);
+  assert.throws(() => parseHaloCloudCatalog(source, page(html({ ...payload, packages: [{ ...plan, qty: null }] }), source.url), { baseRecord }), /schema changed/);
+  assert.throws(() => parseHaloCloudCatalog(source, page('<h1>Maintenance</h1>', source.url), { baseRecord }), /payload missing/);
+});
 
 const moonvm = { id: 'catalog-moonvm', provider: 'MoonVM', url: 'https://store.moonvm.com/cart.php', currency: 'USD' };
 function moonvmGroup(group, id, order = '') {

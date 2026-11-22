@@ -30,6 +30,43 @@ function regionFrom(value) {
   return matches.length === 1 ? matches[0] : null;
 }
 
+export function parseHaloCloudCatalog(source, result, { baseRecord }) {
+  const root = parse(result.html);
+  const script = root.querySelectorAll("script:not([src])").map((node) => node.text).find((text) => text.includes("window.__SimplifiedCartPayload"));
+  const json = script?.match(/^\s*window\.__SimplifiedCartPayload\s*=\s*(\{[\s\S]*\})\s*;?\s*$/)?.[1];
+  if (!json) throw new Error("HaloCloud public catalog payload missing");
+  const payload = JSON.parse(json);
+  if (payload.result !== "success" || !Array.isArray(payload.packages) || !Array.isArray(payload.data?.nodes) || !Array.isArray(payload.data?.regions) || !Array.isArray(payload.data?.types)) throw new Error("HaloCloud public catalog schema changed");
+  if (!/currencyPrefix\s*:\s*"\$"/.test(result.html)) throw new Error("HaloCloud storefront currency changed");
+  const cycleNames = { monthly: "Monthly", quarterly: "Quarterly", semiannually: "Semi-Annually", annually: "Annually", biennially: "Biennially", triennially: "Triennially" };
+  const vpsTypes = new Set(payload.data.types.filter((type) => /\bVPS\b/i.test(type.name)).map((type) => type.id));
+  return payload.packages.flatMap((plan) => {
+    const node = payload.data.nodes.find((node) => node.product_group_id === plan.groupId);
+    if (!node || !Array.isArray(node.supported_types_array)) throw new Error("HaloCloud catalog group mapping changed");
+    if (!node.supported_types_array.some((id) => vpsTypes.has(id))) return [];
+    const cycle = Object.keys(cycleNames).find((cycle) => typeof plan.pricing?.[cycle] === "string" && /^\d+(?:\.\d+)?$/.test(plan.pricing[cycle]) && Number(plan.pricing[cycle]) > 0);
+    if (!Number.isSafeInteger(plan.id) || plan.id <= 0 || !plan.name || !cycle || typeof plan.stockcontrol !== "boolean" || (plan.stockcontrol && !Number.isSafeInteger(plan.qty))) throw new Error("HaloCloud plan price or stock schema changed");
+    const lines = String(plan.description || "").split(/\r?\n|<br\s*\/?>/i).map((line) => clean(parse(line).text)).filter(Boolean);
+    const count = plan.stockcontrol ? Math.max(0, plan.qty) : null;
+    const status = count === 0 ? "unavailable" : "available";
+    const order = new URL("/cart.php", result.finalUrl);
+    order.search = new URLSearchParams({ a: "add", pid: String(plan.id), billingcycle: cycle, skipconfig: "1", carttpl: "halocloud-studio-cart" }).toString();
+    const setupFee = Number(plan.setupFees?.[cycle] || 0);
+    if (!Number.isFinite(setupFee) || setupFee < 0) throw new Error("HaloCloud setup fee changed");
+    return [baseRecord(source, result, {
+      id: `${source.id}:plan:${plan.id}`, sourceUrl: result.finalUrl, name: plan.name, category: "vps",
+      region: regionFrom(payload.data.regions.find((region) => region.id === node.region_id)?.name || plan.group_name), route: node.name,
+      hardware: lines.filter((line) => /CPU|Memory|Disk|RAM|SSD|NVMe/i.test(line)).join(" / ") || null,
+      bandwidth: lines.filter((line) => /Bandwidth|Traffic|IPv[46]/i.test(line)).join(" / ") || null,
+      price: `$${Number(plan.pricing[cycle]).toFixed(2)} / ${cycleNames[cycle]}`, priceValue: Number(plan.pricing[cycle]), currency: "USD",
+      status, statusLabel: status === "unavailable" ? "已售罄" : count === null ? "可订购入口" : `库存 ${count}`, stockCount: count, orderUrl: order.href,
+      note: `官方公开订购目录；未启用数量限制的产品不推断库存数量。${setupFee ? `另收一次性设置费 USD ${setupFee}。` : ""}`,
+      evidence: `Official anonymous storefront payload; stockcontrol=${plan.stockcontrol}; quantity=${count ?? "not limited"}`,
+      raw: { productId: plan.id, groupId: plan.groupId, billingCycle: cycle, stockcontrol: plan.stockcontrol, setupFee }
+    })];
+  });
+}
+
 // MoonVM renders every group on each store route. The DOM carries the real
 // group/product/variant IDs even when a sold-out card has no order link.
 export function parseMoonvmCatalog(source, result, { baseRecord }) {

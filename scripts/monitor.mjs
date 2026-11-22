@@ -17,8 +17,10 @@ import {
   discoverSkylineChunkUrls,
   NEBURST_PUBLIC_CATALOG_URL
 } from "./adapters/dynamic-catalogs.mjs";
-import { cleanPublicUrl, catalogUrlAllowed } from "./adapters/catalog-pages.mjs";
+import { cleanPublicUrl, catalogUrlAllowed, catalogRequestUrl } from "./adapters/catalog-pages.mjs";
 import { createOriginPacer } from "./request-pacing.mjs";
+import { fetchHttp2 } from "./http2-fetch.mjs";
+import { transportErrorDetails } from "./transport-errors.mjs";
 import { trackEvents } from "./radar-events.mjs";
 import { readFxSnapshot } from "./fx-rates.mjs";
 import { validateMonitorPayload } from "./validate-monitor-data.mjs";
@@ -44,7 +46,7 @@ const userAgent = "Mozilla/5.0 ResNodeRadar/0.2 (+https://github.com/Mr-HRJ/resn
 const execFileAsync = promisify(execFile);
 const antiBotPattern = /Just a moment|cf_chl|challenge-platform|Enable JavaScript and cookies|cf-turnstile|正在进行安全验证|Cloudflare Ray ID|cf-mitigated/i;
 // Requests are paced per origin, so parallel lanes for different origins stay polite while
-// keeping a full run comfortably inside the 10-minute collection cadence.
+// keeping a full run comfortably inside the 20-minute collection cadence.
 const monitorConcurrency = Math.max(1, Number(process.env.MONITOR_CONCURRENCY ?? 12));
 const fetchRetries = Number(process.env.MONITOR_FETCH_RETRIES ?? 2);
 const fetchTimeoutMs = Number(process.env.MONITOR_FETCH_TIMEOUT_MS ?? 20000);
@@ -194,7 +196,7 @@ async function fetchHtml(source, targetUrl = source.url, restrictAaitr = false) 
     if (restrictCatalog) {
       const url = cleanPublicUrl(value, base);
       if (!url || !catalogUrlAllowed(url, source)) throw new Error("Catalog redirect outside configured official hosts");
-      return url;
+      return catalogRequestUrl(url, source);
     }
     return value;
   };
@@ -242,7 +244,8 @@ async function fetchHtml(source, targetUrl = source.url, restrictAaitr = false) 
       const publicRequest = publicClientScript ? buildSkylinePublicCatalogRequest(publicClientScript)
         : source.catalogFormat === "neburst" ? buildNeburstPublicCatalogRequest({ userAgent }) : null;
       for (let redirects = 0; ; redirects += 1) {
-        response = await fetch(currentUrl, {
+        if (source.transport === "http2" && publicRequest) throw new Error("HTTP/2 catalog transport supports public GET pages only");
+        response = await (source.transport === "http2" ? fetchHttp2 : fetch)(currentUrl, {
           ...(publicRequest ? { method: publicRequest.method, body: publicRequest.body } : {}),
           headers: {
             "user-agent": userAgent,
@@ -271,7 +274,7 @@ async function fetchHtml(source, targetUrl = source.url, restrictAaitr = false) 
     } catch (error) {
       source.signal?.throwIfAborted();
       lastError = error;
-      if (attempt === fetchRetries) break;
+      if (attempt === fetchRetries || transportErrorDetails(error, initialUrl).code === "ENOTFOUND") break;
       await delay(800 * (attempt + 1), undefined, { signal: source.signal });
     } finally {
       clearTimeout(timeout);
@@ -323,13 +326,12 @@ function blockedRecord(source, fetchResult, reason, extra = {}) {
 }
 
 function errorRecord(source, error, extra = {}) {
-  const transportCode = /^[A-Z][A-Z0-9_]+$/.test(error.cause?.code ?? "") ? error.cause.code : null;
-  const message = `${error.message}${transportCode ? ` [${transportCode}]` : ""}`;
+  const { message, code, hostname } = transportErrorDetails(error, extra.sourceUrl ?? source.url);
   return baseRecord(source, null, {
     diagnostic: true,
     name: `${source.provider} 监控源`,
     status: "error",
-    statusLabel: "抓取失败",
+    statusLabel: ["ENOTFOUND", "EAI_AGAIN"].includes(code) ? "DNS 解析失败" : "抓取失败",
     price: null,
     priceValue: null,
     hardware: null,
@@ -338,6 +340,7 @@ function errorRecord(source, error, extra = {}) {
     orderUrl: source.url,
     evidence: message,
     error: message,
+    ...(code ? { transportError: { code, hostname } } : {}),
     ...extra
   });
 }

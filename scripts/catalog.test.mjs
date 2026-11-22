@@ -21,6 +21,42 @@ test("Chinese zero inventory wins over an order button and sold-out cards surviv
   assert.equal(parse(card('0 可用'))[0].status, "unavailable");
   const [sold] = parse(card('Sold Out', null)); assert.equal(sold.status, "unavailable"); assert.equal(sold.stockCount, 0);
 });
+test("shared marketing order entries preserve distinct plans without implying stock", () => {
+  const first = card('No inventory published', '/order/vps/');
+  const second = first.replace('Tokyo KVM', 'Osaka KVM').replace('$12.00', '$24.00');
+  const plans = parse(first + second, { sharedOrderEntry: true });
+  assert.equal(plans.length, 2);
+  assert.notEqual(plans[0].id, plans[1].id);
+  assert.ok(plans.every((p) => p.status === 'unknown' && p.stockCount === null));
+  assert.equal(parse(first.replace('$12.00', '$13.00'), { sharedOrderEntry: true })[0].id, plans[0].id);
+  assert.equal(parse(card('0 Available', '/order/vps/'), { sharedOrderEntry: true })[0].status, 'unavailable');
+});
+test("opt-in WHMCS catalog queries preserve route identity, exclusions and discovery scope", () => {
+  const html = '<a href="/store/sjc-premium">VPS</a><a href="/index.php?rp=/store/sjc-premium">VPS</a><a href="/store/server-hardwares">Hardware</a><a href="/store/sjc-premium/plan">Order</a><a href="https://foreign.example/store/vps">Other</a>';
+  const links = discoverCatalogLinks(html, source.url, { ...source, catalogRoute: 'whmcs-query', excludePaths: ['server-hardwares'] });
+  assert.deepEqual(links.map((x) => x.url), ['https://vendor.example/index.php?rp=%2Fstore%2Fsjc-premium']);
+  assert.equal(canonicalCatalogPageKey(links[0].url), canonicalCatalogPageKey('https://vendor.example/store/sjc-premium'));
+});
+test("newly recovered public catalog countries are recognized from the plan or group label", () => {
+  for (const [label, country] of [['France', '法国'], ['Bulgaria', '保加利亚'], ['新西兰', '新西兰'], ['巴西', '巴西'], ['马来西亚', '马来西亚'], ['越南', '越南']]) {
+    assert.equal(parse(card().replace('Tokyo KVM', `${label} KVM`))[0].region, country);
+  }
+});
+test("opt-in configurable VPS families retain starting prices and explicit stock without invented hardware", () => {
+  const html = `<div class="product"><header><span id="product17-name">美国 RCN</span><span>0 可用</span></header><p>美国 RCN VDS 原生住宅IP<br>100M峰值带宽，配置自由选择</p><footer>起价 <span class="price">$15.00 USD</span> 每月 <a href="/index.php?rp=/store/us-rcn-vds/rcn-vds">立即订购</a></footer></div>`;
+  assert.deepEqual(parse(html), []);
+  const [plan] = parse(html, { configurableFamilies: true, nameSelector: 'header span[id$="-name"]' });
+  assert.equal(plan.name, '美国 RCN');
+  assert.equal(plan.status, 'unavailable');
+  assert.equal(plan.stockCount, 0);
+  assert.equal(plan.hardware, null);
+  assert.equal(plan.category, 'home');
+  assert.equal(plan.priceValue, 15);
+  assert.equal(plan.raw.configurable, true);
+  assert.equal(priceQuote(plan).baseOnly, true);
+  assert.equal(priceQuote(plan).monthly, null);
+  assert.deepEqual(parse(html.replace('/index.php?rp=/store/us-rcn-vds/rcn-vds', '/login'), { configurableFamilies: true }), []);
+});
 test("bandwidth is not GBP, marketing cards are not plans, unknown stock stays unknown", () => {
   assert.equal(parse('<article><h3>Hosting</h3><p>KVM VPS 1Gbps</p><a href="/login">Order</a></article>').length, 0);
   assert.equal(parse('<div class="product"><h3>News</h3><p>VPS hosting from $4.99</p></div>').length, 0);

@@ -71,15 +71,28 @@ export function canonicalCatalogPageKey(url) {
   }
 }
 
+export function catalogRequestUrl(href, source) {
+  if (source.catalogRoute !== "whmcs-query") return href;
+  const url = new URL(href);
+  const route = url.searchParams.get("rp") || url.pathname.replace(/^\/index\.php\//, "/");
+  if (!/^\/store(?:\/|$)/.test(route)) return href;
+  // Keep this form through redirects as well as discovered links: WHMCS's
+  // group index may redirect back to the less compatible pretty route.
+  url.pathname = "/index.php";
+  url.searchParams.set("rp", route);
+  return url.href;
+}
+
 export function discoverCatalogLinks(html, base, source) {
   const root = parse(html);
   const documentBase = documentBaseUrl(root, base, source);
   const links = new Map();
   for (const anchor of root.querySelectorAll("a[href]")) {
-    const href = cleanPublicUrl(anchor.getAttribute("href"), documentBase);
+    let href = cleanPublicUrl(anchor.getAttribute("href"), documentBase);
     const label = clean(anchor.text);
     if (!href || !catalogUrlAllowed(href, source) || !isCatalogLink(href, label)) continue;
     if ((source.excludePaths ?? []).some((path) => href.toLowerCase().includes(path.toLowerCase()))) continue;
+    href = catalogRequestUrl(href, source);
     const key = canonicalCatalogPageKey(href);
     const score = /vps|vds|kvm|cn2|9929|云服务器|雲伺服器|家宽|住宅/i.test(`${href} ${label}`) ? 2 : 1;
     const existing = links.get(key);
@@ -98,7 +111,7 @@ function textLines(node) {
 }
 
 function regionFrom(value) {
-  const options = [["香港", /香港|Hong Kong|\bHKG\b/i], ["台湾", /台湾|台灣|Taipei|Taiwan|\bTPE\b/i], ["日本", /日本|Tokyo|Osaka|Japan|\bTYO\b/i], ["新加坡", /新加坡|Singapore|\bSIN\b/i], ["美国", /美国|美國|Los Angeles|San Jose|Seattle|Dallas|Phoenix|New York|United States|New Jersey|Manassas|Miami|Hawaii|\bUS\b|\bLAX\b/i], ["英国", /英国|英國|London|United Kingdom|\bUK\b/i], ["德国", /德国|德國|Germany|Frankfurt|\bDE\b/i], ["荷兰", /荷兰|Netherlands|Amsterdam|\bAMS\b/i], ["韩国", /韩国|韓國|Korea|Seoul/i], ["加拿大", /加拿大|Canada|Toronto/i], ["澳大利亚", /Australia|Sydney|澳大利亚/i], ["土耳其", /Turkey|Türkiye|土耳其/i]];
+  const options = [["香港", /香港|Hong Kong|\bHKG\b/i], ["台湾", /台湾|台灣|Taipei|Taiwan|\bTPE\b/i], ["日本", /日本|Tokyo|Osaka|Japan|\bTYO\b/i], ["新加坡", /新加坡|Singapore|\bSIN\b/i], ["美国", /美国|美國|Los Angeles|San Jose|Seattle|Dallas|Phoenix|New York|United States|New Jersey|Manassas|Miami|Hawaii|\bUS\b|\bLAX\b/i], ["英国", /英国|英國|London|United Kingdom|\bUK\b/i], ["德国", /德国|德國|Germany|Frankfurt|\bDE\b/i], ["荷兰", /荷兰|Netherlands|Amsterdam|\bAMS\b/i], ["韩国", /韩国|韓國|Korea|Seoul/i], ["加拿大", /加拿大|Canada|Toronto/i], ["澳大利亚", /Australia|Sydney|澳大利亚/i], ["土耳其", /Turkey|Türkiye|土耳其/i], ["法国", /France|Paris|法国|法國/i], ["保加利亚", /Bulgaria|Sofia|保加利亚/i], ["越南", /Vietnam|越南/i], ["意大利", /Italy|意大利/i], ["新西兰", /New Zealand|新西兰/i], ["菲律宾", /Philippines|菲律宾/i], ["西班牙", /Spain|西班牙/i], ["印度尼西亚", /Indonesia|印度尼西亚|印尼/i], ["南非", /South Africa|南非/i], ["阿联酋", /United Arab Emirates|Dubai|阿联酋/i], ["巴西", /Brazil|巴西/i], ["马来西亚", /Malaysia|马来西亚/i], ["泰国", /Thailand|泰国/i]];
   const matches = options.filter(([, pattern]) => pattern.test(value)).map(([name]) => name);
   return matches.length === 1 ? matches[0] : matches.length > 1 ? "多地区（下单选择）" : null;
 }
@@ -153,7 +166,8 @@ export function parseCatalogPage(source, result, helpers) {
   for (const node of candidates(root, documentBase)) {
     const lines = textLines(node);
     const value = clean(lines.join(" "));
-    if (!hardwarePattern.test(value) || value.length > 4000) continue;
+    const configurable = source.configurableFamilies === true && /\b(?:VPS|VDS|KVM)\b/i.test(value) && /配置自由选择|自选配置|自選配置|configurable/i.test(value);
+    if ((!hardwarePattern.test(value) && !configurable) || value.length > 4000) continue;
     const nameNode = [source.nameSelector, ".package-title", ".product-title", ".product-name", ".plan-name", ".aether-plan-title", "[itemprop='name']", "h2", "h3", "h4", "h5"].filter(Boolean).map((selector) => node.querySelector(selector)).find((n) => n && !pricePattern.test(clean(n.text)) && !/^\d+(\.\d+)?$/.test(clean(n.text)));
     let name = clean(nameNode?.text || node.querySelector("td")?.text || lines.find((line) => !/^(?:\d+\s*(?:可用|Available)|Sold Out|缺货中)/i.test(line)));
     name = name.replace(/^(?:Sold Out|缺货中)\s*/i, "").replace(/\s*\d+\s*(?:Available|可用)\s*$/i, "").trim();
@@ -173,7 +187,8 @@ export function parseCatalogPage(source, result, helpers) {
     const soldOut = /Sold Out|Out of Stock|售罄|已售完|缺货|無庫存|无库存/i.test(value);
     const stock = value.match(/(?:库存|庫存)\s*[:：]?\s*(\d+)|(\d+)\s*(?:可用|Available\b|in stock\b)/i);
     const count = soldOut ? 0 : stock ? Number(stock[1] ?? stock[2]) : null;
-    const specificOrder = order && /(?:pid=|product_id=|plan_id=|\/(?:store|products|cart)\/[^/]+\/[^/?#]+|\/order\/[^/?#]+|\/configure\/[^/?#]+)/i.test(order.url);
+    const specificOrder = !source.sharedOrderEntry && order && /(?:pid=|product_id=|plan_id=|\/(?:store|products|cart)\/[^/]+\/[^/?#]+|\/order\/[^/?#]+|\/configure\/[^/?#]+)/i.test(order.url);
+    if (configurable && !specificOrder) continue;
     const status = soldOut || count === 0 ? "unavailable" : (count > 0 || specificOrder) ? "available" : "unknown";
     const features = node.querySelectorAll("li, .package-features div, .product-features div").map((n) => clean(n.text)).filter((x) => specsPattern.test(x) || /流量|带宽|頻寬|\b(?:transfer|traffic|bandwidth|IPv[46]|Gbps|Mbps)\b/i.test(x));
     const cellFeatures = node.tagName === "TR" ? node.querySelectorAll("td").slice(1).map((n) => clean(n.text)).filter((x) => specsPattern.test(x) || /Gbps|Mbps|IPv[46]/i.test(x)) : [];
@@ -192,11 +207,11 @@ export function parseCatalogPage(source, result, helpers) {
       route: routes || null,
       hardware: hardware || null, bandwidth: bandwidth || null,
       note: "官方产品页信息；购买前请确认当前库存与计费周期",
-      price: `${priceMatch[0]}${period ? ` ${period}` : ""}`, priceValue: amount, currency: source.currency || null,
+      price: `${configurable ? "起价 " : ""}${priceMatch[0]}${period ? ` ${period}` : ""}`, priceValue: amount, currency: source.currency || null,
       status, statusLabel: status === "available" ? (count !== null ? `库存 ${count}` : "可订购入口") : status === "unavailable" ? "不可订购" : "库存未公开",
       stockCount: count, orderUrl: order?.url || (count > 0 ? base : null),
       evidence: `Official catalog page; stock=${count ?? "not stated"}; order=${specificOrder ? "yes" : "not product-specific"}`,
-      raw: { catalogPage: base, name, priceText: priceMatch[0], billingCycle: period || null }
+      raw: { catalogPage: base, name, priceText: priceMatch[0], billingCycle: period || null, ...(configurable ? { configurable: true } : {}) }
     }));
   }
   return [...new Map(records.map((record) => [record.id, record])).values()];

@@ -20,7 +20,7 @@ globalThis.fetch = async (input, options, redirects = 0) => {
   writeFileSync("calls.json", JSON.stringify(calls));
   const route = routes[url];
   if (!route) throw new Error("Unexpected offline request: " + url);
-  if (route.error) throw new Error(route.error);
+  if (route.error) throw new Error(route.error, route.code ? { cause: { code: route.code, hostname: new URL(url).hostname } } : undefined);
   if (route.hang) return new Promise((resolve, reject) => {
     options.signal.addEventListener("abort", () => reject(options.signal.reason), { once: true });
   });
@@ -38,7 +38,7 @@ globalThis.fetch = async (input, options, redirects = 0) => {
 };
 `;
 
-function runMonitor(routes, overrides = {}) {
+function runMonitor(routes, overrides = {}, environment = {}) {
   const dir = mkdtempSync(join(tmpdir(), "resnode-monitor-test-"));
   try {
     mkdirSync(join(dir, "monitor"));
@@ -57,7 +57,7 @@ function runMonitor(routes, overrides = {}) {
     writeFileSync(join(dir, "mock-fetch.mjs"), mockFetch);
     execFileSync(process.execPath, ["--import", join(dir, "mock-fetch.mjs"), monitorPath], {
       cwd: dir,
-      env: { ...process.env, MONITOR_FETCH_RETRIES: "0", MONITOR_CONCURRENCY: "1" },
+      env: { ...process.env, MONITOR_FETCH_RETRIES: "0", MONITOR_CONCURRENCY: "1", ...environment },
       timeout: 10_000
     });
     return {
@@ -161,6 +161,28 @@ test("source budget aborts an in-flight request instead of waiting for the HTTP 
   assert.equal(products[0].status, 'error');
   assert.equal(products[0].collection.timeBudgetReached, true);
   assert.match(products[0].error, /Source time budget exceeded/);
+});
+
+test("catalog DNS failures keep actionable details in the diagnostic and attempt", () => {
+  const { products, calls } = runMonitor({ [sourceUrl]: { error: "fetch failed", code: "ENOTFOUND" } }, { adapter: "public_catalog" }, { MONITOR_FETCH_RETRIES: "2" });
+  assert.equal(calls.length, 1);
+  assert.equal(products[0].status, "error");
+  assert.equal(products[0].statusLabel, "DNS 解析失败");
+  assert.equal(products[0].transportError.code, "ENOTFOUND");
+  assert.match(products[0].error, /www\.aaitr\.com.*无法解析/);
+  assert.equal(products[0].raw.attempts[0].code, "ENOTFOUND");
+  assert.equal(products[0].raw.attempts[0].hostname, "www.aaitr.com");
+});
+
+test("WHMCS public catalog redirects retain the configured query route", () => {
+  const entry = 'https://www.aaitr.com/';
+  const { products, calls } = runMonitor({
+    [entry]: { status: 302, location: '/store/vps' },
+    ['https://www.aaitr.com/index.php?rp=%2Fstore%2Fvps']: { body: '<div class="product"><h3>Basic VPS</h3><span class="price">$5.00 Monthly</span><p>1 CPU / 1 GB RAM / 10 GB SSD / 2 Available</p><a href="/cart.php?a=add&pid=1">Order</a></div>' }
+  }, { adapter: 'public_catalog', catalogRoute: 'whmcs-query', url: entry });
+  assert.deepEqual(calls.map(c=>c.url), [entry, 'https://www.aaitr.com/index.php?rp=%2Fstore%2Fvps']);
+  assert.equal(products[0].status, 'available');
+  assert.equal(products[0].stockCount, 2);
 });
 
 test("collector distinguishes NAT/shared IP evidence from native IP and shared resources", () => {

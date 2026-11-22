@@ -526,12 +526,16 @@
     "provider": "DigitalFyre",
     "category": "unclassified",
     "adapter": "public_catalog",
-    "url": "https://www.digitalfyre.com/",
+    "url": "https://www.digitalfyre.com/vps/",
     "requestIntervalMs": 2000,
-    "maxPages": 12,
+    "maxPages": 2,
     "catalogUrls": [
       "https://console.digitalfyre.com/order/vps"
-    ]
+    ],
+    "transport": "http2",
+    "discover": false,
+    "sharedOrderEntry": true,
+    "nameSelector": ".package-top .type"
   },
   {
     "id": "catalog-datawave",
@@ -541,7 +545,9 @@
     "adapter": "public_catalog",
     "url": "https://datawave.sh/",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "maxPages": 12,
+    "transport": "http2",
+    "accessNote": "官网控制台的产品 API /prod-api/users/server/region 返回认证失败（code 401），需要登录；公开首页不含套餐，不能据此判断售罄。"
   },
   {
     "id": "catalog-usvps24",
@@ -654,9 +660,15 @@
     "provider": "SaltyFish(咸鱼云)",
     "category": "unclassified",
     "adapter": "public_catalog",
-    "url": "https://portal.saltyfish.io/",
+    "url": "https://portal.saltyfish.io/index.php?rp=%2Fstore%2Fsjc-premium",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "maxPages": 12,
+    "transport": "http2",
+    "catalogRoute": "whmcs-query",
+    "excludePaths": [
+      "server-hardwares",
+      "dedicated-server"
+    ]
   },
   {
     "id": "catalog-bestvm",
@@ -741,9 +753,12 @@
     "provider": "Residential-Service",
     "category": "unclassified",
     "adapter": "public_catalog",
-    "url": "https://residential-service.com/",
+    "url": "https://residential-service.com/index.php?rp=/store/us-rcn-vds",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "maxPages": 12,
+    "transport": "http2",
+    "configurableFamilies": true,
+    "nameSelector": "header span[id$=\"-name\"]"
   },
   {
     "id": "catalog-rivencloud",
@@ -809,9 +824,14 @@
     "provider": "HostDare",
     "category": "unclassified",
     "adapter": "public_catalog",
-    "url": "https://hostdare.com/",
+    "url": "https://bill.hostdare.com/store/premium-china-optimized-kvm-vps",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "maxPages": 16,
+    "transport": "http2",
+    "excludePaths": [
+      "/store/ip-lease"
+    ],
+    "currency": "USD"
   },
   {
     "id": "catalog-geelinx",
@@ -1272,7 +1292,8 @@
     "adapter": "public_catalog",
     "url": "https://novixlink.com/",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "maxPages": 12,
+    "transport": "http2"
   },
   {
     "id": "catalog-nodemach",
@@ -1442,7 +1463,8 @@
     "discover": false,
     "maxPages": 3,
     "requestIntervalMs": 2000,
-    "accessNote": "官方 HostBill 公开订购页（VND 计价）；未公开库存数量。"
+    "accessNote": "官方 HostBill 公开订购页（VND 计价）；未公开库存数量。",
+    "transport": "http2"
   },
   {
     "id": "catalog-fxtransit",
@@ -1563,7 +1585,8 @@
     "adapter": "public_catalog",
     "url": "https://legendvps.com/",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "maxPages": 12,
+    "transport": "http2"
   },
   {
     "id": "catalog-lightnode",
@@ -1716,9 +1739,11 @@
     "provider": "PanstarCloud",
     "category": "unclassified",
     "adapter": "public_catalog",
-    "url": "https://panstar.ai/",
+    "url": "https://panstar.ai/pricing",
     "requestIntervalMs": 2000,
-    "maxPages": 8
+    "transport": "http2",
+    "catalogFormat": "panstar",
+    "discover": false
   },
   {
     "id": "catalog-radonet",
@@ -1847,7 +1872,12 @@
     "adapter": "public_catalog",
     "url": "https://wepc.au/",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "maxPages": 26,
+    "transport": "http2",
+    "excludePaths": [
+      "/store/iepl",
+      "/store/ren-gong-fu-wu-xiang-mu"
+    ]
   },
   {
     "id": "catalog-wlx",
@@ -1942,9 +1972,11 @@
     "provider": "BreadCloud",
     "category": "unclassified",
     "adapter": "public_catalog",
-    "url": "https://breadcloud.io/",
+    "url": "https://breadcloud.io/index.php?rp=%2Fstore%2Fus",
     "requestIntervalMs": 2000,
-    "maxPages": 8
+    "maxPages": 8,
+    "transport": "http2",
+    "catalogRoute": "whmcs-query"
   },
   {
     "id": "catalog-buyvm",
@@ -1985,15 +2017,13 @@
     "provider": "HaloCloud",
     "category": "unclassified",
     "adapter": "public_catalog",
-    "url": "https://www.halocloudnet.com/",
-    "catalogUrls": [
-      "https://my.halocloud.net/"
-    ],
-    "allowedOrigins": [
-      "https://my.halocloud.net"
-    ],
+    "url": "https://my.halocloud.net/index.php?rp=%2Fstore%2Fgerman-de-premium-vps",
     "requestIntervalMs": 2000,
-    "maxPages": 8
+    "maxPages": 1,
+    "transport": "http2",
+    "catalogFormat": "halocloud",
+    "discover": false,
+    "coverageNote": "国际站公开完整目录；中国站产品接口需登录，未覆盖。"
   },
   {
     "id": "catalog-hhost",
@@ -2014,9 +2044,11 @@
     "provider": "HighEndNetwork",
     "category": "unclassified",
     "adapter": "public_catalog",
-    "url": "https://billing.highendnetwork.com/",
+    "url": "https://billing.highendnetwork.com/index.php?rp=%2Fstore%2Fhkg-premium",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "maxPages": 12,
+    "transport": "http2",
+    "catalogRoute": "whmcs-query"
   },
   {
     "id": "catalog-hkcloudx",

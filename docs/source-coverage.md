@@ -38,6 +38,23 @@ Vendor-specific parsers are bounded and fail visibly when expected schemas chang
 
 Recorded as not collectable rather than guessed: NexKr, IPRaft and Geelinx (shop/catalog requires login), ISIF (product API behind a Cloudflare challenge), Langya and Taipei101 (no fixed plans), NoBrand (old store renewals only), Peekabo (CDN only), WireCat (KYC only), JCloud (Discord only). HostHatch and LightNode publish no anonymous stock, so their plans stay `unknown`. Providers whose pages return Cloudflare/WAF challenges, slider CAPTCHAs or login redirects remain `blocked`; the collector does not bypass them.
 
+### Ubuntu follow-up: transport and dynamic catalogs
+
+Live requests from the production VPS showed that several official storefronts reject Node's HTTP/1.1 request but serve the same anonymous page over HTTP/2. Only verified sources opt into the native HTTP/2 transport; TLS verification, official-host redirect checks, per-origin pacing, response-size limits and source deadlines remain active. SaltyFish, BreadCloud and HighEndNetwork use the published WHMCS encoded query route consistently, including after redirects. No account credentials, challenge-solving service or browser cookies are used.
+
+| Provider | Correction and interpretation |
+| --- | --- |
+| DataOnline, LegendVPS | Read the existing official catalog over HTTP/2. |
+| HostDare | Use the official billing directory, with complete hardware and explicit sellouts, instead of marketing-page order buttons. |
+| WePC | Cover the 23 visited directory pages without the former 12-page truncation; exclude dedicated circuit and manual-service groups. |
+| DigitalFyre | Preserve eight distinct public plans sharing one order entry. Public specifications/prices are collected; stock remains unknown and the console login diagnostic stays visible. |
+| Residential-Service | Include explicitly configurable VDS families, preserve starting prices, omit unpublished hardware, and retain zero stock. |
+| SaltyFish, BreadCloud, HighEndNetwork | Collect public WHMCS groups and their published stock; a successfully parsed sold-out plan is not a collection failure. |
+| Panstar | Follow anonymous regions → products → plans API requests. Decode the response using the encoding material in the currently published client, without hard-coding a rotating bundle or key. Preserve integer-cent prices, minimum billing cycles, stock booleans and purchase restrictions; no unit count is invented. The request/time budget preserves partial records with an explicit failure diagnostic. |
+| HaloCloud | Parse the public international storefront's embedded full catalog. Map group regions, treat controlled nonpositive quantities as sold out, and ignore quantity fields when stock control is disabled. China-site login-only products remain outside coverage. |
+
+DataWave's official product API returns an authentication failure (`code: 401`) anonymously; its public homepage has no plans. Remaining WAF/CAPTCHA/login failures stay visible. VMVM's `www.vmvm.io` returns NXDOMAIN through both Google and Cloudflare DNS; the apex `vmvm.io` has no A/AAAA answers. This is an upstream domain issue, not evidence of sold-out stock. `ENOTFOUND` now identifies the failing hostname and skips futile retries within that run; the next scheduled collection still tries again. Temporary `EAI_AGAIN` failures retain retries.
+
 ## Diagnostics & Deduplication
 
 Generic catalog discovery respects a valid official-host HTML `<base href>` for navigation and orders while retaining the fetched-page provenance. WHMCS store route aliases (`/store/<slug>` and `/index.php?rp=/store/<slug>`) are canonicalized to a single visit so multi-region stores (such as Boil, BestVM, YUNYOO, and BageVM) do not waste page budgets on duplicate routes. Obvious aggregate headings and resource add-ons are excluded from products.

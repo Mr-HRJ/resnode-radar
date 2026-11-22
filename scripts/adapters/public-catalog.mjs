@@ -5,14 +5,17 @@ import { parseDynamicCatalog } from "./dynamic-catalogs.mjs";
 import { parseGreenCloudCatalog } from "./greencloud-catalog.mjs";
 import { parseSpaConsole, SPA_CONSOLE_FORMATS } from "./spa-consoles.mjs";
 import { parseVpsSiteCatalog, VPS_SITE_CATALOG_FORMATS } from "./vps-site-catalogs.mjs";
-import { parseHostbillOnestep, parseShandunCatalog, parseMoonvmCatalog } from "./billing-portal-catalogs.mjs";
+import { parseHostbillOnestep, parseShandunCatalog, parseMoonvmCatalog, parseHaloCloudCatalog } from "./billing-portal-catalogs.mjs";
 import { pageLimitCatalogFormats, parsePageLimitCatalog } from "./page-limit-catalogs.mjs";
 import { parse } from "node-html-parser";
+import { transportErrorDetails } from "../transport-errors.mjs";
+import { monitorPanstarCatalog } from "./panstar-catalog.mjs";
 import { cleanPublicUrl, catalogUrlAllowed, canonicalCatalogPageKey, discoverCatalogLinks, parseCatalogPage } from "./catalog-pages.mjs";
 
 // A bounded walk of published catalog links. Checkout, login and challenge pages
 // are never submitted; a blocked read is a monitoring result, not empty stock.
 export async function monitorPublicCatalog(source, helpers) {
+  if (source.catalogFormat === "panstar") return monitorPanstarCatalog(source, helpers);
   const { fetchHtml, isAntiBotResult, baseRecord, blockedRecord, errorRecord, deadline = Infinity, now = Date.now } = helpers;
   const queue = [...new Set([source.url, ...(source.catalogUrls ?? [])])].map((url) => ({ url, label: "", depth: 0 }));
   const seen = new Set();
@@ -61,6 +64,7 @@ export async function monitorPublicCatalog(source, helpers) {
         : source.catalogFormat === "hostbill-onestep" ? parseHostbillOnestep(source, result, helpers)
         : source.catalogFormat === "shandun" ? parseShandunCatalog(source, result, helpers)
         : source.catalogFormat === "moonvm" ? parseMoonvmCatalog(source, result, helpers)
+        : source.catalogFormat === "halocloud" ? parseHaloCloudCatalog(source, result, helpers)
         : source.catalogFormat === "usvps24" ? parseUsvps24(source, result, helpers)
         : source.catalogFormat === "nodemach" ? parseNodeMach(source, result, helpers)
           : source.catalogFormat === "jdidc" ? parseJdidcApi(source, result, helpers)
@@ -80,7 +84,8 @@ export async function monitorPublicCatalog(source, helpers) {
         );
       }
     } catch (error) {
-      attempts.push({ url: page.url, status: "error", message: error.message });
+      const transport = transportErrorDetails(error, page.url);
+      attempts.push({ url: page.url, status: "error", message: transport.message, ...(transport.code ? { code: transport.code, hostname: transport.hostname } : {}) });
       diagnostics.push(errorRecord(source, error, { sourceUrl: page.url, finalUrl: result?.finalUrl ?? page.url, httpStatus: result?.statusCode ?? null }));
       if (source.signal?.aborted) { timeBudgetReached = true; break; }
     }
