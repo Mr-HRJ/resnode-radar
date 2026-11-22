@@ -4,6 +4,18 @@ import { fetchSnapshot } from "../src/services/snapshot.js";
 
 const valid = { schemaVersion: 1, generatedAt: "2026-11-22T00:00:00Z", products: [{ id: "p", status: "available" }] };
 
+test("snapshot retries reuse a stable URL so CDN freshness is controlled by response TTL", async (t) => {
+  const urls = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    urls.push(url);
+    assert.equal(options.cache, "default");
+    return Response.json(valid);
+  });
+  await fetchSnapshot("data/products.json?scope=public");
+  await fetchSnapshot("data/products.json?scope=public");
+  assert.deepEqual(urls, ["data/products.json?scope=public", "data/products.json?scope=public"]);
+});
+
 test("snapshot rejects malformed records and duplicate identities before updating the UI", async (t) => {
   for (const payload of [
     { ...valid, schemaVersion: 2 }, { ...valid, generatedAt: null },

@@ -284,8 +284,8 @@ test("skeleton loading, HTTP 503 honest degradation, and retry recovery isolate 
   const env = installDomEnvironment(t);
   const pending = [];
   t.mock.method(globalThis, "fetch", (url, opts) => {
-    assert.match(url, /^data\/products\.json\?t=\d+$/);
-    assert.equal(opts.cache, "no-store");
+    assert.equal(url, "data/products.json");
+    assert.equal(opts.cache, "default");
     return new Promise((resolve, reject) => pending.push({ resolve, reject }));
   });
 

@@ -24,8 +24,8 @@ export async function mountReviewDossier(endpoint = "../data/products.json") {
 
   const providerId = box.getAttribute("data-provider-id") || "";
   try {
-    const res = await fetch(`${endpoint}?t=${Date.now()}`, {
-      cache: "no-store",
+    const res = await fetch(endpoint, {
+      cache: "default",
       headers: { accept: "application/json" }
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

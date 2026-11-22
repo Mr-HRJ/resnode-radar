@@ -33,12 +33,10 @@ function validSnapshot(payload) {
  */
 export async function fetchSnapshot(endpoint = "data/products.json", { signal, timeoutMs = SNAPSHOT_TIMEOUT_MS } = {}) {
   const requestSignal = AbortSignal.any([AbortSignal.timeout(timeoutMs), ...(signal ? [signal] : [])]);
-  const sep = endpoint.includes("?") ? "&" : "?";
-  const url = `${endpoint}${sep}t=${Date.now()}`;
   let response;
   try {
-    response = await fetch(url, {
-      cache: "no-store",
+    response = await fetch(endpoint, {
+      cache: "default",
       signal: requestSignal,
       headers: { accept: "application/json" }
     });

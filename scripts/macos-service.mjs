@@ -14,7 +14,7 @@ export function buildLaunchAgentPlist({
   nodePath = process.execPath,
   workDir = projectRoot,
   port = 4173,
-  intervalMinutes = 10
+  intervalMinutes = 20
 } = {}) {
   const daemonScript = join(workDir, "scripts/monitor-daemon.mjs");
   const outLog = join(workDir, "logs/daemon.out.log");

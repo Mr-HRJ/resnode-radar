@@ -8,7 +8,7 @@ import { buildLaunchAgentPlist } from "./macos-service.mjs";
 
 test("daemon CLI argument and environment parser enforces safe bounds", () => {
   const defaults = parseDaemonArgs([], {});
-  assert.equal(defaults.intervalMinutes, 10);
+  assert.equal(defaults.intervalMinutes, 20);
   assert.equal(defaults.serve, false);
   assert.equal(defaults.port, 4173);
   assert.equal(defaults.gitPush, false);
@@ -20,7 +20,7 @@ test("daemon CLI argument and environment parser enforces safe bounds", () => {
   assert.equal(custom.gitPush, true);
 
   const invalid = parseDaemonArgs(["--interval", "-5", "--port", "99999"], {});
-  assert.equal(invalid.intervalMinutes, 10);
+  assert.equal(invalid.intervalMinutes, 20);
   assert.equal(invalid.port, 4173);
 });
 

@@ -25,7 +25,7 @@ const MIME_TYPES = {
 
 export function parseDaemonArgs(argv = process.argv.slice(2), env = process.env) {
   const args = {
-    intervalMinutes: Number(env.MONITOR_INTERVAL_MINUTES ?? 10),
+    intervalMinutes: Number(env.MONITOR_INTERVAL_MINUTES ?? 20),
     serve: env.MONITOR_SERVE === "1",
     host: env.HOST || "127.0.0.1",
     port: Number(env.PORT ?? 4173),
@@ -47,7 +47,7 @@ export function parseDaemonArgs(argv = process.argv.slice(2), env = process.env)
     else if (token === "--host" && argv[i + 1]) args.host = argv[++i];
   }
 
-  if (!Number.isFinite(args.intervalMinutes) || args.intervalMinutes < 1) args.intervalMinutes = 10;
+  if (!Number.isFinite(args.intervalMinutes) || args.intervalMinutes < 1) args.intervalMinutes = 20;
   if (!Number.isInteger(args.port) || args.port < 0 || args.port > 65535) args.port = 4173;
   if (!Number.isFinite(args.childTimeoutMs) || args.childTimeoutMs <= 0) args.childTimeoutMs = 12 * 60 * 1000;
   return args;

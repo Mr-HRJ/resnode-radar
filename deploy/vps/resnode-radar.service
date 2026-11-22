@@ -1,5 +1,5 @@
 [Unit]
-Description=ResNode Radar ten-minute collector
+Description=ResNode Radar twenty-minute collector
 Wants=network-online.target
 After=network-online.target
 StartLimitIntervalSec=300
@@ -12,7 +12,7 @@ Group=resnode-radar
 WorkingDirectory=/opt/resnode-radar/current
 Environment=NODE_ENV=production
 Environment=MONITOR_GIT_PUSH=0
-ExecStart=/opt/resnode-radar/node/bin/node scripts/monitor-daemon.mjs --interval 10
+ExecStart=/opt/resnode-radar/node/bin/node scripts/monitor-daemon.mjs --interval 20
 Restart=always
 RestartSec=10
 TimeoutStopSec=30
