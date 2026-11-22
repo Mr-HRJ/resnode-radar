@@ -2,353 +2,504 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { parse, HTMLElement } from "node-html-parser";
+import { mountApp } from "../src/app.js";
+import { mountReviewDossier } from "../src/review-dossier.js";
+import { providers } from "../providers.js";
 
-// Parse the actual page and execute its modules, with only browser APIs and
-// fetch replaced. No requests or monitor jobs run in this rendering test.
-function installPage(t) {
-  const document = parse(readFileSync(new URL("../index.html", import.meta.url), "utf8"));
+function installDomEnvironment(t, htmlFile = "../index.html", initialUrl = "https://radar.example/") {
+  const document = parse(readFileSync(new URL(htmlFile, import.meta.url), "utf8"));
   document.documentElement = document.querySelector("html");
   document.body = document.querySelector("body");
+  document.visibilityState = "visible";
+  document.activeElement = document.body;
+  document.createElement = (tag) => parse(`<${tag}></${tag}>`).firstChild;
+
   const storage = new Map();
-  const handlers = new WeakMap();
-  const styles = new WeakMap();
-  const frames = new Map();
-  let nextFrame = 0;
+  const docHandlers = new Map();
+  let currentHref = initialUrl;
+
+  const win = {
+    location: {
+      get href() { return currentHref; },
+      set href(v) { currentHref = v; }
+    },
+    history: {
+      replaceState(_state, _title, url) {
+        if (url) currentHref = String(url);
+      }
+    },
+    addEventListener() {}
+  };
+
   const globals = {
     document,
-    window: { location: { href: "https://example.invalid/" }, addEventListener() {} },
-    localStorage: { getItem: (key) => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
-    HTMLSelectElement: class { static [Symbol.hasInstance](node) { return node.tagName === "SELECT"; } },
-    requestAnimationFrame(callback) { frames.set(++nextFrame, callback); return nextFrame; },
-    setInterval() {}
+    window: win,
+    localStorage: {
+      getItem: (key) => storage.get(key) ?? null,
+      setItem: (key, val) => storage.set(key, String(val))
+    },
+    setInterval: () => 1,
+    clearInterval: () => {},
+    setTimeout: () => 1,
+    clearTimeout: () => {}
   };
+
   for (const [name, value] of Object.entries(globals)) {
     const original = Object.getOwnPropertyDescriptor(globalThis, name);
     Object.defineProperty(globalThis, name, { configurable: true, writable: true, value });
-    t.after(() => original ? Object.defineProperty(globalThis, name, original) : delete globalThis[name]);
+    t.after(() => (original ? Object.defineProperty(globalThis, name, original) : delete globalThis[name]));
   }
-  for (const [name, descriptor] of Object.entries({
-    dataset: { get() { return Object.fromEntries(Object.entries(this.attributes).filter(([key]) => key.startsWith("data-")).map(([key, value]) => [key.slice(5).replace(/-([a-z])/g, (_, ch) => ch.toUpperCase()), value])); } },
-    style: { get() { if (!styles.has(this)) styles.set(this, {}); return styles.get(this); } },
-    addEventListener: { value(event, handler) { if (!handlers.has(this)) handlers.set(this, {}); handlers.get(this)[event] = handler; } },
-    scrollIntoView: { value() {} },
-    showModal: { value() { this.open = true; this.setAttribute("open", ""); } },
-    close: { value() { this.open = false; this.removeAttribute("open"); } }
-  })) {
-    Object.defineProperty(HTMLElement.prototype, name, { configurable: true, ...descriptor });
-    t.after(() => delete HTMLElement.prototype[name]);
-  }
+
+  document.addEventListener = (type, fn) => {
+    if (!docHandlers.has(type)) docHandlers.set(type, []);
+    docHandlers.get(type).push(fn);
+  };
+  document.removeEventListener = (type, fn) => {
+    const list = docHandlers.get(type);
+    if (!list) return;
+    const idx = list.indexOf(fn);
+    if (idx >= 0) list.splice(idx, 1);
+  };
+
+  Object.defineProperties(HTMLElement.prototype, {
+    dataset: {
+      configurable: true,
+      get() {
+        return Object.fromEntries(
+          Object.entries(this.attributes)
+            .filter(([k]) => k.startsWith("data-"))
+            .map(([k, v]) => [k.slice(5).replace(/-([a-z])/g, (_, ch) => ch.toUpperCase()), v])
+        );
+      }
+    },
+    hidden: {
+      configurable: true,
+      get() { return this.hasAttribute("hidden"); },
+      set(val) {
+        if (val) this.setAttribute("hidden", "");
+        else this.removeAttribute("hidden");
+      }
+    },
+    closest: {
+      configurable: true,
+      value(selector) {
+        let cur = this;
+        while (cur && cur.tagName) {
+          if (cur.matches?.(selector)) return cur;
+          cur = cur.parentNode;
+        }
+        return null;
+      }
+    },
+    matches: {
+      configurable: true,
+      value(selector) {
+        if (selector.startsWith("[") && selector.endsWith("]")) {
+          const inner = selector.slice(1, -1);
+          const eqIdx = inner.indexOf("=");
+          if (eqIdx === -1) return this.hasAttribute(inner);
+          const attr = inner.slice(0, eqIdx);
+          const rawVal = inner.slice(eqIdx + 1).replace(/^['"]|['"]$/g, "");
+          return this.getAttribute(attr) === rawVal;
+        }
+        if (selector.startsWith(".")) return this.classList.contains(selector.slice(1));
+        return this.tagName?.toLowerCase() === selector.toLowerCase();
+      }
+    },
+    focus: {
+      configurable: true,
+      value() { document.activeElement = this; }
+    }
+  });
+  t.after(() => {
+    for (const k of ["dataset", "hidden", "closest", "matches", "focus"]) {
+      delete HTMLElement.prototype[k];
+    }
+  });
+
   const tokenList = Object.getPrototypeOf(document.documentElement.classList);
   t.mock.method(tokenList, "toggle", function (name, force = !this.contains(name)) {
-    if (force) this.add(name); else this.remove(name);
+    if (force) this.add(name);
+    else this.remove(name);
     return force;
   });
+
   return {
     document,
-    text: (selector) => document.querySelector(selector).textContent.trim(),
-    click(selector) { const node = document.querySelector(selector); handlers.get(node).click({ target: node, currentTarget: node }); },
-    change(selector, value) { const node = document.querySelector(selector); node.value = value; handlers.get(node).change({ target: node, currentTarget: node }); },
-    toggle(selector, checked) { const node = document.querySelector(selector); node.checked = checked; handlers.get(node).change({ target: node, currentTarget: node }); },
-    input(selector, value) { const node = document.querySelector(selector); node.value = value; handlers.get(node).input({ target: node, currentTarget: node }); },
-    finishAnimations() {
-      const callbacks = [...frames.values()];
-      frames.clear();
-      callbacks.forEach((callback) => callback(performance.now() + 1000));
+    getHref: () => currentHref,
+    text: (sel) => document.querySelector(sel)?.textContent?.trim() ?? "",
+    clickNode(node) {
+      assert.ok(node, "Missing click node");
+      for (const fn of docHandlers.get("click") || []) {
+        fn({ target: node, preventDefault() {} });
+      }
+    },
+    click(sel) {
+      const node = document.querySelector(sel);
+      assert.ok(node, `Missing click target: ${sel}`);
+      for (const fn of docHandlers.get("click") || []) {
+        fn({ target: node, preventDefault() {} });
+      }
+    },
+    change(sel, value, checked) {
+      const node = document.querySelector(sel);
+      assert.ok(node, `Missing change target: ${sel}`);
+      if (value !== undefined) node.value = value;
+      if (checked !== undefined) node.checked = checked;
+      for (const fn of docHandlers.get("change") || []) {
+        fn({ target: node });
+      }
+    },
+    input(sel, value) {
+      const node = document.querySelector(sel);
+      assert.ok(node, `Missing input target: ${sel}`);
+      node.value = value;
+      for (const fn of docHandlers.get("input") || []) {
+        fn({ target: node });
+      }
+    },
+    pressKey(key, extra = {}) {
+      for (const fn of docHandlers.get("keydown") || []) {
+        fn({ key, preventDefault() {}, ...extra });
+      }
     }
   };
 }
 
-const payload = {
-  generatedAt: "2026-10-08T12:00:00Z", sourceCount: 1,
-  summary: { total: 1, available: 1, unavailable: 0, blocked: 0, error: 0 },
-  products: [{ id: "synthetic", sourceId: "test", provider: "Synthetic only", name: "Synthetic product", status: "available", stockCount: 3, orderUrl: "https://example.invalid/order" }]
+const samplePayload = {
+  schemaVersion: 1,
+  generatedAt: new Date(Date.now() - 10 * 60000).toISOString(),
+  sourceCount: 3,
+  summary: { total: 4, available: 2, unavailable: 0, unknown: 1, blocked: 1, error: 0 },
+  eventTracking: { startedAt: new Date(Date.now() - 86400000).toISOString(), retentionDays: 7, limit: 300 },
+  exchangeRates: { base: "CNY", date: new Date().toISOString().slice(0, 10), rates: { CNY: 1, USD: 7.0 } },
+  events: [
+    {
+      id: "ev-1",
+      type: "restock",
+      at: new Date(Date.now() - 30 * 60000).toISOString(),
+      productId: "home-att",
+      providerId: "usvps24",
+      provider: "USVPS24(干杯Cloud)",
+      name: "加州 AT&T 双ISP 家宽",
+      region: "美国",
+      price: "$20/month",
+      priceValue: 20,
+      currency: "USD",
+      stockCount: 8,
+      orderUrl: "https://usvps24.com/order/1"
+    },
+    {
+      id: "ev-2",
+      type: "price",
+      at: new Date(Date.now() - 90 * 60000).toISOString(),
+      productId: "dc-native",
+      providerId: "zorocloud",
+      provider: "ZoroCloud",
+      name: "JP-CN2-Starter",
+      region: "日本",
+      price: "¥39/月",
+      priceValue: 39,
+      previousPrice: "¥49/月",
+      previousPriceValue: 49,
+      currency: "CNY",
+      stockCount: null,
+      orderUrl: "https://my.zorocloud.com/order/jp"
+    }
+  ],
+  products: [
+    {
+      id: "home-att",
+      sourceId: "usvps24",
+      providerId: "usvps24",
+      provider: "USVPS24(干杯Cloud)",
+      category: "home",
+      adapter: "public_catalog",
+      sourceUrl: "https://usvps24.com/",
+      fetchedAt: new Date().toISOString(),
+      region: "美国",
+      route: "AT&T 双 ISP 住宅 IP",
+      name: "加州 AT&T 双ISP 家宽",
+      hardware: "2 vCPU / 4 GB RAM / 40 GB NVMe",
+      bandwidth: "500 Mbps / 2 TB",
+      price: "$20/month",
+      priceValue: 20,
+      currency: "USD",
+      status: "available",
+      statusLabel: "库存 8",
+      stockCount: 8,
+      orderUrl: "https://usvps24.com/order/1",
+      evidence: "Official API stock=8",
+      evidenceLevel: { value: "stock-count", label: "精确库存 8", className: "is-count", rank: 1 },
+      riskTags: [{ value: "no-extra-risk", label: "未见额外风险", severity: "low" }]
+    },
+    {
+      id: "dc-native",
+      sourceId: "zoro",
+      providerId: "zorocloud",
+      provider: "ZoroCloud",
+      category: "vps",
+      adapter: "whmcs_group",
+      sourceUrl: "https://my.zorocloud.com/",
+      fetchedAt: new Date().toISOString(),
+      region: "日本",
+      route: "CN2 GIA 原生 IP",
+      name: "JP-CN2-Starter",
+      hardware: "1 vCPU / 1 GB RAM / 20 GB SSD",
+      bandwidth: "200 Mbps / 500 GB",
+      price: "¥39/月",
+      priceValue: 39,
+      currency: "CNY",
+      status: "available",
+      statusLabel: "可订购入口",
+      stockCount: null,
+      orderUrl: "https://my.zorocloud.com/order/jp",
+      evidence: "Official WHMCS order button",
+      evidenceLevel: { value: "official-order", label: "官方订购入口", className: "is-official", rank: 2 },
+      riskTags: [{ value: "order-only", label: "仅证明可下单", severity: "medium" }]
+    },
+    {
+      id: "diag-row",
+      sourceId: "taipei101",
+      providerId: "taipei101",
+      provider: "Taipei101",
+      category: "unclassified",
+      adapter: "public_catalog",
+      sourceUrl: "https://vps.taipei/",
+      fetchedAt: new Date().toISOString(),
+      diagnostic: true,
+      name: "Taipei101 采集状态",
+      status: "blocked",
+      statusLabel: "直连受阻",
+      httpStatus: 403,
+      evidence: "HTTP 403 WAF Challenge",
+      raw: { attempts: [{ url: "https://vps.taipei/", statusCode: 403 }] },
+      evidenceLevel: { value: "blocked", label: "直连受阻", className: "is-blocked", rank: 5 },
+      riskTags: [{ value: "direct-blocked", label: "官方直连受阻", severity: "high" }]
+    }
+  ]
 };
 
-function assertUnavailable(page) {
-  assert.equal(page.text("[data-monitor-status]"), "本站数据加载失败");
-  assert.ok(page.document.querySelector("[data-monitor-status]").classList.contains("has-warning"));
-  assert.equal(page.text("[data-trust-state]"), "本站监控数据不可用");
-  assert.equal(page.text("[data-trust-freshness]"), "当前库存未知");
-  assert.match(page.text("[data-monitor-summary]"), /本站监控数据加载失败.*当前库存未知/);
-  for (const selector of ["[data-products]", "[data-mobile-products]"]) {
-    assert.match(page.text(selector), /本站监控数据加载失败/);
-    assert.doesNotMatch(page.text(selector), /Synthetic product/);
-  }
-  for (const selector of ["[data-stat-total]", "[data-stat-available]", "[data-stat-unavailable]", "[data-stat-sources]", "[data-trust-age]", "[data-sync]"]) {
-    assert.equal(page.text(selector), "-", selector);
-  }
-  assert.equal(page.text("[data-result-count]"), "显示 0 / 0 条");
-}
-
-test("site data loading, errors, and repeated refreshes stay consistent", async (t) => {
-  const page = installPage(t);
-  const requests = [];
-  t.mock.method(globalThis, "fetch", (url, options) => {
+test("skeleton loading, HTTP 503 honest degradation, and retry recovery isolate diagnostics", async (t) => {
+  const env = installDomEnvironment(t);
+  const pending = [];
+  t.mock.method(globalThis, "fetch", (url, opts) => {
     assert.match(url, /^data\/products\.json\?t=\d+$/);
-    assert.equal(options.cache, "no-store");
-    return new Promise((resolve, reject) => requests.push({ resolve, reject }));
+    assert.equal(opts.cache, "no-store");
+    return new Promise((resolve, reject) => pending.push({ resolve, reject }));
   });
-  const settle = async (kind) => {
-    const request = requests.shift();
-    assert.ok(request);
-    if (kind === "network") request.reject(new TypeError("Failed to fetch"));
-    else if (kind === "http") request.resolve(new Response("Unavailable", { status: 503 }));
-    else if (kind === "json") request.resolve(new Response("{invalid"));
-    else request.resolve(new Response(JSON.stringify(payload)));
-    await new Promise(setImmediate);
+
+  const app = mountApp();
+  t.after(() => app.dispose());
+
+  // 1. Skeleton state
+  assert.equal(env.text("[data-telemetry-label]"), "同步快照中…");
+  assert.ok(env.document.querySelector("[data-skeleton-grid]"));
+
+  // 2. Upstream HTTP 503 failure -> honest error panel, never mock data
+  pending.shift().resolve(new Response(JSON.stringify({ error: "Inventory source returned HTTP 503" }), { status: 503 }));
+  await new Promise(setImmediate);
+  assert.equal(env.text("[data-telemetry-label]"), "上游数据源不可用");
+  assert.equal(env.text("[data-stat-available]"), "-");
+  assert.match(env.text("[data-error-panel]"), /HTTP 503/);
+
+  // 3. Manual retry recovers real catalog and excludes diagnostic records from purchasable terminal
+  env.click("[data-action='refresh-snapshot']");
+  pending.shift().resolve(new Response(JSON.stringify(samplePayload)));
+  await new Promise(setImmediate);
+
+  assert.match(env.text("[data-telemetry-label]"), /实时快照/);
+  assert.equal(env.text("[data-stat-available]"), "2");
+  assert.equal(env.text("[data-stat-exact]"), "1");
+  assert.equal(env.text("[data-stat-home]"), "1");
+  assert.equal(env.text("[data-stat-blocked]"), "1");
+  assert.match(env.text("[data-view-panel='terminal']"), /加州 AT&T 双ISP 家宽/);
+  assert.doesNotMatch(env.text("[data-view-panel='terminal']"), /Taipei101 采集状态/);
+});
+
+test("stale snapshot (>90m) and expired FX (>7d) surface honest status banners and stop CNY conversion", async (t) => {
+  const env = installDomEnvironment(t);
+  const stalePayload = {
+    ...samplePayload,
+    generatedAt: new Date(Date.now() - 120 * 60000).toISOString(),
+    exchangeRates: { base: "CNY", date: "2026-01-01", rates: { CNY: 1, USD: 7.0 } }
   };
-  const assertLoading = () => {
-    assert.equal(page.text("[data-monitor-status]"), "加载监控数据中");
-    assert.equal(page.text("[data-trust-freshness]"), "加载中");
-    assert.match(page.text("[data-mobile-products]"), /加载监控数据中/);
-    assert.ok(!page.document.querySelector("[data-monitor-status]").classList.contains("has-warning"));
-    assert.ok(page.document.querySelector(".skel-row"));
-  };
-  const assertSuccess = () => {
-    page.finishAnimations();
-    assert.equal(page.text("[data-monitor-status]"), "监控正常");
-    assert.ok(!page.document.querySelector("[data-monitor-status]").classList.contains("has-warning"));
-    assert.equal(page.text("[data-stat-total]"), "1");
-    assert.equal(page.text("[data-stat-unavailable]"), "0");
-    assert.match(page.text("[data-products]"), /Synthetic product/);
-    assert.match(page.text("[data-mobile-products]"), /Synthetic product/);
-  };
-  await import("../app.js");
-  await t.test("initial pending request shows loading", assertLoading);
-  for (const kind of ["network", "json"]) {
-    await settle(kind);
-    await t.test(`${kind} failure is site data unavailable, not zero inventory`, () => assertUnavailable(page));
-    page.click("[data-filter-reset]");
-    await t.test(`${kind} failure survives filter reset`, () => assertUnavailable(page));
-    page.click("[data-refresh]");
-    await t.test(`retry after ${kind} failure shows loading`, assertLoading);
-  }
-  await settle("success");
-  await t.test("success recovers product rows and summaries", assertSuccess);
-  page.click("[data-refresh]");
-  await t.test("pending refresh retains the previous summary", () => assert.equal(page.text("[data-stat-total]"), "1"));
-  await settle("http");
-  await t.test("HTTP failure clears previously loaded data", () => {
-    assertUnavailable(page);
-    assert.match(page.text("[data-products]"), /HTTP 503/);
-  });
-  page.click("[data-refresh]");
-  await settle("success");
-  page.click("[data-refresh]");
-  await settle("network");
-  page.finishAnimations();
-  await t.test("rapid failure cannot restore counts from an earlier success animation", () => assertUnavailable(page));
-  page.click("[data-refresh]");
-  await settle("success");
-  await t.test("a later success clears the error and warning", assertSuccess);
-  assert.equal(requests.length, 0);
+  t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify(stalePayload)));
+
+  const app = mountApp();
+  t.after(() => app.dispose());
+  await new Promise(setImmediate);
+
+  assert.match(env.text("[data-telemetry-label]"), /快照偏旧/);
+  assert.match(env.text("[data-status-banner]"), /超过 30 分钟/);
+  assert.match(env.text("[data-status-banner]"), /已超 7 天有效期/);
+  assert.match(env.text("[data-view-panel='terminal']"), /汇率超7天/);
 });
 
-test("ordinary VPS and residential categories work independently from IP filters on desktop and mobile", async (t) => {
-  const page = installPage(t);
-  const products = [
-    { ...payload.products[0], id: "ordinary-native", category: "vps", name: "普通原生 IP VPS", provider: "General provider" },
-    { ...payload.products[0], id: "ordinary-basic", category: "vps", name: "普通 KVM VPS", provider: "General provider" },
-    { ...payload.products[0], id: "home", category: "home", name: "真实家庭宽带 VPS", provider: "Home provider" }
-  ];
-  t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify({
-    ...payload, products, summary: { ...payload.summary, total: 3, available: 3 }
-  })));
-  await import("../app.js?category-regression");
+test("track isolation, zero-result recovery, command palette, compare matrix, inspector, watchlist, and workspaces work end-to-end", async (t) => {
+  const env = installDomEnvironment(t);
+  t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify(samplePayload)));
+
+  const app = mountApp();
+  t.after(() => app.dispose());
   await new Promise(setImmediate);
-  assert.equal(page.text("[data-count-vps]"), "2");
-  assert.equal(page.text("[data-count-home]"), "1");
-  const rows = () => page.text("[data-products]");
-  const mobile = () => page.text("[data-mobile-products]");
-  page.click('[data-category="vps"]');
-  assert.equal(page.text("[data-title-category]"), "普通 VPS");
-  assert.match(rows(), /普通原生 IP VPS/);
-  assert.match(mobile(), /普通 KVM VPS/);
-  assert.doesNotMatch(rows(), /真实家庭宽带/);
-  assert.doesNotMatch(mobile(), /真实家庭宽带/);
-  page.change("[data-filter-ip-type]", "native");
-  assert.match(rows(), /普通原生 IP VPS/);
-  assert.doesNotMatch(rows(), /普通 KVM VPS/);
-  page.click('[data-category="home"]');
-  assert.equal(page.document.querySelector("[data-filter-ip-type]").value, "all");
-  assert.match(rows(), /真实家庭宽带/);
-  assert.doesNotMatch(rows(), /普通原生 IP/);
-  assert.match(mobile(), /家宽 \/ 住宅 VPS/);
-  page.click('[data-ip-type="home"]');
-  assert.match(rows(), /真实家庭宽带/);
-  assert.equal(page.text("[data-title-category]"), "家宽 / 住宅 VPS");
-  page.click('[data-category="all"]');
-  assert.match(rows(), /普通原生 IP VPS/);
-  assert.match(rows(), /普通 KVM VPS/);
-  assert.match(rows(), /真实家庭宽带/);
+
+  // 1. Track isolation via Top Filter Dock: True Residential ISP excludes Datacenter Native IP
+  env.click("[data-filter-dock] [data-track='home']");
+  assert.match(env.text("[data-view-panel='terminal']"), /加州 AT&T 双ISP 家宽/);
+  assert.doesNotMatch(env.text("[data-view-panel='terminal']"), /JP-CN2-Starter/);
+  assert.match(env.getHref(), /track=home/);
+
+  // 2. Smart zero-results counterfactual attribution & 1-click relaxation
+  env.input("[data-filter-dock] [data-terminal-search]", "JP-CN2");
+  assert.ok(env.document.querySelector("[data-zero-results]"));
+  env.click("[data-action='apply-relaxation']");
+  assert.ok(!env.document.querySelector("[data-zero-results]"));
+
+  // 2b. Advanced filter popover opens & closes via Escape; clickable column sort updates URL
+  env.click("[data-action='toggle-advanced']");
+  assert.ok(env.document.querySelector("[data-adv-popover]"));
+  env.pressKey("Escape");
+  assert.ok(!env.document.querySelector("[data-adv-popover]"));
+  env.click("[data-action='sort-col']");
+  assert.match(env.getHref(), /sort=cny-asc/);
+
+  // 3. Reset, add both plans to Compare, open Compare Modal with Diff toggle, close via Escape
+  env.click("[data-action='reset-filters']");
+  const compareBtns = env.document.querySelectorAll(".terminal-table [data-action='toggle-compare']");
+  assert.equal(compareBtns.length, 2);
+  env.clickNode(compareBtns[0]);
+  env.clickNode(env.document.querySelectorAll(".terminal-table [data-action='toggle-compare']")[1]);
+  assert.equal(env.text("[data-compare-badge]"), "2/4");
+  assert.equal(env.document.querySelector("[data-compare-dock]").hidden, false);
+
+  env.click("[data-action='open-compare']");
+  assert.equal(env.document.querySelector("[data-compare-modal]").hidden, false);
+  assert.equal(env.document.body.classList.contains("scroll-locked"), true);
+  assert.match(env.text("[data-compare-modal]"), /多方案关键指标横向对比/);
+  assert.match(env.text("[data-compare-modal]"), /最低/);
+  env.pressKey("Escape");
+  assert.equal(env.document.querySelector("[data-compare-modal]").hidden, true);
+  assert.equal(env.document.body.classList.contains("scroll-locked"), false);
+
+  // 4. Open Plan Inspector Drawer & close via Escape
+  env.click(".terminal-table tr[data-action='inspect-plan']");
+  assert.equal(env.document.querySelector("[data-inspector-backdrop]").hidden, false);
+  assert.match(env.text("[data-inspector-backdrop]"), /原始采集证据链与风险审计/);
+  env.pressKey("Escape");
+  assert.equal(env.document.querySelector("[data-inspector-backdrop]").hidden, true);
+
+  // 5. Command Palette via Cmd+K & Escape
+  env.pressKey("k", { metaKey: true });
+  assert.equal(env.document.querySelector("[data-palette-backdrop]").hidden, false);
+  env.pressKey("Escape");
+  assert.equal(env.document.querySelector("[data-palette-backdrop]").hidden, true);
+
+  // 6. Save item & open Saved Watchlist Drawer
+  env.click(".terminal-table [data-action='toggle-save']");
+  assert.equal(env.text("[data-saved-count]"), "1");
+  env.click("[data-action='open-saved']");
+  assert.equal(env.document.querySelector("[data-saved-backdrop]").hidden, false);
+  env.pressKey("Escape");
+  assert.equal(env.document.querySelector("[data-saved-backdrop]").hidden, true);
+
+  // 7. Navigate Radar (restock + price delta %), Providers (all deduplicated vendors + collecting filter + diagnostic), and Guide Presets
+  env.click("[data-nav-view='radar']");
+  assert.match(env.text("[data-view-panel='radar']"), /补货上架/);
+  assert.match(env.text("[data-view-panel='radar']"), /-20\.4%/);
+
+  env.click("[data-nav-view='providers']");
+  assert.match(env.text("[data-view-panel='providers']"), new RegExp(`${providers.length} 家`));
+  assert.match(env.text("[data-view-panel='providers']"), /查看采集诊断证据/);
+  assert.match(env.text("[data-view-panel='providers']"), /仅看收集中/);
+  env.click("[data-action='set-prov-health'][data-health='collecting']");
+  assert.match(env.text("[data-view-panel='providers']"), /目录收集中/);
+  assert.match(env.text("[data-view-panel='providers']"), /六六云/);
+  env.click("[data-action='reset-providers']");
+
+  env.click("[data-nav-view='guide']");
+  env.click("[data-preset='us-home-dedicated']");
+  assert.equal(env.document.querySelector("[data-view-panel='terminal']").hidden, false);
+  assert.match(env.getHref(), /track=home/);
+  assert.match(env.getHref(), /noNat=1/);
 });
 
-test("directory diagnostics stay out of inventory; pagination and currency filters retain matching results", async (t) => {
-  const page = installPage(t);
-  const plans = Array.from({ length: 35 }, (_, i) => ({ id: `plan-${i}`, providerId: "lisahost", provider: "LisaHost", name: `Plan ${String(i + 1).padStart(2, '0')}`, category: "vps", price: `USD ${i+1}/month`, priceValue: i+1, status: "available", orderUrl: "https://lisahost.com/" }));
-  const diagnostic = { id:"diagnostic",providerId:"dmit",provider:"DMIT",name:"Access diagnostic",diagnostic:true,status:"blocked",evidence:"HTTP 403",sourceUrl:"https://www.dmit.io/" };
-  const cny = { ...plans[0], id:"cny", name:"CNY Plan", price:"CNY 9/month",priceValue:9 };
-  t.mock.method(globalThis,"fetch",async()=>new Response(JSON.stringify({...payload,products:[...plans,cny,diagnostic],summary:{total:37,available:36,blocked:1}})));
-  window.history = { replaceState(_,__,url) { window.location.href = url; } };
-  await import("../app.js?directory-pagination"); await new Promise(setImmediate);
-  assert.equal(page.document.querySelectorAll('[data-products] tr[data-key]').length,30);
-  assert.equal(page.text('[data-count-all]'),'36');assert.doesNotMatch(page.text('[data-products]'),/Access diagnostic/);
-  page.click('[data-page-next]');assert.equal(page.text('[data-page-label]'),'2 / 2');assert.equal(page.document.querySelectorAll('[data-products] tr[data-key]').length,6);
-  page.change('[data-filter-currency]','CNY');assert.equal(page.text('[data-page-label]'),'1 / 1');assert.match(page.text('[data-products]'),/CNY Plan/);assert.match(window.location.href,/currency=CNY/);
-  page.click('.primary-nav [data-view="providers"]');assert.equal(page.document.querySelector('[data-directory-view]').hidden,false);assert.equal(page.document.querySelector('[data-inventory-view]').hidden,true);assert.match(page.text('[data-provider-grid]'),/访问受限/);
-  page.click('[data-provider-inventory="lisahost"]');assert.equal(page.document.querySelector('[data-inventory-view]').hidden,false);assert.equal(page.document.querySelector('[data-filter-provider]').value,'LisaHost');assert.equal(page.document.querySelector('[data-filter-currency]').value,'all');
+test("standalone review dossier page hydrates live provider telemetry under unified design system", async (t) => {
+  const env = installDomEnvironment(t, "../reviews/aaitr.html", "https://radar.example/reviews/aaitr.html");
+  t.mock.method(globalThis, "fetch", async () =>
+    new Response(
+      JSON.stringify({
+        ...samplePayload,
+        products: [
+          {
+            ...samplePayload.products[0],
+            id: "aaitr-1",
+            providerId: "aaitr",
+            provider: "AaITR",
+            name: "US Verizon Residential NAT"
+          }
+        ]
+      })
+    )
+  );
+  const dossier = await mountReviewDossier();
+  t.after(() => dossier.dispose());
+  assert.match(env.text("[data-review-live-box]"), /US Verizon Residential NAT/);
 });
 
-const discoveryPlans = Array.from({ length: 5 }, (_, index) => ({
-  id: `stable-${index}`, sourceId: 'test-source', provider: 'Synthetic only', name: `Discovery ${index}`,
-  category: index === 4 ? 'home' : 'vps', region: index === 4 ? '日本' : '美国',
-  route: index === 4 ? '住宅 BGP' : 'CN2 GIA', hardware: '2 vCore / 4 GB RAM / 50 GB SSD',
-  price: `USD ${12 + index}/year`, priceValue: 12 + index,
-  status: index === 4 ? 'unavailable' : 'available', stockCount: index === 4 ? 0 : 3,
-  orderUrl: `https://example.invalid/order/${index}`, sourceUrl: 'https://example.invalid/catalog', fetchedAt: payload.generatedAt
-}));
+test("overlapping refreshes share a request and disposal aborts without mutating state", async (t) => {
+  installDomEnvironment(t);
+  const requests = [];
+  t.mock.method(globalThis, "fetch", (_url, options) => new Promise((resolve) => requests.push({ resolve, signal: options.signal })));
+  const app = mountApp();
+  t.after(() => app.dispose());
+  const pending = app.refresh();
+  assert.equal(requests.length, 1);
+  requests[0].resolve(new Response(JSON.stringify(samplePayload)));
+  await pending;
+  assert.equal(app.store.getState().loadState, "ready");
 
-test('bookmarks and comparison survive refreshed prices and ordering, with a four-plan cap', async (t) => {
-  const page = installPage(t);
-  let products = discoveryPlans.map((p) => ({ ...p }));
-  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ ...payload, products })));
-  await import('../app.js?bookmarks-comparison');
-  await new Promise(setImmediate);
-  page.click('[data-products] [data-save]');
-  assert.equal(page.text('[data-saved-count]'), '1');
-  assert.equal(JSON.parse(localStorage.getItem('resnode-radar:saved:v1')).length, 1);
-  for (let i = 1; i <= 5; i++) page.toggle(`[data-products] tr:nth-child(${i}) [data-select]`, true);
-  assert.equal(page.text('[data-selected-count]'), '4');
-  assert.equal(page.document.querySelector('[data-products] tr:nth-child(5) [data-select]').checked, false);
-  page.click('[data-open-compare]');
-  assert.equal(page.document.querySelector('[data-compare-dialog]').open, true);
-  assert.equal(page.document.querySelectorAll('.compare-table thead th').length, 5);
-  products = products.reverse().map((p) => ({ ...p, price: 'USD 99/year', priceValue: 99 }));
-  page.click('[data-refresh]');
-  await new Promise(setImmediate);
-  assert.equal(page.text('[data-selected-count]'), '4');
-  page.click('[data-open-saved]');
-  assert.equal(page.document.querySelectorAll('[data-products] tr[data-key]').length, 1);
-  assert.match(page.text('[data-products]'), /Discovery 0/);
-  assert.match(page.text('[data-products]'), /99/);
-  page.click('[data-products] [data-save]');
-  assert.equal(page.text('[data-saved-count]'), '0');
-  assert.match(page.text('[data-products]'), /收藏/);
+  const next = app.refresh();
+  assert.equal(requests.length, 2);
+  const previous = app.store.getState().payload;
+  app.dispose();
+  assert.equal(requests[1].signal.aborted, true);
+  requests[1].resolve(new Response(JSON.stringify({ ...samplePayload, generatedAt: "2020-01-01T00:00:00Z" })));
+  await next;
+  assert.equal(app.store.getState().payload, previous);
 });
 
-test('route, billing, availability, and saved views combine with removable filters', async (t) => {
-  const page = installPage(t);
-  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ ...payload, products: discoveryPlans })));
-  window.history = { replaceState(_, __, url) { window.location.href = url; } };
-  await import('../app.js?discovery-filters');
+test("invalid comparison deep links do not leave an invisible scroll lock", async (t) => {
+  const env = installDomEnvironment(t, "../index.html", "https://radar.example/?cmp=gone&compareOpen=1");
+  t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify(samplePayload)));
+  const app = mountApp();
+  t.after(() => app.dispose());
   await new Promise(setImmediate);
-  page.click('[data-route="bgp"]');
-  assert.equal(page.document.querySelectorAll('[data-products] tr[data-key]').length, 1);
-  assert.match(page.text('[data-products]'), /Discovery 4/);
-  assert.match(window.location.href, /route=bgp/);
-  page.toggle('[data-available-only]', true);
-  assert.equal(page.document.querySelectorAll('[data-products] tr[data-key]').length, 0);
-  page.click('[data-remove-filter="status"]');
-  assert.equal(page.document.querySelectorAll('[data-products] tr[data-key]').length, 1);
-  page.change('[data-filter-billing]', '1');
-  assert.match(page.text('[data-products]'), /没有找到匹配/);
-  page.click('[data-filter-reset]');
-  assert.equal(page.document.querySelectorAll('[data-products] tr[data-key]').length, 5);
-  page.input('[data-search]', '4 GB');
-  await new Promise((resolve) => setTimeout(resolve, 210));
-  assert.equal(page.document.querySelectorAll('[data-products] tr[data-key]').length, 5);
-  page.click('[data-mobile-filter-toggle]');
-  assert.equal(page.document.querySelector('#advanced-filters').hidden, false);
-  page.click('[data-layout="cards"]');
-  assert.ok(page.document.querySelector('.inventory-panel').classList.contains('is-card-layout'));
+  assert.equal(app.store.getState().compareOpen, false);
+  assert.deepEqual(app.store.getState().compareKeys, []);
+  assert.equal(env.document.body.classList.contains("scroll-locked"), false);
+  assert.doesNotMatch(env.getHref(), /cmp=|compareOpen=/);
 });
 
-test('a late earlier refresh cannot overwrite newer successful inventory', async (t) => {
-  const page = installPage(t), requests = [];
-  t.mock.method(globalThis, 'fetch', () => new Promise((resolve, reject) => requests.push({ resolve, reject })));
-  await import('../app.js?refresh-order');
-  requests[0].resolve(new Response(JSON.stringify({ ...payload, products: discoveryPlans })));
+test("provider diagnostics escape fetched URLs and KPI totals match their filters", async (t) => {
+  const env = installDomEnvironment(t, "../index.html", "https://radar.example/?view=providers");
+  const payload = structuredClone(samplePayload);
+  const diagnostic = payload.products.find((p) => p.diagnostic);
+  diagnostic.raw = { attempts: [{ url: '<img src=x onerror="alert(1)">', httpStatus: '<svg onload="alert(1)">' }] };
+  payload.products[0].collection = { pageLimitReached: true };
+  payload.products[1].status = "unavailable";
+  payload.products.push({ ...diagnostic, id: "partial-diagnostic", providerId: payload.products[1].providerId, provider: payload.products[1].provider });
+  t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify(payload)));
+  const app = mountApp();
+  t.after(() => app.dispose());
   await new Promise(setImmediate);
-  page.click('[data-refresh]');
-  page.click('[data-refresh]');
-  requests[2].resolve(new Response(JSON.stringify({ ...payload, products: [{ ...discoveryPlans[0], name: 'Newest inventory' }] })));
-  await new Promise(setImmediate);
-  requests[1].reject(new Error('older timed out'));
-  await new Promise(setImmediate);
-  assert.match(page.text('[data-products]'), /Newest inventory/);
-  assert.equal(page.text('[data-stat-total]'), '1');
-  assert.doesNotMatch(page.text('[data-monitor-status]'), /失败/);
-});
-
-test('activity distinguishes an empty baseline, real events, and load errors; invalid payloads fail closed', async (t) => {
-  const page = installPage(t), now = new Date().toISOString();
-  let current = { ...payload, generatedAt: now, products: discoveryPlans, events: [], eventTracking: { startedAt: now } };
-  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify(current)));
-  await import('../app.js?activity-status');
-  await new Promise(setImmediate);
-  page.click('.primary-nav [data-view="activity"]');
-  assert.equal(page.document.querySelector('[data-activity-view]').hidden, false);
-  assert.match(page.text('[data-event-list]'), /建立采集基线/);
-  current = { ...current, events: [{ type: 'restock', at: now, provider: 'Synthetic only', name: 'Returned plan', price: 'USD 9/month', orderUrl: 'https://example.invalid/order' }] };
-  page.click('[data-refresh]'); await new Promise(setImmediate);
-  assert.match(page.text('[data-event-list]'), /恢复可订购.*Returned plan/s);
-  page.click('[data-event-type="price"]');
-  assert.match(page.text('[data-event-list]'), /这个分类暂无变化/);
-  current = { products: [] };
-  page.click('[data-refresh]'); await new Promise(setImmediate);
-  assert.match(page.text('[data-event-list]'), /暂不可用/);
-  assertUnavailable(page);
-});
-
-test('a failed shared URL retains its filters and recovers the requested provider', async (t) => {
-  const page = installPage(t);
-  window.location.href = 'https://example.invalid/?provider=LisaHost&currency=USD';
-  window.history = { replaceState(_, __, url) { window.location.href = url; } };
-  let failed = true;
-  t.mock.method(globalThis, 'fetch', async () => failed ? new Response('Unavailable', { status: 503 }) : new Response(JSON.stringify({ ...payload, products: [{ ...discoveryPlans[0], provider: 'LisaHost' }, discoveryPlans[1]] })));
-  await import('../app.js?preserve-failed-query');
-  await new Promise(setImmediate);
-  assert.match(window.location.href, /provider=LisaHost/);
-  assert.match(window.location.href, /currency=USD/);
-  assert.equal(page.document.querySelector('[data-filter-provider]').value, 'LisaHost');
-  failed = false;
-  page.click('[data-refresh]'); await new Promise(setImmediate);
-  assert.equal(page.document.querySelectorAll('[data-products] tr[data-key]').length, 1);
-  assert.match(page.text('[data-products]'), /LisaHost/);
-});
-
-test('opening saved plans pushes a new view without overwriting previous filtered history', async (t) => {
-  const page = installPage(t), writes = [];
-  window.history = Object.fromEntries(['pushState', 'replaceState'].map((method) => [method, (_, __, url) => {
-    writes.push({ method, previous: window.location.href, url }); window.location.href = url;
-  }]));
-  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ ...payload, products: discoveryPlans })));
-  await import('../app.js?preserve-filter-history'); await new Promise(setImmediate);
-  page.click('[data-region="日本"]');
-  const filtered = window.location.href;
-  const count = writes.length;
-  page.click('[data-open-saved]');
-  assert.equal(writes[count].method, 'pushState');
-  assert.equal(writes[count].previous, filtered);
-  assert.match(writes[count].url, /saved=1/);
-  assert.doesNotMatch(writes[count].url, /region=/);
-});
-
-test('an open provider dialog follows refreshed records and data failure', async (t) => {
-  const page = installPage(t);
-  let failed = false;
-  let products = [{ ...discoveryPlans[0], provider: 'LisaHost', providerId: 'lisahost' }];
-  t.mock.method(globalThis, 'fetch', async () => failed ? new Response('Unavailable', { status: 503 }) : new Response(JSON.stringify({ ...payload, products })));
-  await import('../app.js?refresh-open-provider'); await new Promise(setImmediate);
-  page.click('[data-provider-detail="lisahost"]');
-  assert.equal(page.document.querySelector('[data-provider-dialog]').open, true);
-  assert.match(page.text('[data-provider-detail-body]'), /1 个套餐周期，其中 1 个可订购/);
-  products = [{ ...products[0], diagnostic: true, status: 'blocked', evidence: 'Provider now returns HTTP 403' }];
-  page.click('[data-refresh]'); await new Promise(setImmediate);
-  assert.match(page.text('[data-provider-detail-body]'), /访问受限/);
-  assert.match(page.text('[data-provider-detail-body]'), /HTTP 403/);
-  assert.doesNotMatch(page.text('[data-provider-detail-body]'), /1 个可订购/);
-  failed = true;
-  page.click('[data-refresh]'); await new Promise(setImmediate);
-  assert.match(page.text('[data-provider-detail-body]'), /当前库存未知/);
+  assert.equal(env.document.querySelector(".diag-box img"), null);
+  assert.equal(env.document.querySelector(".diag-box svg"), null);
+  assert.match(env.text(".diag-box"), /<img/);
+  const available = Number(env.text("[data-health='available'] .kpi-val"));
+  env.click("[data-health='available']");
+  assert.equal(env.document.querySelectorAll(".provider-card").length, available);
+  const issue = Number(env.text("[data-health='issue'] .kpi-val"));
+  env.click("[data-health='issue']");
+  assert.equal(env.document.querySelectorAll(".provider-card").length, issue);
 });

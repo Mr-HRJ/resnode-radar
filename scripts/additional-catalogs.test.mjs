@@ -115,6 +115,67 @@ test("Spartan marketing links cannot override stock from the official billing ca
   assert.throws(() => parseSpartan("https://spartanhost.org/vps", spartanCard(sea)), /official billing catalog/);
 });
 
+test("NOSLA Blesta forms preserve specs, routes, cycles, and explicit sold-out states", () => {
+  const noslaUrl = "https://ccp.nosla.cloud/order/main/index/tyo-pre-nor";
+  const html = `
+    <div class="card bg-light p-3 card-order package-list">
+      <h3>东京精品优化-S</h3>
+      <select name="pricing_id"><option value="1112">1 月份 @ ￥214.00 CNY</option></select>
+      <table class="sr-spec">
+        <tr><td>处理器</td><td>1 vCPU</td></tr>
+        <tr><td>内存</td><td>2GB RAM</td></tr>
+        <tr><td>硬盘</td><td>30GB NVME</td></tr>
+        <tr><td>带宽</td><td>500 Mbps</td></tr>
+        <tr><td>流量</td><td>500 GB / 月</td></tr>
+        <tr><td>位置</td><td>东京-日本</td></tr>
+      </table>
+      <ul class="sr-routes"><li>电信 双程CN2</li><li>联通 9929</li><li>移动 CMIN2</li></ul>
+      <button type="submit">立即订购</button>
+    </div>
+    <div class="card bg-light p-3 card-order package-list">
+      <h3>东京精品优化-M</h3>
+      <select name="pricing_id"><option value="1115">1 年份 @ ￥1,199.00 CNY</option></select>
+      <table class="sr-spec"><tr><td>位置</td><td>东京-日本</td></tr></table>
+      <button type="submit" disabled>已售罄</button>
+    </div>
+  `;
+  const rows = parseAdditionalCatalog(sourceFor("nosla", noslaUrl), resultFor(noslaUrl, html), helpers);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].status, "available");
+  assert.equal(rows[0].price, "CNY 214/月");
+  assert.equal(rows[0].region, "日本");
+  assert.match(rows[0].route, /CN2.*9929.*CMIN2/);
+  assert.equal(rows[1].status, "unavailable");
+  assert.equal(rows[1].stockCount, 0);
+  assert.equal(rows[1].price, "CNY 1199/年");
+});
+
+test("BandwagonHost cartbox parser reads multi-cycle pricing, CN2 GIA routes, onclick pid order links, and Out of Stock", () => {
+  const bwhUrl = "https://bandwagonhost.com/cart.php";
+  const html = `
+    <div class="cartbox"><table class="noborders"><tr>
+      <td><strong><nobr>SPECIAL 40G KVM PROMO V5 - HONG KONG CN2 GIA VPS</nobr></strong><br />SSD: 40 GB RAID-10<br />RAM: 2048 MB<br />CPU: 2x Intel Xeon<br />Transfer: 500 GB/mo<br />Link speed: 1 Gigabit<br />Location: Hong Kong Equinix</td>
+      <td class="pricing">$89.99 USD Monthly<br />$899.99 USD Annually</td>
+      <td><input type="button" value="Order Now" onclick="window.location='cart.php?a=add&pid=95'" /></td>
+    </tr></table></div>
+    <div class="cartbox"><table class="noborders"><tr>
+      <td><strong><nobr>40G KVM - PROMO VPS</nobr></strong><br />SSD: 40 GB RAID-10<br />Multiple datacenter locations</td>
+      <td class="pricing">$52.99 USD Semi-Annually<br />$99.99 USD Annually</td>
+      <td>Out of Stock</td>
+    </tr></table></div>
+  `;
+  const rows = parseAdditionalCatalog(sourceFor("bwh", bwhUrl), resultFor(bwhUrl, html), helpers);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].status, "available");
+  assert.equal(rows[0].region, "香港");
+  assert.equal(rows[0].route, "CN2 GIA");
+  assert.equal(rows[0].price, "USD 89.99 Monthly");
+  assert.equal(rows[0].orderUrl, "https://bandwagonhost.com/cart.php?a=add&pid=95");
+  assert.equal(rows[1].status, "unavailable");
+  assert.equal(rows[1].stockCount, 0);
+  assert.equal(rows[1].region, "多地区（下单选择）");
+});
+
 test("additional catalog dispatcher rejects unsupported formats", () => {
   assert.throws(() => parseAdditionalCatalog({ catalogFormat: "other" }, {}, helpers), /Unsupported/);
 });

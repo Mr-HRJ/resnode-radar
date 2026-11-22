@@ -15,7 +15,10 @@ VPSBBC's permitted `https://vpsbbc.com/llms-full.txt` listed 218 plans across te
 | Spartan Host | Seattle Premium, Seattle CMIN2 and Dallas Premium groups at `billing.spartanhost.net` | Read actual billing groups. Marketing-page purchase links cannot override explicit sold-out stock in the store. Other groups are not claimed as covered. |
 | GreenCloud | `https://www.greencloudvps.com/billing/store/{ssd-kvm-vps,budget-kvm-sale}/?language=english` | Two live public store groups with explicitly published USD monthly/annual quotes. Preserve zero and positive stock quantities; product order links without a quantity remain order-entry evidence. Other groups are outside this configured scope. |
 | Neburst | `https://neburst.com/api/v1/public/pricing/cloud` | Region/shape/billing combinations, public offering-availability signals, integer-cent prices and matching automatic promotions. A false cell in the full region/shape matrix does not establish a sold-out regional SKU. No unit count is inferred. |
-| Skyline Connect | `https://api.skylineconnect.io/v1/api/payment/payment_product_list` | Public anonymous product-list request. Separate billing SKUs; preserve base/configurable prices. `stocks`, `stocksSold`, and `enable` are retained as evidence without inventing remaining inventory. |
+| Skyline Connect | `https://api.skylineconnect.io/v1/api/payment/payment_product_list` | Public anonymous product-list request with automatic Next.js `/_next/static/chunks/*.js` bundle discovery when static chunk hashes rotate across deployments. Separate billing SKUs; preserve base/configurable prices. `stocks`, `stocksSold`, and `enable` are retained as evidence without inventing remaining inventory. |
+| MoonVM | `https://store.moonvm.com/cart.php` | Single-page full catalog; official product IDs survive sellouts and repeated group routes. Regions come from the containing group, not the current page title. |
+| RivenCloud | `https://portal.sa.net/store/{cloud-server,cloud-server-unmetered}` | Official public storefront groups with verified stock states (`0 Available` vs purchasable order links), bypassing root login redirects without using marketing-page buttons as stock truth. |
+| netcup | `https://www.netcup.com/en/server/{vps,arm-server}` | Direct official EUR VPS and ARM Server product pages without exhausting page budgets on unrelated site navigation. |
 
 Neburst's public client sends a current timestamp, a request ID derived from the URL path, method, timestamp and actual user agent, and a fresh random anonymous device marker. The collector reproduces that public request format without importing browser cookies, account credentials or trace tokens. Bare requests can return HTTP 493 with an empty payload; this is a failed read, not an empty product catalog.
 
@@ -23,9 +26,25 @@ Skyline's public browser client encrypts a fresh nonce, timestamp and `group_id:
 
 Vendor-specific parsers are bounded and fail visibly when expected schemas change. `coverageNote` is shown in provider details where only selected families are configured. New records do not become synthetic restock events.
 
-## Diagnostics
+### 2026-11-22 recovery batch
 
-Generic catalog discovery respects a valid official-host HTML `<base href>` for navigation and orders while retaining the fetched-page provenance. Obvious aggregate headings and resource add-ons are excluded from products.
+| Provider(s) | Source | Parser |
+| --- | --- | --- |
+| LazyCat, NMCloud, BreaCloud, KFCHost, HHost | Anonymous product APIs loaded by each public storefront/pricing page | `spa-consoles.mjs` |
+| Misaka (2 sources), HostHatch, GoldCloud | Server-rendered location inventory tables; official `js/app.js` plan data; public `/api/v1/products` | `vps-site-catalogs.mjs` |
+| WebHorizon, DataOnline, ShanDun | HostBill one-step order pages; ShanDun's public product API | `billing-portal-catalogs.mjs` |
+| FlawlessNode, BUG NET, LightNode (2 sources) | Pricing table; Paymenter category + product badges; regional landing pages | `page-limit-catalogs.mjs` |
+| TOTHOST, VmShell, IPMELA | Exact WHMCS store groups (`discover: false`) instead of truncated crawls | generic |
+
+Recorded as not collectable rather than guessed: NexKr, IPRaft and Geelinx (shop/catalog requires login), ISIF (product API behind a Cloudflare challenge), Langya and Taipei101 (no fixed plans), NoBrand (old store renewals only), Peekabo (CDN only), WireCat (KYC only), JCloud (Discord only). HostHatch and LightNode publish no anonymous stock, so their plans stay `unknown`. Providers whose pages return Cloudflare/WAF challenges, slider CAPTCHAs or login redirects remain `blocked`; the collector does not bypass them.
+
+## Diagnostics & Deduplication
+
+Generic catalog discovery respects a valid official-host HTML `<base href>` for navigation and orders while retaining the fetched-page provenance. WHMCS store route aliases (`/store/<slug>` and `/index.php?rp=/store/<slug>`) are canonicalized to a single visit so multi-region stores (such as Boil, BestVM, YUNYOO, and BageVM) do not waste page budgets on duplicate routes. Obvious aggregate headings and resource add-ons are excluded from products.
+
+Redirect destinations are also marked visited, without consuming another page slot. WHMCS `gid=addons`/`renewals`, checkout/configuration links and configured excluded paths are not crawled. MoonVM's customer-only add-on link previously created a false provider failure, while repeated group routes inflated 14 actual plans to 59 rows. Its dedicated parser uses official IDs and group headings. HostBill quickcart offer identities deduplicate repeated marketing pages without inferring stock; aggregate headings and checkout forms are not product cards. LightLayer still redirects its catalog to login, including with an anonymous cookie session, so only that entry is rechecked instead of eleven equivalent login redirects.
+
+WHMCS sold-out text and zero quantities override order links; disabled buttons do not establish availability. Third-party AaITR Reader records retain the quoted stock label in `raw.snapshotStatus`, but their current status is `unknown`. They cannot contribute to current available/sold-out totals.
 
 Diagnostics distinguish a challenge, HTTP denial, rate limiting, login redirect, and a page with no parsed products. A successful HTTP response with no products retains its actual URL/status and has no invented order entry.
 
@@ -35,6 +54,6 @@ Further public-source checks on 2026-11-12 confirmed that DMIT's `https://dmit.n
 
 ## Runtime verification
 
-Run a bounded live subset by creating a temporary working directory with `monitor/sources.json` containing only the selected configured sources, then execute the absolute `scripts/monitor.mjs` path with that directory as cwd. The collector writes only that directory's `data/products.json`. Keep pacing, use `MONITOR_FETCH_RETRIES=0`, and validate the generated payload with the normal validator from the same cwd. Do not pass unimplemented CLI flags and accidentally crawl every source.
+Run a bounded live subset with `MONITOR_ONLY=<source-id>[,<source-id>…] MONITOR_OUTPUT=/tmp/subset.json MONITOR_FETCH_RETRIES=0 npm run monitor`. Pacing still applies; the normal `data/products.json` is left untouched when `MONITOR_OUTPUT` points elsewhere. Do not pass unimplemented CLI flags and accidentally crawl every source.
 
-The GitHub workflow is scheduled at minutes 7 and 37. Changing a cron expression or enabling a workflow is not proof of timer execution: verify an actual Actions run with `event: schedule`, and check the published timestamp. Manual dispatch independently verifies the collector and publication path.
+Collection targets one run per ten-minute UTC slot: Cloudflare dispatches `monitor.yml`, and GitHub's own `*/10` schedule is a fallback. The guard skips an already-published slot, not simply a young snapshot. Source budgets (default 150 s) cancel active reads and pacing/retry waits; they are not a bound on the entire queued run. Time-budget exhaustion produces an incomplete-coverage diagnostic distinct from a page limit. Snapshot validation checks unique product IDs, exact source coverage, summary counts, timestamps and stock values before atomic replacement. Debug subsets require an explicit `MONITOR_OUTPUT`. Changing a cron expression is not proof of execution: verify Cron outcomes, actual Actions runs and the published timestamp; runner queueing can delay completion.

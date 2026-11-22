@@ -1,34 +1,46 @@
-import { parseCatalogApi, parseNodeMach } from "./catalog-api.mjs";
+import { parseCatalogApi, parseJdidcApi, parseNodeMach } from "./catalog-api.mjs";
 import { parseMarketingCatalog } from "./marketing-catalogs.mjs";
 import { parseAdditionalCatalog } from "./additional-catalogs.mjs";
 import { parseDynamicCatalog } from "./dynamic-catalogs.mjs";
 import { parseGreenCloudCatalog } from "./greencloud-catalog.mjs";
+import { parseSpaConsole, SPA_CONSOLE_FORMATS } from "./spa-consoles.mjs";
+import { parseVpsSiteCatalog, VPS_SITE_CATALOG_FORMATS } from "./vps-site-catalogs.mjs";
+import { parseHostbillOnestep, parseShandunCatalog, parseMoonvmCatalog } from "./billing-portal-catalogs.mjs";
+import { pageLimitCatalogFormats, parsePageLimitCatalog } from "./page-limit-catalogs.mjs";
 import { parse } from "node-html-parser";
-import { cleanPublicUrl, catalogUrlAllowed, discoverCatalogLinks, parseCatalogPage } from "./catalog-pages.mjs";
+import { cleanPublicUrl, catalogUrlAllowed, canonicalCatalogPageKey, discoverCatalogLinks, parseCatalogPage } from "./catalog-pages.mjs";
 
 // A bounded walk of published catalog links. Checkout, login and challenge pages
 // are never submitted; a blocked read is a monitoring result, not empty stock.
 export async function monitorPublicCatalog(source, helpers) {
-  const { fetchHtml, baseRecord, blockedRecord, errorRecord } = helpers;
+  const { fetchHtml, isAntiBotResult, baseRecord, blockedRecord, errorRecord, deadline = Infinity, now = Date.now } = helpers;
   const queue = [...new Set([source.url, ...(source.catalogUrls ?? [])])].map((url) => ({ url, label: "", depth: 0 }));
   const seen = new Set();
   const products = new Map();
   const attempts = [];
   const diagnostics = [];
-  const maxPages = Math.max(1, Math.min(source.maxPages ?? 12, 24));
+  const maxPages = Math.max(1, Math.min(source.maxPages ?? 12, 32));
   let lastResult = null;
-  while (queue.length && seen.size < maxPages) {
+  let timeBudgetReached = false;
+  let pagesChecked = 0;
+  while (queue.length && pagesChecked < maxPages) {
+    // A slow or flaky storefront must not delay the whole collection past its cadence.
+    if (now() >= deadline || source.signal?.aborted) { timeBudgetReached = true; break; }
     const page = queue.shift();
-    if (seen.has(page.url)) continue;
-    seen.add(page.url);
+    const pageKey = canonicalCatalogPageKey(page.url);
+    if (seen.has(pageKey)) continue;
+    seen.add(pageKey);
+    pagesChecked += 1;
     let result;
     try {
       if (!cleanPublicUrl(page.url) || !catalogUrlAllowed(page.url, source)) throw new Error("Catalog URL outside configured official hosts");
       result = await fetchHtml(source, page.url);
       lastResult = result;
       if (!catalogUrlAllowed(result.finalUrl, source)) throw new Error("Catalog redirected outside configured official hosts");
+      seen.add(canonicalCatalogPageKey(result.finalUrl));
       const title = parse(result.html).querySelector("title")?.text.replace(/\s+/g, " ").trim().slice(0, 160) || null;
-      const access = result.headers?.["cf-mitigated"] === "challenge" || /Just a moment|Attention Required.*Cloudflare|Security Check|安全验证/i.test(title || "") ? "challenge"
+      const interstitialChallenge = !result.ok && isAntiBotResult?.(result);
+      const access = result.headers?.["cf-mitigated"] === "challenge" || interstitialChallenge || /Just a moment|Attention Required.*Cloudflare|Security Check|安全验证/i.test(title || "") ? "challenge"
         : /Access Denied/i.test(title || "") ? "access-denied" : result.statusCode === 429 ? "rate-limited" : [401, 403].includes(result.statusCode) ? `http-${result.statusCode}` : null;
       const attempted = { url: page.url, finalUrl: result.finalUrl, httpStatus: result.statusCode, title };
       if (access) {
@@ -43,25 +55,40 @@ export async function monitorPublicCatalog(source, helpers) {
         diagnostics.push({ ...blockedRecord(source, result, "公开产品入口跳转到登录页，当前采集环境无法读取套餐；不能据此判断售罄。"), statusLabel: "需登录访问" });
         continue;
       }
-      const records = source.catalogFormat === "usvps24" ? parseUsvps24(source, result, helpers)
+      const records = SPA_CONSOLE_FORMATS.includes(source.catalogFormat) ? parseSpaConsole(source, result, helpers)
+        : VPS_SITE_CATALOG_FORMATS.includes(source.catalogFormat) ? parseVpsSiteCatalog(source, result, helpers)
+        : pageLimitCatalogFormats.includes(source.catalogFormat) ? parsePageLimitCatalog(source, result, helpers)
+        : source.catalogFormat === "hostbill-onestep" ? parseHostbillOnestep(source, result, helpers)
+        : source.catalogFormat === "shandun" ? parseShandunCatalog(source, result, helpers)
+        : source.catalogFormat === "moonvm" ? parseMoonvmCatalog(source, result, helpers)
+        : source.catalogFormat === "usvps24" ? parseUsvps24(source, result, helpers)
         : source.catalogFormat === "nodemach" ? parseNodeMach(source, result, helpers)
-          : ["miraigrid", "100tb"].includes(source.catalogFormat) ? parseCatalogApi(source, result, helpers)
-            : source.catalogFormat === "greencloud" ? parseGreenCloudCatalog(source, result, helpers)
-              : ["evoxt", "vps"].includes(source.catalogFormat) ? parseMarketingCatalog(source, result, helpers)
-                : ["zgovps", "berohost", "spartan"].includes(source.catalogFormat) ? parseAdditionalCatalog(source, result, helpers)
-                  : ["neburst", "skyline"].includes(source.catalogFormat) ? parseDynamicCatalog(source, result, helpers)
-                    : parseCatalogPage({ ...source, pageLabel: page.label }, result, helpers);
+          : source.catalogFormat === "jdidc" ? parseJdidcApi(source, result, helpers)
+            : ["miraigrid", "100tb"].includes(source.catalogFormat) ? parseCatalogApi(source, result, helpers)
+              : source.catalogFormat === "greencloud" ? parseGreenCloudCatalog(source, result, helpers)
+                : ["evoxt", "vps"].includes(source.catalogFormat) ? parseMarketingCatalog(source, result, helpers)
+                  : ["zgovps", "berohost", "spartan", "nosla", "bwh"].includes(source.catalogFormat) ? parseAdditionalCatalog(source, result, helpers)
+                    : ["neburst", "skyline"].includes(source.catalogFormat) ? parseDynamicCatalog(source, result, helpers)
+                      : parseCatalogPage({ ...source, pageLabel: page.label }, result, helpers);
       attempts.push({ ...attempted, status: records.length ? "parsed" : "no-products", products: records.length });
       for (const record of records) products.set(record.id, record);
       if (page.depth < 2 && source.discover !== false) {
-        queue.push(...discoverCatalogLinks(result.html, result.finalUrl, source).filter((link) => !seen.has(link.url)).map((link) => ({ ...link, depth: page.depth + 1 })));
+        queue.push(
+          ...discoverCatalogLinks(result.html, result.finalUrl, source)
+            .filter((link) => !seen.has(canonicalCatalogPageKey(link.url)))
+            .map((link) => ({ ...link, depth: page.depth + 1 }))
+        );
       }
     } catch (error) {
       attempts.push({ url: page.url, status: "error", message: error.message });
       diagnostics.push(errorRecord(source, error, { sourceUrl: page.url, finalUrl: result?.finalUrl ?? page.url, httpStatus: result?.statusCode ?? null }));
+      if (source.signal?.aborted) { timeBudgetReached = true; break; }
     }
   }
-  const coverage = { pagesChecked: seen.size, pageLimitReached: queue.some((page) => !seen.has(page.url)), attempts };
+  if (timeBudgetReached && !diagnostics.length) {
+    diagnostics.push(errorRecord(source, new Error("Source time budget exceeded; catalog coverage is incomplete")));
+  }
+  const coverage = { pagesChecked, pageLimitReached: pagesChecked >= maxPages && queue.some((page) => !seen.has(canonicalCatalogPageKey(page.url))), ...(timeBudgetReached ? { timeBudgetReached } : {}), attempts };
   const records = [...products.values()];
   // Keep partial failures visible alongside the successfully parsed plans.
   if (diagnostics.length) records.push({ ...diagnostics[0], id: `${source.id}:diagnostic`, diagnostic: true, raw: coverage });
@@ -73,7 +100,7 @@ export async function monitorPublicCatalog(source, helpers) {
       evidence: source.accessNote || "公开页面未返回可解析的 VPS 套餐；可能需要登录或动态加载，不能据此判断库存。", raw: coverage
     }));
   }
-  return records.map((record) => ({ ...record, collection: { pagesChecked: coverage.pagesChecked, pageLimitReached: coverage.pageLimitReached, failedPages: diagnostics.length, ...(source.coverageNote ? { scopeNote: source.coverageNote } : {}) } }));
+  return records.map((record) => ({ ...record, collection: { pagesChecked: coverage.pagesChecked, pageLimitReached: coverage.pageLimitReached, ...(timeBudgetReached ? { timeBudgetReached } : {}), failedPages: diagnostics.length, ...(source.coverageNote ? { scopeNote: source.coverageNote } : {}) } }));
 }
 
 export function parseUsvps24(source, result, { baseRecord }) {

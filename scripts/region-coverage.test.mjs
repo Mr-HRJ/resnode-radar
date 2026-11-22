@@ -1,23 +1,29 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { productRegions, productSearchText } from "../discovery.js";
-import { matchesFilters } from "../filter.js";
-import { state } from "../state.js";
+import { productRegions, productSearchText } from "../src/domain/format.js";
+import { DEFAULT_FILTERS, matchesFilters, normalizeProduct } from "../src/domain/catalog.js";
 
-test("declared region membership supports country filters and search without duplicating a grouped plan", (t) => {
-  const original = state.filters;
-  t.after(() => { state.filters = original; });
-  const product = { provider: "EVOXT", name: "VM-0.5 · Premium Network", region: "多地区（下单选择）", regions: ["香港", "日本"] };
-  product._searchText = productSearchText(product);
-  state.filters = { ...original, region: "日本", search: "evoxt 日本" };
-  assert.equal(matchesFilters(product), true);
-  state.filters = { ...original, region: "香港", search: "香港" };
-  assert.equal(matchesFilters(product), true);
-  state.filters = { ...original, region: "美国" };
-  assert.equal(matchesFilters(product), false);
-  state.filters = { ...original, region: "多地区（下单选择）" };
-  assert.equal(matchesFilters(product), true);
-  assert.deepEqual(productRegions(product), ["多地区（下单选择）", "香港", "日本"]);
+test("declared region membership supports macro-region, country filters and search without duplicating a grouped plan", () => {
+  const raw = {
+    id: "evoxt-1",
+    sourceId: "evoxt",
+    provider: "EVOXT",
+    category: "vps",
+    name: "VM-0.5 · Premium Network",
+    region: "多地区（下单选择）",
+    regions: ["香港", "日本"],
+    status: "available",
+    orderUrl: "https://evoxt.com"
+  };
+  const product = normalizeProduct(raw, 0, null, new Map());
+
+  assert.equal(matchesFilters(product, { ...DEFAULT_FILTERS, region: "JP", q: "evoxt 日本" }, new Set()), true);
+  assert.equal(matchesFilters(product, { ...DEFAULT_FILTERS, region: "日本", q: "evoxt 日本" }, new Set()), true);
+  assert.equal(matchesFilters(product, { ...DEFAULT_FILTERS, region: "HK", q: "香港" }, new Set()), true);
+  assert.equal(matchesFilters(product, { ...DEFAULT_FILTERS, region: "US" }, new Set()), false);
+  assert.equal(matchesFilters(product, { ...DEFAULT_FILTERS, region: "MULTI" }, new Set()), true);
+  assert.equal(matchesFilters(product, { ...DEFAULT_FILTERS, region: "多地区（下单选择）" }, new Set()), true);
+  assert.deepEqual(productRegions(raw), ["多地区（下单选择）", "香港", "日本"]);
 });
 
 test("region options count each declared membership once and exclude unrelated evidence", () => {

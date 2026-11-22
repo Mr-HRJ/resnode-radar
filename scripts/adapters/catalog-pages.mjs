@@ -4,7 +4,7 @@ import { parse } from "node-html-parser";
 const pricePattern = /(?:US\$|CA\$|C\$|HK\$|A\$|[¥￥$€£]|\b(?:USD|CNY|CAD|EUR|GBP|HKD|RMB)\b)\s*[0-9][0-9,.]*|[0-9][0-9,.]*\s*(?:元|USD\b|CNY\b|CAD\b|EUR\b|GBP\b|HKD\b)/i;
 const specsPattern = /\b(?:vCPU|vCore|CPU|RAM|DDR[345]|KVM|VDS|VPS|NVMe|SSD|HDD)\b|\d\s*(?:GB|MB|TB|G)[\s/]|内存|記憶體|云服务器|雲伺服器|虚拟服务器/i;
 const excludedPattern = /独立服务器|獨立伺服器|独服|獨服|裸金属|bare\s*metal|dedicated\s*server|域名注册|域名註冊|domain\s*registration|reseller\s*hosting|shared\s*hosting|cpanel\s*hosting|SSL\s*certificates/i;
-const nonProductNamePattern = /^(?:Additional Services|Simple pricing|Popular Plans)$/i;
+const nonProductNamePattern = /^(?:Additional Services|Simple pricing|Popular Plans|Configuration|VPS Plans & Pricing)$/i;
 const hardwarePattern = /\d+\s*(?:vCPU|vCore|CPU|Cores?\b|核)|(?:CPU|内存|RAM|Memory)\s*[:：]?\s*\d+|\d+\s*(?:GB|MB|G)\s*(?:RAM|DDR|内存)|\d+\s*(?:GB|MB)\s+(?:Memory|内存)/i;
 const orderPattern = /订购|訂購|购买|購買|立即开通|部署|選購|Order|Buy|Purchase|Deploy|Configure|Get started/i;
 const cardSelector = ".package, .product, .product-card, .card-product, .fh-product-card, .pricing-card, .pricing-box, .pricing-plan, .plan, .plan-card, .price-box, #products .card, [data-product-id], [itemtype*='Product']";
@@ -39,12 +39,36 @@ function documentBaseUrl(root, pageUrl, source) {
 function isCatalogLink(url, label) {
   const u = new URL(url);
   const route = u.searchParams.get("rp") || u.pathname;
+  // WHMCS add-ons belong to an existing service and require a customer login.
+  // They are not VPS catalog groups, even though they also use the gid key.
+  if (/^(?:addons|renewals)$/i.test(u.searchParams.get("gid") || "")) return false;
+  if (/\/(?:checkout|order\/(?:config|checkout))(?:\/|$)/i.test(u.pathname) || /^(?:confproduct|checkout|view)$/i.test(u.searchParams.get("a") || "")) return false;
   if (["language", "language_iso", "currency"].some((key) => u.searchParams.has(key))) return false;
   if (excludedPattern.test(`${route} ${label}`) || /(?:blog|news|knowledgebase|announcements|login|register|signup|terms|privacy|affiliate|logout|cart\.php\?a=add)/i.test(url) || u.searchParams.get("a") === "add" || u.searchParams.has("pid")) return false;
   if (u.searchParams.has("gid") || u.searchParams.get("cmd") === "cart") return true;
   if (/\?\/cart\//i.test(url)) return true;
   if (/\/store(?:\/|$)/i.test(route)) return route.split(/\/store\/?/i)[1].split("/").filter(Boolean).length <= 1;
   return /(?:vps|vds|kvm|pricing|cloud-server|virtual-server|products|plans|server\/vps)/i.test(route);
+}
+
+export function canonicalCatalogPageKey(url) {
+  try {
+    const u = new URL(url);
+    const rp = u.searchParams.get("rp");
+    if (
+      rp &&
+      /^\/store(?:\/|$)/i.test(rp) &&
+      [...u.searchParams.keys()].length === 1 &&
+      /^\/(?:index\.php)?$/i.test(u.pathname)
+    ) {
+      const cleanRp = rp.replace(/\/+$/, "") || "/store";
+      return `${u.origin}${cleanRp}`;
+    }
+    const cleanPath = u.pathname.length > 1 ? u.pathname.replace(/\/+$/, "") : u.pathname;
+    return `${u.origin}${cleanPath}${u.search}`;
+  } catch {
+    return url;
+  }
 }
 
 export function discoverCatalogLinks(html, base, source) {
@@ -55,8 +79,14 @@ export function discoverCatalogLinks(html, base, source) {
     const href = cleanPublicUrl(anchor.getAttribute("href"), documentBase);
     const label = clean(anchor.text);
     if (!href || !catalogUrlAllowed(href, source) || !isCatalogLink(href, label)) continue;
+    if ((source.excludePaths ?? []).some((path) => href.toLowerCase().includes(path.toLowerCase()))) continue;
+    const key = canonicalCatalogPageKey(href);
     const score = /vps|vds|kvm|cn2|9929|云服务器|雲伺服器|家宽|住宅/i.test(`${href} ${label}`) ? 2 : 1;
-    if (!links.has(href)) links.set(href, { url: href, label, score });
+    const existing = links.get(key);
+    const preferCleanPath = existing && existing.url.includes("?rp=") && !href.includes("?rp=");
+    if (!existing || score > existing.score || preferCleanPath) {
+      links.set(key, { url: href, label, score });
+    }
   }
   return [...links.values()].sort((a, b) => b.score - a.score);
 }
@@ -152,7 +182,9 @@ export function parseCatalogPage(source, result, helpers) {
     const bandwidth = specs.filter((x) => /流量|带宽|頻寬|transfer|traffic|bandwidth|IPv[46]|Gbps|Mbps/i.test(x)).slice(0,3).join(" / ");
     const routes = [...new Set(value.match(/CN2\s*GIA|CN2\s*GT|CMIN2|9929|4837|AS\d{3,6}|BGP|IIJ|HiNet/g) ?? [])].join(" / ");
     const category = /住宅|家宽|家寬|residential|双\s*ISP|dual[- ]?isp|\b(?:HKT|HKBN|HGC)-HOME\b/i.test(`${name} ${value}`) ? "home" : "vps";
-    const identity = specificOrder ? order.url : `${base}|${name}`;
+    const quickcart = order && new URL(order.url);
+    const quickcartIdentity = quickcart?.searchParams.get("module") === "quickcart" && /^\d+$/.test(quickcart.searchParams.get("id") || "");
+    const identity = specificOrder || quickcartIdentity ? order.url : `${base}|${name}`;
     records.push(baseRecord(source, result, {
       id: `${source.id}:plan:${createHash("sha256").update(identity).digest("hex").slice(0,16)}`,
       sourceUrl: base, name, category,

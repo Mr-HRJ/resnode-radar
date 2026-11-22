@@ -1,17 +1,27 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import worker from "../cloudflare/worker.mjs";
 import { buildCloudflare } from "./build-cloudflare.mjs";
 
 const env = { DATA_REPOSITORY: "Mr-HRJ/resnode-radar" };
 
+function walkJsFiles(dir) {
+  const results = [];
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) results.push(...walkJsFiles(full));
+    else if (entry.endsWith(".js") || entry.endsWith(".mjs")) results.push(full);
+  }
+  return results;
+}
+
 test("inventory uses only our repository and does not forward visitor credentials or query strings", async (t) => {
   const body = '{"generatedAt":"2026-11-10T00:00:00Z","products":[]}';
   t.mock.method(globalThis, "fetch", async (url, options) => {
-    assert.equal(url, "https://raw.githubusercontent.com/Mr-HRJ/resnode-radar/main/data/products.json");
+    assert.equal(url, "https://raw.githubusercontent.com/Mr-HRJ/resnode-radar/data/data/products.json");
     assert.deepEqual(options.headers, { accept: "application/json" });
     assert.equal(options.redirect, "manual");
     assert.equal(options.cf.cacheTtlByStatus["200"], 60);
@@ -73,25 +83,99 @@ test("other paths use the static asset binding and retain its status", async () 
   assert.equal(response.status, 404);
 });
 
-test("deployment package contains browser assets and license with the deployment's canonical URLs", () => {
+test("deployment package contains new modular browser assets, excludes legacy files, and resolves every import", () => {
   const output = mkdtempSync(join(tmpdir(), "resnode-cloudflare-test-"));
   try {
     buildCloudflare(output);
     const files = readdirSync(output);
-    for (const excluded of [".git", "node_modules", "scripts", "monitor", "data", "wrangler.json", "package.json"]) {
-      assert.ok(!files.includes(excluded), excluded);
+    for (const excluded of [
+      ".git", "node_modules", "scripts", "monitor", "data", "wrangler.json", "package.json",
+      "styles.css", "radar.css", "app.js", "directory.js", "discovery.js", "product-view.js"
+    ]) {
+      assert.ok(!files.includes(excluded), `Excluded or legacy file leaked: ${excluded}`);
     }
     assert.ok(files.includes("LICENSE"));
-    for (const file of files.filter((name) => name.endsWith('.js'))) {
-      const code = readFileSync(join(output, file), 'utf8');
-      for (const [, dependency] of code.matchAll(/from\s+["']\.\/([^"']+)["']/g)) assert.ok(files.includes(dependency), `${file} requires packaged ${dependency}`);
+    assert.ok(files.includes("styles"));
+    assert.ok(files.includes("src"));
+
+    // Verify every relative ES module import inside dist/ resolves to a packaged file
+    for (const jsPath of walkJsFiles(output)) {
+      const code = readFileSync(jsPath, "utf8");
+      for (const [, spec] of code.matchAll(/from\s+["'](\.\.?\/[^"']+)["']/g)) {
+        const resolved = resolve(dirname(jsPath), spec);
+        assert.ok(existsSync(resolved), `${jsPath} requires missing packaged module ${spec}`);
+      }
     }
+
+    // Verify HTML stylesheet & module references exist in dist/
+    for (const htmlRel of ["index.html", "reviews/aaitr.html", "reviews/lisahost.html"]) {
+      const htmlPath = join(output, htmlRel);
+      const html = readFileSync(htmlPath, "utf8");
+      for (const [, ref] of html.matchAll(/(?:href|src)=["']((?!https?:|#|\/)[^"']+\.(?:css|js|svg))["']/g)) {
+        const resolved = resolve(dirname(htmlPath), ref);
+        assert.ok(existsSync(resolved), `${htmlRel} references missing asset ${ref}`);
+      }
+    }
+
     const html = readFileSync(join(output, "index.html"), "utf8");
     assert.match(html, /https:\/\/resnode-radar\.haorenjie1997\.workers\.dev\//);
     assert.match(html, /https:\/\/github\.com\/Mr-HRJ\/resnode-radar/);
     assert.doesNotMatch(html, /majiayu000\.github\.io/);
     assert.match(readFileSync(join(output, "reviews/aaitr.html"), "utf8"), /noindex/);
+    assert.match(readFileSync(join(output, "reviews/lisahost.html"), "utf8"), /noindex/);
   } finally {
     rmSync(output, { recursive: true, force: true });
   }
+});
+
+test("Cloudflare Cron scheduled handler dispatches GitHub Actions monitor workflow when token is set", async (t) => {
+  await assert.rejects(worker.scheduled({}, env), /configure GITHUB_DISPATCH_TOKEN/);
+
+  let dispatchedUrl = null;
+  let dispatchedBody = null;
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    dispatchedUrl = url;
+    dispatchedBody = JSON.parse(options.body);
+    assert.equal(options.method, "POST");
+    assert.equal(options.redirect, "error");
+    assert.equal(options.headers.authorization, "Bearer ghp_test_token");
+    return new Response(null, { status: 204 });
+  });
+
+  const ok = await worker.scheduled({}, { ...env, GITHUB_DISPATCH_TOKEN: "ghp_test_token" });
+  assert.equal(ok.dispatched, true);
+  assert.equal(dispatchedUrl, "https://api.github.com/repos/Mr-HRJ/resnode-radar/actions/workflows/monitor.yml/dispatches");
+  assert.deepEqual(dispatchedBody, { ref: "main" });
+});
+
+test("Cron dispatch failures reject so the invocation cannot be reported as successful", async (t) => {
+  for (const status of [200, 302, 401, 403, 404, 429, 500]) {
+    t.mock.method(globalThis, "fetch", async () => new Response("upstream detail", { status }));
+    await assert.rejects(worker.scheduled({}, { ...env, GITHUB_DISPATCH_TOKEN: "test" }), new RegExp(`HTTP ${status}`));
+  }
+  t.mock.method(globalThis, "fetch", async () => { throw new Error("network timeout"); });
+  await assert.rejects(worker.scheduled({}, { ...env, GITHUB_DISPATCH_TOKEN: "test" }), /network timeout/);
+  await assert.rejects(worker.scheduled({}, { ...env, GITHUB_DISPATCH_TOKEN: "test", WORKFLOW_REF: "../main" }), /invalid workflow/);
+});
+
+test("inventory reads the configured data branch and rejects unsafe branch names", async (t) => {
+  t.mock.method(globalThis, "fetch", async (url) => {
+    assert.equal(url, "https://raw.githubusercontent.com/Mr-HRJ/resnode-radar/snapshots/data/products.json");
+    return new Response("{}");
+  });
+  assert.equal((await worker.fetch(new Request("https://radar.example/data/products.json"), { ...env, DATA_BRANCH: "snapshots" })).status, 200);
+  for (const branch of ["../main", "a b", "main?x=1"]) {
+    const response = await worker.fetch(new Request("https://radar.example/data/products.json"), { ...env, DATA_BRANCH: branch });
+    assert.equal(response.status, 503);
+  }
+});
+
+test("10-minute cadence is configured for the Cloudflare cron and the GitHub fallback schedule", () => {
+  const config = JSON.parse(readFileSync(new URL("../wrangler.json", import.meta.url), "utf8"));
+  assert.deepEqual(config.triggers.crons, ["*/10 * * * *"]);
+  assert.equal(config.vars.DATA_BRANCH, "data");
+  const workflow = readFileSync(new URL("../.github/workflows/monitor.yml", import.meta.url), "utf8");
+  assert.match(workflow, /cron: "\*\/10 \* \* \* \*"/);
+  assert.match(workflow, /DATA_BRANCH: data/);
+  assert.match(workflow, /timeout-minutes: 12/);
 });

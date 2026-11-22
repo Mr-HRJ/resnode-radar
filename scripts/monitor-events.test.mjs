@@ -116,6 +116,11 @@ test("data validator rejects invalid event tracking, event history and FX", (t) 
   const oldAt = "2026-11-02T10:00:00.000Z";
   const futureAt = "2026-11-10T11:00:00.000Z";
   for (const broken of [
+    { ...valid, products: [valid.products[0], valid.products[0]] },
+    { ...valid, products: [{ ...valid.products[0], stockCount: -1 }] },
+    { ...valid, products: [{ ...valid.products[0], stockCount: 0 }] },
+    { ...valid, products: [{ ...valid.products[0], fetchedAt: firstAt }] },
+    { ...valid, sourceCount: 2 }, { ...valid, summary: { ...valid.summary, total: 0 } },
     { ...valid, events: undefined }, { ...valid, events: {} }, { ...valid, events: [null] },
     { ...valid, eventTracking: undefined }, { ...valid, eventTracking: { ...valid.eventTracking, limit: 301 } },
     { ...valid, eventTracking: { ...valid.eventTracking, retentionDays: 8 } },
@@ -127,4 +132,5 @@ test("data validator rejects invalid event tracking, event history and FX", (t) 
     { ...valid, exchangeRates: { ...fx, rates: { CNY: 1 } } }
   ]) assert.ok(validateMonitorPayload(broken).length > 0);
   assert.deepEqual(validateMonitorPayload({ ...valid, exchangeRates: fx }), []);
+  assert.ok(validateMonitorPayload(valid, { expectedSourceIds: ['missing-source'] }).some((error) => /missing source/.test(error)));
 });

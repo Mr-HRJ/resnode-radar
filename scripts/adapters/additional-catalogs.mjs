@@ -157,9 +157,167 @@ function parseSpartan(source, result, helpers) {
   }));
 }
 
+function parseNosla(source, result, { baseRecord }) {
+  const pageUrl = result.finalUrl || source.url;
+  const page = new URL(pageUrl);
+  if (page.hostname !== "ccp.nosla.cloud") throw new Error("NOSLA requires its official public order catalog");
+  const root = parse(result.html);
+  const records = [];
+  for (const card of root.querySelectorAll(".card-order.package-list")) {
+    const name = clean(card.querySelector("h3")?.text);
+    const select = card.querySelector("select[name='pricing_id']");
+    if (!name || !select) continue;
+    const specMap = {};
+    for (const row of card.querySelectorAll(".sr-spec tr")) {
+      const cells = row.querySelectorAll("td");
+      if (cells.length >= 2) specMap[clean(cells[0].text)] = clean(cells[1].text);
+    }
+    const routeText = clean(card.querySelector(".sr-routes")?.structuredText || "");
+    const cardText = clean(card.structuredText);
+    const buttons = card.querySelectorAll("button, input[type='submit']");
+    const submitBtn = buttons.find((b) => {
+      const type = (b.getAttribute("type") || "submit").toLowerCase();
+      return type === "submit" || /订购|购买|Order|Select|售罄|缺货|Out of Stock/i.test(clean(b.text || b.getAttribute("value")));
+    });
+    const btnText = clean(submitBtn?.text || submitBtn?.getAttribute("value"));
+    const btnDisabled = Boolean(submitBtn && (submitBtn.hasAttribute("disabled") || submitBtn.getAttribute("aria-disabled") === "true" || submitBtn.classList.contains("disabled")));
+    const soldOut = /售罄|无货|缺货|Out of Stock|Sold Out/i.test(`${btnText} ${cardText}`);
+    const orderable = Boolean(submitBtn && !btnDisabled && /订购|购买|Order|Select/i.test(btnText));
+    const status = soldOut ? "unavailable" : orderable ? "available" : "unknown";
+    const hardware = [specMap["处理器"], specMap["内存"], specMap["硬盘"]].filter(Boolean).join(" / ") || null;
+    const bandwidth = [specMap["带宽"], specMap["流量"], specMap["IP"]].filter(Boolean).join(" / ") || null;
+    const regionRaw = specMap["位置"] || name;
+    const region = /东京|日本/i.test(regionRaw) ? "日本"
+      : /洛杉矶|圣何塞|美国/i.test(regionRaw) ? "美国"
+        : /法兰克福|德国/i.test(regionRaw) ? "德国"
+          : /香港/i.test(regionRaw) ? "香港"
+            : /新加坡/i.test(regionRaw) ? "新加坡" : null;
+    const routes = [...new Set(routeText.match(/CN2\s*GIA|CN2|CMIN2|CMI2|9929|4837|BGP/gi) || [])].join(" / ") || null;
+
+    for (const option of select.querySelectorAll("option")) {
+      const pricingId = option.getAttribute("value");
+      const optText = clean(option.text);
+      const priceMatch = optText.match(/(?:￥|¥|\$|€|£)?\s*([\d,]+(?:\.\d+)?)\s*([A-Z]{3})\b/);
+      if (!pricingId || !priceMatch) continue;
+      const amount = Number(priceMatch[1].replace(/,/g, ""));
+      const currency = priceMatch[2].toUpperCase();
+      if (!Number.isFinite(amount) || amount <= 0) continue;
+      const periodLabel = /年/i.test(optText) ? "年" : /半年/i.test(optText) ? "半年" : /季/i.test(optText) ? "季" : /月/i.test(optText) ? "月" : "";
+      records.push(baseRecord(source, result, {
+        id: `${source.id}:plan:${pricingId}`,
+        sourceUrl: pageUrl,
+        name,
+        category: "vps",
+        region,
+        route: routes,
+        hardware,
+        bandwidth,
+        price: `${currency} ${amount}${periodLabel ? `/${periodLabel}` : ""}`,
+        priceValue: amount,
+        currency,
+        status,
+        statusLabel: status === "unavailable" ? "不可订购" : status === "available" ? "可订购入口" : "库存未公开",
+        stockCount: status === "unavailable" ? 0 : null,
+        orderUrl: pageUrl,
+        note: "官方 Blesta 公开订购页；具体库存与设置费以结账页为准。",
+        evidence: `Official NOSLA Blesta form; pricing_id=${pricingId}; button=${btnText || "none"}; disabled=${btnDisabled}`,
+        raw: {
+          catalogPage: pageUrl,
+          pricingId,
+          billingCycle: periodLabel || null,
+          features: specMap,
+          orderable
+        }
+      }));
+    }
+  }
+  return unique(records);
+}
+
+function parseBwh(source, result, { baseRecord }) {
+  const pageUrl = result.finalUrl || source.url;
+  const page = new URL(pageUrl);
+  if (!["bandwagonhost.com", "www.bandwagonhost.com", "bwh81.net", "bwh88.net", "bwh89.net"].includes(page.hostname)) {
+    throw new Error("BandwagonHost requires its official cart catalog");
+  }
+  const root = parse(result.html);
+  const records = [];
+  for (const box of root.querySelectorAll(".cartbox")) {
+    const name = clean(box.querySelector("strong")?.text);
+    if (!name) continue;
+    const text = clean(box.structuredText);
+    const lines = box.structuredText.split(/\r?\n/).map(clean).filter(Boolean);
+    const pricingLines = (box.querySelector(".pricing")?.structuredText || "")
+      .split(/\r?\n/)
+      .map(clean)
+      .filter(Boolean);
+    const quotes = pricingLines
+      .map((line) => {
+        const m = line.match(/^\$\s*([\d,]+(?:\.\d+)?)\s*(USD)\s+(Monthly|Quarterly|Semi-Annually|Annually)$/i);
+        if (!m) return null;
+        const amount = Number(m[1].replace(/,/g, ""));
+        return Number.isFinite(amount) && amount > 0 ? { amount, currency: m[2].toUpperCase(), period: m[3], label: line } : null;
+      })
+      .filter(Boolean);
+    if (!quotes.length) continue;
+    const primary = quotes[0];
+    const btn = box.querySelector("input[type='button'], a[href*='cart.php']");
+    const onclick = btn?.getAttribute("onclick") || "";
+    const hrefMatch = onclick.match(/cart\.php\?[^'"]+/i)?.[0] || btn?.getAttribute("href") || null;
+    const orderUrl = hrefMatch ? new URL(hrefMatch.replace(/&amp;/g, "&"), pageUrl).href : null;
+    const pid = orderUrl ? new URL(orderUrl).searchParams.get("pid") : null;
+    const soldOut = /\bOut of Stock\b|\bSold Out\b/i.test(text);
+    const status = soldOut ? "unavailable" : orderUrl ? "available" : "unknown";
+    const field = (prefix) => lines.find((l) => new RegExp(`^${prefix}\\s*:`, "i").test(l)) || null;
+    const hardware = [field("CPU"), field("RAM"), field("SSD")].filter(Boolean).join(" / ") || null;
+    const bandwidth = [field("Link speed"), field("Transfer"), field("IPv4")].filter(Boolean).join(" / ") || null;
+    const locLine = field("Location") || "";
+    const blob = `${name} ${locLine}`;
+    const region = /HONG KONG/i.test(blob) ? "香港"
+      : /SINGAPORE/i.test(blob) ? "新加坡"
+        : /TOKYO|OSAKA|JAPAN/i.test(blob) ? "日本"
+          : /LOS ANGELES|ECOMMERCE/i.test(blob) && !/DUBAI/i.test(blob) ? "美国"
+            : /DUBAI/i.test(blob) ? "阿联酋"
+              : /Multiple datacenter locations/i.test(text) ? "多地区（下单选择）" : null;
+    const routes = [...new Set(blob.match(/CN2\s*GIA|CN2\s*GT|CN2|CMIN2|9929|4837/gi) || [])].join(" / ") || null;
+    const annual = quotes.find((q) => /Annually/i.test(q.period));
+    const altNote = quotes.length > 1 && annual && annual !== primary ? `；年付 ${annual.currency} ${annual.amount}` : "";
+
+    records.push(baseRecord(source, result, {
+      id: `${source.id}:plan:${pid || encodeURIComponent(name)}`,
+      sourceUrl: pageUrl,
+      name,
+      category: "vps",
+      region,
+      route: routes,
+      hardware,
+      bandwidth,
+      price: `${primary.currency} ${primary.amount} ${primary.period}`,
+      priceValue: primary.amount,
+      currency: primary.currency,
+      status,
+      statusLabel: status === "unavailable" ? "不可订购" : status === "available" ? "可订购入口" : "库存未公开",
+      stockCount: status === "unavailable" ? 0 : null,
+      orderUrl,
+      note: `搬瓦工官方 cart.php 公开目录${altNote}`,
+      evidence: `Official BandwagonHost cartbox; pid=${pid || "none"}; soldOut=${soldOut}; order=${Boolean(orderUrl)}`,
+      raw: {
+        catalogPage: pageUrl,
+        productId: pid,
+        billingCycle: primary.period,
+        pricingTiers: quotes.map((q) => q.label),
+        location: locLine || null
+      }
+    }));
+  }
+  return unique(records);
+}
+
 export function parseAdditionalCatalog(source, result, helpers) {
   if (source.catalogFormat === "zgovps") return parseZgo(source, result, helpers);
   if (source.catalogFormat === "berohost") return parseBero(source, result, helpers);
   if (source.catalogFormat === "spartan") return parseSpartan(source, result, helpers);
+  if (source.catalogFormat === "nosla") return parseNosla(source, result, helpers);
+  if (source.catalogFormat === "bwh") return parseBwh(source, result, helpers);
   throw new Error(`Unsupported additional catalog format: ${source.catalogFormat}`);
 }

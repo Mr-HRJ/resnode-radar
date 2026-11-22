@@ -1,7 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { constants, generateKeyPairSync, privateDecrypt } from "node:crypto";
-import { parseDynamicCatalog, buildSkylinePublicCatalogRequest, buildNeburstPublicCatalogRequest, NEBURST_PUBLIC_CATALOG_URL } from "./adapters/dynamic-catalogs.mjs";
+import {
+  parseDynamicCatalog,
+  buildSkylinePublicCatalogRequest,
+  buildNeburstPublicCatalogRequest,
+  hasSkylinePublicKey,
+  discoverSkylineChunkUrls,
+  NEBURST_PUBLIC_CATALOG_URL
+} from "./adapters/dynamic-catalogs.mjs";
 
 const helpers = { baseRecord: (_source, _result, record) => record };
 const source = (format) => ({ id: `catalog-${format}`, providerId: format, provider: format, catalogFormat: format, url: `https://${format}.example/` });
@@ -179,6 +186,12 @@ test("Skyline builds a fresh public encrypted request without authentication or 
   assert.ok(Math.abs(Date.now() - Number(freshA.timestamp)) < 10000);
   assert.throws(() => buildSkylinePublicCatalogRequest("changed bundle"), /public encryption key missing/);
   assert.throws(() => buildSkylinePublicCatalogRequest(publicScript, { platform: "other" }), /Unsupported/);
+  assert.equal(hasSkylinePublicKey(publicScript), true);
+  assert.equal(hasSkylinePublicKey("console.log('other chunk')"), false);
+  assert.deepEqual(
+    discoverSkylineChunkUrls('<script src="/_next/static/chunks/abc123.js"></script><script src="/other.js"></script>', "https://www.skylineconnect.io/products"),
+    ["https://www.skylineconnect.io/_next/static/chunks/abc123.js"]
+  );
 });
 
 test("Neburst reproduces public request metadata using the actual UA, fresh time and no auth or trace token", () => {

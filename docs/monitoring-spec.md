@@ -4,9 +4,11 @@
 
 Build a real, source-backed VPS monitoring site. The public page must display only data produced by the monitor runtime from live provider pages or explicit monitor errors. It must not ship mocked stock, price, route, or status data.
 
-## Directory and public catalog coverage (2026-11-12)
+## Directory and public catalog coverage (2026-11-22)
 
-`providers.js` contains 65 deduplicated directory entries, each mapped to at
+`providers.js` contains 121 deduplicated directory entries (all 117 entries from
+the public MeowVPS directory, including both collected and collecting vendors,
+merged without duplication with existing site providers), each mapped to at
 least one `providerId` in `monitor/sources.json`. The MeowVPS directory supplies
 factual vendor metadata only; stock and prices come from official vendor pages
 or the existing explicitly labeled AaITR snapshot adapter.
@@ -52,7 +54,7 @@ foreign exchange rates older than seven days. CNY estimates are not settlement
 amounts and exclude fees/taxes.
 
 The visible browser rereads the published snapshot every five minutes and marks
-provider snapshots older than 90 minutes as stale. Refreshing does not trigger a
+provider snapshots older than 30 minutes (three missed 10-minute cycles) as stale. Refreshing does not trigger a
 provider crawl. Local bookmarks do not send notifications.
 
 ## Current Evidence
@@ -161,7 +163,7 @@ If any attempt returns parseable WHMCS product DOM, parse:
 - order URL from `cart.php?a=add`
 - configuration fields from `key: value` lines
 
-If direct/chrome attempts only return challenge pages but Reader snapshot succeeds, output AaITR product rows with evidence `reader_snapshot` and labels such as `快照: 库存充足`. Reader snapshot data is not treated as first-party official API data and must not claim precise price or order-link data unless the snapshot contains those fields.
+If direct/chrome attempts only return challenge pages but Reader snapshot succeeds, output AaITR product rows with evidence `reader_snapshot`, current `status: unknown`, and labels such as `快照: 库存充足（实时库存未确认）`. The quoted historical state is retained as `raw.snapshotStatus`; it does not establish live inventory. Reader snapshot data is not treated as first-party official API data and must not claim precise price or order-link data unless the snapshot contains those fields.
 
 If every attempt fails, output one `blocked` record with `raw.attempts`. Search engine snippets can help discover candidate URLs, but must not be used as stock truth.
 

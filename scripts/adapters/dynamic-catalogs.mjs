@@ -169,6 +169,28 @@ function parseSkyline(source, result, payload, { baseRecord }) {
   return records;
 }
 
+export function hasSkylinePublicKey(publicClientScript, platform = "mac") {
+  if (typeof publicClientScript !== "string" || !publicClientScript || !["mac", "windows", "android"].includes(platform)) {
+    return false;
+  }
+  const pattern = new RegExp(`\\[[\\w$]+\\.${platform.toUpperCase()}\\]:["']([A-Za-z0-9+/=]+)["']`);
+  return pattern.test(publicClientScript);
+}
+
+export function discoverSkylineChunkUrls(html, baseUrl) {
+  if (typeof html !== "string" || !html) return [];
+  const found = [];
+  for (const [, src] of html.matchAll(/<script\b[^>]*\bsrc=["']([^"']*\/_next\/static\/chunks\/[^"']+\.js)["']/gi)) {
+    try {
+      const resolved = new URL(src, baseUrl).toString();
+      if (!found.includes(resolved)) found.push(resolved);
+    } catch {
+      // Ignore malformed script src
+    }
+  }
+  return found;
+}
+
 export function buildSkylinePublicCatalogRequest(publicClientScript, { now = Date.now(), nonce, platform = "mac" } = {}) {
   if (!["mac", "windows", "android"].includes(platform)) throw new Error("Unsupported published Skyline platform key");
   // Read the current public SPKI encryption key from the advertised client

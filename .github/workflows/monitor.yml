@@ -1,9 +1,17 @@
 name: Monitor VPS Sources
 
 on:
+  # Primary trigger: the Cloudflare Worker cron ("*/10 * * * *") calls workflow_dispatch.
+  # GitHub's own schedule is only a best-effort fallback (public repositories are often delayed by
+  # hours); the guard allows only one collection start per ten-minute UTC slot.
   schedule:
-    - cron: "7,37 * * * *"
+    - cron: "*/10 * * * *"
   workflow_dispatch:
+    inputs:
+      force:
+        description: "Collect even if the published snapshot is still fresh"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -12,41 +20,79 @@ concurrency:
   group: monitor-data
   cancel-in-progress: false
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  # Snapshots are force-published as a single orphan commit on this branch, so a 10-minute
+  # cadence does not add ~150 multi-megabyte commits per day to main's history.
+  DATA_BRANCH: data
+  COLLECTION_INTERVAL_MINUTES: "10"
+
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 12
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Restore published snapshot
+        run: |
+          branch_status=0
+          git ls-remote --exit-code --heads origin "$DATA_BRANCH" > "$RUNNER_TEMP/data-ref" || branch_status=$?
+          if [ "$branch_status" -eq 0 ]; then
+            git fetch --depth=1 origin "$DATA_BRANCH"
+            git show FETCH_HEAD:data/products.json > data/products.json
+            if git cat-file -e FETCH_HEAD:data/fx.json 2>/dev/null; then
+              git show FETCH_HEAD:data/fx.json > data/fx.json
+            fi
+            echo "Restored previous snapshot from $DATA_BRANCH"
+          elif [ "$branch_status" -eq 2 ]; then
+            echo "No $DATA_BRANCH branch yet; using the snapshot committed on main as the baseline"
+          else
+            echo "Cannot read the published branch; refusing to replace event history with an old baseline" >&2
+            exit "$branch_status"
+          fi
+
+      - name: Decide whether to collect
+        id: guard
+        env:
+          FORCE_COLLECTION: ${{ github.event_name == 'workflow_dispatch' && inputs.force && 'true' || 'false' }}
+        run: node scripts/collection-guard.mjs
+
       - name: Setup Node
+        if: steps.guard.outputs.collect == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "24"
           cache: "npm"
 
       - name: Install dependencies
+        if: steps.guard.outputs.collect == 'true'
         run: npm ci
 
       - name: Update ECB reference rates
+        if: steps.guard.outputs.collect == 'true' && steps.guard.outputs.fx_stale == 'true'
         run: npm run fx:update
 
       - name: Run monitor
+        if: steps.guard.outputs.collect == 'true'
         run: npm run monitor
 
       - name: Validate generated data
+        if: steps.guard.outputs.collect == 'true'
         run: npm run monitor:validate
 
-      - name: Commit monitor data
+      - name: Publish snapshot to the data branch
+        if: steps.guard.outputs.collect == 'true'
         run: |
-          git add data/products.json
-          if [ -f data/fx.json ]; then git add data/fx.json; fi
-          if git diff --cached --quiet -- data/products.json data/fx.json; then
-            echo "No monitor data changes"
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Update monitored VPS data"
-          git push
+          export GIT_INDEX_FILE="$RUNNER_TEMP/data-index"
+          rm -f "$GIT_INDEX_FILE"
+          git add -f data/products.json
+          if [ -f data/fx.json ]; then git add -f data/fx.json; fi
+          tree=$(git write-tree)
+          generated=$(node -p 'JSON.parse(require("fs").readFileSync("data/products.json","utf8")).generatedAt')
+          commit=$(git commit-tree "$tree" -m "Publish monitored VPS data ($generated)")
+          git push --force origin "$commit:refs/heads/$DATA_BRANCH"
+          echo "Published $generated to $DATA_BRANCH"

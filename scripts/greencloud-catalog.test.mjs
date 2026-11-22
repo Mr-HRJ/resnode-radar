@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseCatalogPage } from "./adapters/catalog-pages.mjs";
 import { parseGreenCloudCatalog } from "./adapters/greencloud-catalog.mjs";
-import { productRegions, productSpecs } from "../discovery.js";
+import { productRegions, productSpecs } from "../src/domain/format.js";
 
 const source = {
   id: "catalog-greencloud", providerId: "greencloud", provider: "GreenCloud(绿云)",

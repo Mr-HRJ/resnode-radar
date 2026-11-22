@@ -1,0 +1,626 @@
+/* ==========================================================================
+   Application Shell, Multi-Pane Workbench Grid, Drawers & Responsive Breakpoints
+   ========================================================================== */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ---------- 1. Global Command Bar (50px Sticky Top) ---------- */
+.cmd-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.cmd-bar {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  height: var(--cmd-h);
+  padding: 0 var(--sp-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.brand-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--ink-primary);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.brand-link:hover {
+  text-decoration: none;
+}
+
+.brand-logo {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: block;
+}
+
+.brand-name {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-weight: 700;
+  font-size: var(--text-md);
+  letter-spacing: -0.02em;
+}
+
+.brand-chip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 1px 5px;
+  border-radius: var(--r-xs);
+  background: var(--bg-subtle);
+  color: var(--ink-muted);
+  border: 1px solid var(--border-default);
+}
+
+/* Workspace Primary Tabs */
+.ws-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bg-subtle);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-subtle);
+}
+
+.ws-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.ws-tab:hover {
+  color: var(--ink-primary);
+  background: var(--bg-hover);
+  text-decoration: none;
+}
+
+.ws-tab.is-active,
+.ws-tab[aria-current="page"] {
+  background: var(--bg-surface);
+  color: var(--ink-primary);
+  font-weight: 600;
+  box-shadow: var(--shadow-xs);
+}
+
+.ws-tab-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0 5px;
+  height: 17px;
+  line-height: 17px;
+  border-radius: var(--r-pill);
+  background: var(--bg-subtle);
+  color: var(--ink-muted);
+}
+
+.ws-tab.is-active .ws-tab-count {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.ws-tab-count.is-pulse {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+.ws-tab-count.is-alert {
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+}
+
+/* Header Utility Cluster */
+.cmd-utils {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-shrink: 0;
+}
+
+.cmd-search-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  min-width: 136px;
+  padding: 0 9px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface-2);
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  text-align: left;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.cmd-search-trigger:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--ink-secondary);
+}
+
+.cmd-search-trigger .kbd-hint {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  color: var(--ink-muted);
+}
+
+/* ---------- 2. Live Telemetry & Pulse Strip (36px) ---------- */
+.telemetry-strip {
+  background: var(--bg-surface-2);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.telemetry-inner {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  min-height: var(--ticker-h);
+  padding: 5px var(--sp-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.telemetry-left,
+.telemetry-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.telemetry-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--border-default);
+  flex-shrink: 0;
+}
+
+/* ---------- 3. Honest Alert Banner Zone ---------- */
+.status-banner-wrap {
+  max-width: var(--container-max);
+  width: 100%;
+  margin: var(--sp-2) auto 0;
+  padding: 0 var(--sp-4);
+}
+
+/* ---------- 4. Main Workspace Canvas ---------- */
+.app-main {
+  flex: 1;
+  max-width: var(--container-max);
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--sp-3) var(--sp-4) 88px;
+}
+
+/* Full-Width Terminal Layout (Zero nested left scrollbar) */
+.terminal-shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.terminal-canvas {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* Mobile-only quick bar & bottom-sheet filter drawer (hidden on desktop) */
+.mobile-quick-bar,
+.mobile-filter-sheet {
+  display: none;
+}
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-drawer);
+  background: var(--bg-backdrop);
+  backdrop-filter: blur(2px);
+}
+
+/* ---------- 5. Slide-Over Drawers (Inspector & Watchlist) ---------- */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-drawer);
+  background: var(--bg-backdrop);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.drawer-panel {
+  width: min(var(--inspector-w), 100vw);
+  height: 100%;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border-default);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.drawer-head {
+  padding: var(--sp-4) var(--sp-5);
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  background: var(--bg-surface);
+  flex-shrink: 0;
+}
+
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-4) var(--sp-5) var(--sp-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+/* ---------- 6. Compare Dock & Modal ---------- */
+.compare-dock {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: var(--z-dock);
+  width: min(860px, calc(100vw - 24px));
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  background: var(--bg-backdrop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-4);
+}
+
+.modal-shell {
+  width: min(1160px, 100%);
+  max-height: 90vh;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-head {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.modal-body {
+  flex: 1;
+  overflow: auto;
+  padding: 0;
+}
+
+/* ---------- 7. Command Palette (⌘K) ---------- */
+.palette-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-palette);
+  background: var(--bg-backdrop);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: min(11vh, 96px) var(--sp-4) var(--sp-4);
+}
+
+.palette-shell {
+  width: min(640px, 100%);
+  max-height: 74vh;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ---------- 8. Toast Notification Stack ---------- */
+.toast-region {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast-item {
+  pointer-events: auto;
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  background: var(--ink-primary);
+  color: var(--ink-inverse);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  box-shadow: var(--shadow-md);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 340px;
+}
+
+/* ---------- 9. Site Footer ---------- */
+.site-footer {
+  border-top: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  margin-top: auto;
+}
+
+.site-footer-inner {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 16px var(--sp-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+.footer-links {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.footer-links a {
+  color: var(--ink-secondary);
+}
+
+/* ---------- 10. Dossier Subpage Layout (reviews/*.html) ---------- */
+.dossier-main {
+  max-width: 1120px;
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--sp-5) var(--sp-4) 64px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.dossier-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--sp-4);
+  align-items: start;
+}
+
+/* ==========================================================================
+   Responsive Breakpoints
+   ========================================================================== */
+
+@media (max-width: 1160px) {
+  .cmd-search-trigger {
+    min-width: 150px;
+  }
+  .telemetry-right {
+    display: none;
+  }
+}
+
+@media (max-width: 980px) {
+  :root {
+    --rail-w: 240px;
+  }
+  .cmd-bar {
+    height: auto;
+    padding: 8px var(--sp-3);
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  .brand-link {
+    order: 1;
+  }
+  .cmd-utils {
+    order: 2;
+    margin-left: auto;
+  }
+  .ws-nav {
+    order: 3;
+    flex: 1 0 100%;
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2px;
+  }
+  .ws-tab {
+    justify-content: center;
+    padding: 0 4px;
+    font-size: var(--text-xs);
+    gap: 4px;
+  }
+  .ws-tab-count {
+    font-size: 10px;
+    padding: 0 4px;
+  }
+  .cmd-search-trigger {
+    min-width: auto;
+    padding: 0 8px;
+  }
+  .cmd-search-trigger .search-label,
+  .cmd-search-trigger .kbd-hint {
+    display: none;
+  }
+  .dossier-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .brand-chip,
+  .header-compare-btn {
+    display: none;
+  }
+  .ws-tab-count {
+    display: none;
+  }
+  .telemetry-divider {
+    display: none;
+  }
+  .telemetry-left {
+    width: 100%;
+    justify-content: flex-start;
+    row-gap: 5px;
+    column-gap: 6px;
+  }
+  .compare-dock {
+    flex-wrap: nowrap;
+    padding: 8px 12px;
+  }
+}
+
+@media (max-width: 860px) {
+  .app-main {
+    padding: var(--sp-3);
+    padding-bottom: 96px;
+  }
+
+  /* Hide Desktop Top Filter Dock on Mobile; use native Quick Bar + Bottom Sheet */
+  .filter-dock {
+    display: none !important;
+  }
+
+  .mobile-filter-sheet {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    max-height: 86vh;
+    overflow-y: auto;
+    z-index: calc(var(--z-drawer) + 1);
+    background: var(--bg-surface);
+    border-top: 1px solid var(--border-default);
+    border-radius: 16px 16px 0 0;
+    box-shadow: var(--shadow-lg);
+    transform: translateY(105%);
+    visibility: hidden;
+    transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1), visibility 200ms;
+  }
+  .mobile-filter-sheet.is-mobile-open {
+    transform: translateY(0);
+    visibility: visible;
+  }
+  .mobile-rail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-default);
+    position: sticky;
+    top: 0;
+    background: var(--bg-surface);
+    z-index: 2;
+  }
+  .mobile-rail-footer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--border-default);
+    position: sticky;
+    bottom: 0;
+    background: var(--bg-surface);
+    z-index: 2;
+  }
+  .mobile-quick-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .telemetry-inner {
+    padding: 6px var(--sp-3);
+  }
+  .compare-dock {
+    bottom: 10px;
+    width: calc(100vw - 16px);
+    padding: 8px 10px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .modal-backdrop {
+    padding: 8px;
+  }
+  .modal-shell {
+    max-height: 94vh;
+  }
+  .drawer-panel {
+    width: 100vw;
+  }
+}

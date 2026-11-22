@@ -7,7 +7,7 @@ import { isFxSnapshot } from "./fx-rates.mjs";
 const validStatuses = new Set(["available", "unavailable", "unknown", "blocked", "error"]);
 const validEvidenceLevels = new Set(["error", "unavailable", "stock-count", "snapshot", "blocked", "official-order", "unverified"]);
 
-export function validateMonitorPayload(payload) {
+export function validateMonitorPayload(payload, { expectedSourceIds } = {}) {
   const errors = [];
   const fail = (message) => errors.push(message);
   if (!payload || typeof payload !== "object") return ["payload must be an object"];
@@ -17,12 +17,23 @@ export function validateMonitorPayload(payload) {
   if (!Array.isArray(payload.products)) fail("products must be an array");
   if (!payload.products?.length) fail("products must not be empty");
 
+  const productIds = new Set();
+  const sourceIds = new Set();
+  const counts = { total: 0, available: 0, unavailable: 0, unknown: 0, blocked: 0, error: 0 };
   for (const product of Array.isArray(payload.products) ? payload.products : []) {
     if (!product || typeof product !== "object") { fail("product must be an object"); continue; }
     for (const field of ["id", "sourceId", "provider", "category", "adapter", "sourceUrl", "fetchedAt", "status", "statusLabel", "evidence"]) {
       if (product[field] === undefined || product[field] === null || product[field] === "") fail(`product ${product.id ?? "<unknown>"} missing ${field}`);
     }
     if (!validStatuses.has(product.status)) fail(`product ${product.id} has invalid status ${product.status}`);
+    if (productIds.has(product.id)) fail(`duplicate product ${product.id}`);
+    productIds.add(product.id);
+    sourceIds.add(product.sourceId);
+    counts.total += 1;
+    if (validStatuses.has(product.status)) counts[product.status] += 1;
+    if (timestampMs(product.fetchedAt) !== generatedAt) fail(`product ${product.id} must belong to the current collection`);
+    if (product.stockCount != null && (!Number.isSafeInteger(product.stockCount) || product.stockCount < 0)) fail(`product ${product.id} has invalid stockCount`);
+    if (product.status === "available" && product.stockCount === 0) fail(`available product ${product.id} has zero stock`);
     if (product.status === "available" && !product.orderUrl) fail(`available product ${product.id} must include orderUrl`);
     if (!product.evidenceLevel || typeof product.evidenceLevel !== "object") fail(`product ${product.id} missing evidenceLevel`);
     if (product.evidenceLevel && !validEvidenceLevels.has(product.evidenceLevel.value)) {
@@ -38,6 +49,15 @@ export function validateMonitorPayload(payload) {
     if (product.status !== "available" && product.status !== "unavailable" && !product.error && !product.evidence) {
       fail(`non-available product ${product.id} must include evidence or error`);
     }
+  }
+  if (!Number.isSafeInteger(payload.sourceCount) || payload.sourceCount !== sourceIds.size) fail("sourceCount must match collected sources");
+  for (const [key, value] of Object.entries(counts)) {
+    if (payload.summary?.[key] !== value) fail(`summary.${key} must match products`);
+  }
+  if (expectedSourceIds) {
+    const expected = new Set(expectedSourceIds);
+    for (const id of expected) if (!sourceIds.has(id)) fail(`missing source ${id}`);
+    for (const id of sourceIds) if (!expected.has(id)) fail(`unexpected source ${id}`);
   }
 
   if (!isEventTracking(payload.eventTracking, payload.generatedAt)) fail("eventTracking must have a valid startedAt, retentionDays: 7 and limit: 300");
@@ -63,8 +83,10 @@ export function validateMonitorPayload(payload) {
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
   try {
-    const payload = JSON.parse(readFileSync("data/products.json", "utf8"));
-    const errors = validateMonitorPayload(payload);
+    const payload = JSON.parse(readFileSync(process.env.MONITOR_OUTPUT || "data/products.json", "utf8"));
+    const sources = JSON.parse(readFileSync("monitor/sources.json", "utf8"));
+    const only = new Set((process.env.MONITOR_ONLY || "").split(",").filter(Boolean));
+    const errors = validateMonitorPayload(payload, { expectedSourceIds: sources.filter((s) => !only.size || only.has(s.id)).map((s) => s.id) });
     for (const error of errors) console.error(error);
     if (errors.length) process.exitCode = 1;
     else console.log(`Validated ${payload.products.length} monitor records and ${payload.events.length} events`);

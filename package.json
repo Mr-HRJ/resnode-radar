@@ -17,14 +17,21 @@
   },
   "scripts": {
     "test": "node --test scripts/*.test.mjs",
-    "check": "find . -maxdepth 1 -name '*.js' -print0 | xargs -0 -n1 node --check && find scripts -name '*.mjs' -print0 | xargs -0 -n1 node --check && node --check cloudflare/worker.mjs",
+    "check": "find . -maxdepth 1 -name '*.js' -print0 | xargs -0 -n1 node --check && find src -name '*.js' -print0 | xargs -0 -n1 node --check && find scripts -name '*.mjs' -print0 | xargs -0 -n1 node --check && node --check cloudflare/worker.mjs",
     "build:cloudflare": "node scripts/build-cloudflare.mjs",
     "deploy:cloudflare": "npm run build:cloudflare && npx --yes wrangler@4.160.0 deploy",
     "assets": "node scripts/generate-assets.mjs",
     "monitor": "node scripts/monitor.mjs",
     "fx:update": "node scripts/fx-rates.mjs",
     "monitor:validate": "node scripts/validate-monitor-data.mjs",
-    "serve": "python3 -m http.server 4173"
+    "monitor:sync": "npm run fx:update && npm run monitor && npm run monitor:validate",
+    "monitor:daemon": "node scripts/monitor-daemon.mjs --interval 10",
+    "start": "node scripts/monitor-daemon.mjs --serve --port 4173 --interval 10",
+    "serve": "node scripts/monitor-daemon.mjs --serve --port 4173 --interval 10",
+    "serve:static": "python3 -m http.server 4173",
+    "service:install": "node scripts/macos-service.mjs install",
+    "service:status": "node scripts/macos-service.mjs status",
+    "service:uninstall": "node scripts/macos-service.mjs uninstall"
   },
   "dependencies": {
     "node-html-parser": "7.0.1"

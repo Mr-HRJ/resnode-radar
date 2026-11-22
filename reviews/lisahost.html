@@ -1,56 +1,141 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>LisaHost 实测记录草稿 · 住宅节点雷达</title>
-    <meta name="description" content="LisaHost 实测记录模板，尚待补齐地区、IP 段和测试时间证据；本页不构成已验证的测评或购买推荐。" />
+    <title>LisaHost (丽萨主机) 实测档案（草稿） · ResNode Radar</title>
+    <meta
+      name="description"
+      content="LisaHost 实测记录模板，尚待补齐地区、IP 段和测试时间证据；本页不构成已验证的测评或购买推荐。"
+    />
     <meta name="robots" content="noindex, follow" />
     <link rel="canonical" href="https://majiayu000.github.io/resnode-radar/reviews/lisahost.html" />
     <meta property="og:type" content="article" />
-    <meta property="og:site_name" content="住宅节点雷达" />
+    <meta property="og:site_name" content="ResNode Radar" />
     <meta property="og:locale" content="zh_CN" />
-    <meta property="og:title" content="LisaHost 实测记录草稿 · 住宅节点雷达" />
+    <meta property="og:title" content="LisaHost (丽萨主机) 实测档案（草稿） · ResNode Radar" />
     <meta property="og:description" content="待补测试证据的记录模板，不构成已验证的测评或购买推荐。" />
     <meta property="og:url" content="https://majiayu000.github.io/resnode-radar/reviews/lisahost.html" />
     <meta property="og:image" content="https://majiayu000.github.io/resnode-radar/assets/inventory-preview.png" />
-    <meta property="og:image:alt" content="住宅节点雷达库存界面，非 LisaHost 测试结果" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="LisaHost 实测记录草稿 · 住宅节点雷达" />
-    <meta name="twitter:description" content="待补测试证据的记录模板，不构成已验证的测评或购买推荐。" />
-    <meta name="twitter:image" content="https://majiayu000.github.io/resnode-radar/assets/inventory-preview.png" />
-    <meta name="twitter:image:alt" content="住宅节点雷达库存界面，非 LisaHost 测试结果" />
     <link rel="icon" href="../favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="../styles.css" />
+    <script>
+      try {
+        const t = localStorage.getItem("resnode-radar:theme:v4");
+        if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+      } catch {}
+    </script>
+    <link rel="stylesheet" href="../styles/tokens.css" />
+    <link rel="stylesheet" href="../styles/base.css" />
+    <link rel="stylesheet" href="../styles/layout.css" />
+    <link rel="stylesheet" href="../styles/components.css" />
   </head>
   <body>
-    <header class="site-header">
-      <a class="brand" href="../index.html"><span>住宅节点雷达</span><small>ResNode Radar</small></a>
-      <nav><a href="../index.html#products">库存表</a></nav>
-    </header>
-    <main class="article-page">
-      <article class="article-card">
-        <p class="eyebrow">Provider Review</p>
-        <h1>LisaHost 家宽实测记录</h1>
-        <p><strong>草稿模板：</strong>本页示例分数、延迟和价格未附实测证据，不构成已验证的测评或购买推荐。</p>
-        <p>这里用于记录你自己购买 LisaHost 后的测试证据。正式发布时要按地区和 IP 段拆开，不要把美国、新加坡、台湾、英国混成一个分数。</p>
-        <div class="score-strip">
-          <div><strong>86</strong><span>综合分</span></div>
-          <div><strong>142ms</strong><span>样本延迟</span></div>
-          <div><strong>88+</strong><span>月付参考</span></div>
+    <div class="app-shell">
+      <header class="cmd-header">
+        <div class="cmd-bar">
+          <a class="brand-link" href="../index.html">
+            <img class="brand-logo" src="../favicon.svg" alt="" width="24" height="24" />
+            <span class="brand-name">
+              <span>ResNode Radar</span>
+              <span class="brand-chip">DOSSIER</span>
+            </span>
+          </a>
+          <nav class="ws-nav" aria-label="返回主工作台">
+            <a class="ws-tab" href="../index.html">← 选机终端</a>
+            <a class="ws-tab" href="../index.html?view=radar">异动雷达</a>
+            <a class="ws-tab" href="../index.html?view=providers">商家与源</a>
+            <a class="ws-tab" href="../index.html?view=guide">核验口径</a>
+          </nav>
+          <div class="cmd-utils">
+            <a class="btn btn-sm btn-soft" href="../index.html?provider=lisahost&status=all">查 LisaHost 套餐</a>
+            <button type="button" class="btn btn-sm btn-ghost" data-action="toggle-theme">☾ 暗色</button>
+          </div>
         </div>
-        <h2>适合谁</h2>
-        <p>需要多地区测试、支付宝付款、中文工单和较低试错成本的用户。</p>
-        <h2>站长待补数据</h2>
-        <ul>
-          <li>按国家和 IP 段记录套餐，不同段位单独评分。</li>
-          <li>测试美国、新加坡、台湾等地区的晚高峰稳定性。</li>
-          <li>记录退款政策、故障公告响应和更换 IP 流程。</li>
-        </ul>
-        <h2>当前结论</h2>
-        <p>适合作为多地区推荐候选。由于产品线多，最重要的是把“具体套餐”和“具体 IP 段”讲清楚。</p>
-        <a class="button primary" href="https://lisahost.com/affiliates.php" target="_blank" rel="nofollow sponsored noopener">查看推广入口</a>
-      </article>
-    </main>
+      </header>
+
+      <main class="dossier-main">
+        <div class="dossier-draft-banner" role="note">
+          <span class="pill pill-warn" style="flex-shrink:0">实测草稿 · 未完备</span>
+          <div>
+            <strong>诚实性声明：</strong>本页当前仅作为分地区、分 IP 段实测归档框架，未附一手测速与路由截图前<strong>绝不展示虚构综合分或样本延迟</strong>，亦不构成购买背书。
+          </div>
+        </div>
+
+        <section class="dossier-hero">
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <span class="pill pill-home">多地区双 ISP</span>
+            <span class="pill pill-vps">CN 优化线路 / 机房原生段并存</span>
+          </div>
+          <h1>LisaHost (丽萨主机) 多地区双 ISP / 原生节点实测档案</h1>
+          <p>
+            覆盖美西（4837 / 9929 双 ISP 住宅段）、英国、中国台湾、新加坡及日本等多个 WHMCS 产品组，支持人民币付款与中文工单。因旗下产品线同时涵盖「双 ISP 住宅属性段」与「数据中心原生 IP 段」，选型时必须按具体套餐与路由逐款核验，切忌混为一谈。
+          </p>
+          <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
+            <a class="btn btn-sm btn-primary" href="../index.html?provider=lisahost&status=all">在选机终端查看 LisaHost 实时记录 →</a>
+            <a class="btn btn-sm" href="https://lisahost.com/" target="_blank" rel="nofollow noopener noreferrer">访问 LisaHost 官方网站 ↗</a>
+          </div>
+        </section>
+
+        <div class="dossier-layout">
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <article class="guide-card">
+              <h3>适用场景与核心防坑关注点</h3>
+              <ul>
+                <li>需要多国家地区横向试错、人民币直付及较低月付试错门槛的个人开发者与跨境运营者。</li>
+                <li><strong>关键防坑点 1（按段位拆评）</strong>：美西 9929 / 4837 双 ISP、美东家宽段、台湾原生段与新加坡国际段在回程路由与 IP 纯净度上差异显著，必须按具体产品组单独核验。</li>
+                <li><strong>关键防坑点 2（库存与中转提示）</strong>：WHMCS 页面多数属于「官方订购入口（库存未明示）」，且部分落地节点明确标注非大陆直连优化、需搭配中转使用。</li>
+              </ul>
+            </article>
+
+            <article class="guide-card">
+              <h3>正式发布前待补齐的一手实测证据清单</h3>
+              <ol>
+                <li>按国家与具体产品组分别建档：记录对应 ASN 号、WHOIS 注册商与双 ISP 核验结果。</li>
+                <li>美西 9929 / 4837 直连款与国际落地款在三网晚高峰的实际丢包率对比。</li>
+                <li>48 小时退款条件实测、IP 更换费用与工单响应实测记录。</li>
+              </ol>
+            </article>
+
+            <article class="guide-card">
+              <h3>采购前核验速查表（基于公开监控字段）</h3>
+              <dl class="kv-table">
+                <dt>采集方式</dt>
+                <dd class="mono">whmcs_group（官方 WHMCS 公开页面直采）</dd>
+                <dt>库存信号口径</dt>
+                <dd>多数产品组属于「官方订购入口」，未明示具体剩余台数</dd>
+                <dt>覆盖重点区域</dt>
+                <dd>美国（美西 9929/4837/家宽）、英国、台湾、新加坡、日本</dd>
+                <dt>选型铁律</dt>
+                <dd>下单前核对产品组名称中的「直连优化」与「需中转」提示，切勿跨段混用</dd>
+              </dl>
+            </article>
+          </div>
+
+          <aside class="guide-card">
+            <h3>实时监控快照水合</h3>
+            <p style="margin:0;font-size:var(--text-xs);color:var(--ink-muted)">
+              直接读取自本站最新 <code>data/products.json</code> 采集快照：
+            </p>
+            <div data-review-live-box data-provider-id="lisahost">
+              <span class="skel" style="height:14px;width:72%;margin-bottom:8px"></span>
+              <span class="skel" style="height:14px;width:92%"></span>
+            </div>
+          </aside>
+        </div>
+      </main>
+
+      <footer class="site-footer">
+        <div class="site-footer-inner">
+          <div><strong>ResNode Radar</strong> · 统一设计体系下的商家实测档案</div>
+          <div class="footer-links">
+            <a href="../index.html">返回选机终端</a>
+            <a href="aaitr.html">AaITR 实测档案</a>
+            <a href="https://github.com/majiayu000/resnode-radar" target="_blank" rel="noopener noreferrer">GitHub 源码 ↗</a>
+          </div>
+        </div>
+      </footer>
+    </div>
+
+    <script type="module" src="../src/review-bootstrap.js"></script>
   </body>
 </html>

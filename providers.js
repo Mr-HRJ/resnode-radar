@@ -1271,7 +1271,9 @@ export const providers = [
     "id": "lisahost",
     "name": "LisaHost",
     "aliases": [
-      "LisaHost"
+      "LisaHost",
+      "LisaHost(丽萨主机)",
+      "丽萨主机"
     ],
     "website": "https://lisahost.com/",
     "regions": [
@@ -1289,7 +1291,7 @@ export const providers = [
       "家宽"
     ],
     "directorySource": "https://lisahost.com/",
-    "reviewedAt": "2026-11-10",
+    "reviewedAt": "2026-11-22",
     "inventoryNames": [
       "LisaHost"
     ]
@@ -1375,24 +1377,24 @@ export const providers = [
   {
     "id": "zgovps",
     "name": "ZgoCloud (ZGOVPS)",
-    "aliases": ["ZgoCloud", "ZGOVPS"],
+    "aliases": ["ZgoCloud", "ZGOVPS", "zgocloud"],
     "website": "https://zgovps.com/",
     "regions": ["CNHK", "JP", "US", "DE"],
     "features": ["AMD EPYC", "NVMe"],
     "directorySource": "https://zgovps.com/",
-    "reviewedAt": "2026-11-12",
+    "reviewedAt": "2026-11-22",
     "inventoryNames": ["ZgoCloud"]
   },
   {
     "id": "berohost",
     "name": "BERO HOST",
-    "aliases": ["BEROHOST", "BERO HOST"],
+    "aliases": ["BEROHOST", "BERO HOST", "BeroHost"],
     "website": "https://bero-host.de/",
-    "regions": [],
-    "features": ["AMD Ryzen", "预付费"],
-    "directorySource": "https://bero-host.de/server/prepaid-ryzen-vserver-mieten",
-    "reviewedAt": "2026-11-12",
-    "inventoryNames": ["BERO HOST"]
+    "regions": ["DE"],
+    "features": ["性能", "纯落地", "AMD Ryzen", "预付费"],
+    "directorySource": "https://meowvps.com/vps/berohost/",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": ["BERO HOST", "BeroHost"]
   },
   {
     "id": "spartan",
@@ -1404,5 +1406,1143 @@ export const providers = [
     "directorySource": "https://spartanhost.org/vps",
     "reviewedAt": "2026-11-12",
     "inventoryNames": ["Spartan Host"]
+  },
+  {
+    "id": "attvps",
+    "name": "ATTVPS",
+    "aliases": [
+      "ATTVPS"
+    ],
+    "website": "https://attvps.com/",
+    "regions": [
+      "US"
+    ],
+    "features": [
+      "家宽",
+      "纯落地"
+    ],
+    "directorySource": "https://meowvps.com/vps/attvps/",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "ATTVPS"
+    ]
+  },
+  {
+    "id": "bocchi",
+    "name": "Bocchi",
+    "aliases": [
+      "Bocchi"
+    ],
+    "website": "https://bocchi.sh/",
+    "regions": [
+      "US",
+      "JP",
+      "other"
+    ],
+    "features": [
+      "性能",
+      "纯落地"
+    ],
+    "directorySource": "https://meowvps.com/vps/bocchi/",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "Bocchi"
+    ]
+  },
+  {
+    "id": "jcloud",
+    "name": "JCloudHosting",
+    "aliases": [
+      "JCloudHosting",
+      "JCloud"
+    ],
+    "website": "https://discord.com/invite/jcloud",
+    "regions": [
+      "other"
+    ],
+    "features": [
+      "家宽",
+      "性能",
+      "纯落地"
+    ],
+    "directorySource": "https://meowvps.com/vps/jcloud/",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "JCloudHosting"
+    ]
+  },
+  {
+    "id": "mondoze",
+    "name": "Mondoze",
+    "aliases": [
+      "Mondoze"
+    ],
+    "website": "https://www.mondoze.com/",
+    "regions": [
+      "other"
+    ],
+    "features": [
+      "家宽",
+      "纯落地"
+    ],
+    "directorySource": "https://meowvps.com/vps/mondoze/",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "Mondoze"
+    ]
+  },
+  {
+    "id": "nexkr",
+    "name": "NexKr",
+    "aliases": [
+      "NexKr"
+    ],
+    "website": "https://nexkr.sh/",
+    "regions": [
+      "KR",
+      "other"
+    ],
+    "features": [
+      "家宽",
+      "纯落地"
+    ],
+    "directorySource": "https://meowvps.com/vps/nexkr/",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "NexKr"
+    ]
+  },
+  {
+    "id": "tamago",
+    "name": "Tamago Network",
+    "aliases": [
+      "Tamago Network",
+      "Tamago"
+    ],
+    "website": "https://tamago.network/",
+    "regions": [
+      "CNHK"
+    ],
+    "features": [
+      "家宽",
+      "纯落地"
+    ],
+    "directorySource": "https://meowvps.com/vps/tamago/",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "Tamago Network"
+    ]
+  },
+  {
+    "id": "666clouds",
+    "name": "六六云(666Clouds)",
+    "aliases": [
+      "六六云(666Clouds)",
+      "六六云",
+      "666Clouds"
+    ],
+    "website": "https://666clouds.com/",
+    "regions": [
+      "other"
+    ],
+    "features": [
+      "双 ISP"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=666clouds",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "六六云(666Clouds)"
+    ]
+  },
+  {
+    "id": "blossomhost",
+    "name": "BlossomHost",
+    "aliases": [
+      "BlossomHost",
+      "Blossom Host"
+    ],
+    "website": "https://blossomhost.us/",
+    "regions": [
+      "US"
+    ],
+    "features": [
+      "家宽"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=blossomhost",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "BlossomHost"
+    ]
+  },
+  {
+    "id": "cloudsilk",
+    "name": "CloudSilk(白丝云)",
+    "aliases": [
+      "CloudSilk(白丝云)",
+      "白丝云",
+      "CloudSilk"
+    ],
+    "website": "https://cloudsilk.io/",
+    "regions": [
+      "US"
+    ],
+    "features": [
+      "CN优化线路"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=cloudsilk",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "CloudSilk(白丝云)"
+    ]
+  },
+  {
+    "id": "dataonline",
+    "name": "DataOnline",
+    "aliases": [
+      "DataOnline"
+    ],
+    "website": "https://dataonline.vn/",
+    "regions": [
+      "other"
+    ],
+    "features": [
+      "纯落地"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=dataonline",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "DataOnline"
+    ]
+  },
+  {
+    "id": "fxtransit",
+    "name": "FXTRANSIT",
+    "aliases": [
+      "FXTRANSIT"
+    ],
+    "website": "https://fxtransit.io/",
+    "regions": [
+      "US",
+      "CNHK",
+      "JP",
+      "SG"
+    ],
+    "features": [
+      "CN优化线路"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=fxtransit",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "FXTRANSIT"
+    ]
+  },
+  {
+    "id": "gatewaysentry",
+    "name": "GatewaySentry",
+    "aliases": [
+      "GatewaySentry",
+      "Gateway Sentry"
+    ],
+    "website": "https://gatewaysentry.com/",
+    "regions": [
+      "US"
+    ],
+    "features": [],
+    "directorySource": "https://meowvps.com/VPS/?id=gatewaysentry",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "GatewaySentry"
+    ]
+  },
+  {
+    "id": "goldcloud",
+    "name": "GoldCloud",
+    "aliases": [
+      "GoldCloud",
+      "Gold Cloud"
+    ],
+    "website": "https://goldcloud.dev/",
+    "regions": [
+      "US"
+    ],
+    "features": [],
+    "directorySource": "https://meowvps.com/VPS/?id=goldcloud",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "GoldCloud"
+    ]
+  },
+  {
+    "id": "goodlycloud",
+    "name": "GoodlyCloud(吉云)",
+    "aliases": [
+      "GoodlyCloud(吉云)",
+      "吉云",
+      "GoodlyCloud",
+      "GoodlyClouds"
+    ],
+    "website": "https://goodlyclouds.com/",
+    "regions": [
+      "US",
+      "UK"
+    ],
+    "features": [
+      "双 ISP",
+      "CN优化线路",
+      "纯落地"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=goodlycloud",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "GoodlyCloud(吉云)"
+    ]
+  },
+  {
+    "id": "hostblazer",
+    "name": "HostBlazer",
+    "aliases": [
+      "HostBlazer"
+    ],
+    "website": "https://hostblazer.net/",
+    "regions": [
+      "US"
+    ],
+    "features": [
+      "纯落地"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=hostblazer",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "HostBlazer"
+    ]
+  },
+  {
+    "id": "iaclouds",
+    "name": "破云 BreaCloud（原 艾云）",
+    "aliases": [
+      "艾云(iaClouds)",
+      "艾云",
+      "iaClouds",
+      "破云",
+      "BreaCloud"
+    ],
+    "website": "https://brea.cloud/",
+    "regions": [
+      "DE"
+    ],
+    "features": [
+      "CN优化线路"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=iaclouds",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "破云 BreaCloud（原 艾云）",
+      "艾云(iaClouds)"
+    ],
+    "officialEvidence": "https://iaclouds.com/"
+  },
+  {
+    "id": "ipmela",
+    "name": "IPMELA",
+    "aliases": [
+      "IPMELA",
+      "IPMela"
+    ],
+    "website": "https://ipmela.com/",
+    "regions": [
+      "US"
+    ],
+    "features": [
+      "家宽"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=ipmela",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "IPMELA"
+    ]
+  },
+  {
+    "id": "langya",
+    "name": "Langya",
+    "aliases": [
+      "Langya",
+      "狼牙"
+    ],
+    "website": "https://langya.io/",
+    "regions": [
+      "US"
+    ],
+    "features": [
+      "纯落地"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=langya",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "Langya"
+    ]
+  },
+  {
+    "id": "lazycat",
+    "name": "LazyCatCloud(懒猫云)",
+    "aliases": [
+      "LazyCatCloud(懒猫云)",
+      "懒猫云",
+      "LazyCatCloud"
+    ],
+    "website": "https://dash.lazycat.wiki/",
+    "regions": [],
+    "features": [
+      "家宽"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=lazycat",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "LazyCatCloud(懒猫云)"
+    ]
+  },
+  {
+    "id": "legendvps",
+    "name": "LegendVPS",
+    "aliases": [
+      "LegendVPS"
+    ],
+    "website": "https://legendvps.com/",
+    "regions": [
+      "SG"
+    ],
+    "features": [],
+    "directorySource": "https://meowvps.com/VPS/?id=legendvps",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "LegendVPS"
+    ]
+  },
+  {
+    "id": "lightnode",
+    "name": "LightNode",
+    "aliases": [
+      "LightNode"
+    ],
+    "website": "https://www.lightnode.com/",
+    "regions": [
+      "other"
+    ],
+    "features": [],
+    "directorySource": "https://meowvps.com/VPS/?id=lightnode",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "LightNode"
+    ]
+  },
+  {
+    "id": "misaka",
+    "name": "Misaka",
+    "aliases": [
+      "Misaka",
+      "Misaka Network"
+    ],
+    "website": "https://www.misaka.io/",
+    "regions": [
+      "other"
+    ],
+    "features": [
+      "CN优化线路"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=misaka",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "Misaka"
+    ]
+  },
+  {
+    "id": "orangevps",
+    "name": "OrangeVPS",
+    "aliases": [
+      "OrangeVPS"
+    ],
+    "website": "https://orangevps.com/",
+    "regions": [
+      "SG"
+    ],
+    "features": [],
+    "directorySource": "https://meowvps.com/VPS/?id=orangevps",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "OrangeVPS"
+    ]
+  },
+  {
+    "id": "panstar",
+    "name": "PanstarCloud",
+    "aliases": [
+      "PanstarCloud"
+    ],
+    "website": "https://panstar.ai/",
+    "regions": [
+      "US"
+    ],
+    "features": [],
+    "directorySource": "https://meowvps.com/VPS/?id=panstar",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "PanstarCloud"
+    ]
+  },
+  {
+    "id": "radonet",
+    "name": "RadoNet",
+    "aliases": [
+      "RadoNet"
+    ],
+    "website": "https://radonet.co.uk/",
+    "regions": [
+      "JP"
+    ],
+    "features": [
+      "家宽"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=radonet",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "RadoNet"
+    ]
+  },
+  {
+    "id": "residentialvps",
+    "name": "ResidentialVPS",
+    "aliases": [
+      "ResidentialVPS"
+    ],
+    "website": "https://www.residentialvps.com/",
+    "regions": [
+      "US"
+    ],
+    "features": [
+      "家宽"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=residentialvps",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "ResidentialVPS"
+    ]
+  },
+  {
+    "id": "shandun",
+    "name": "ShanDun Network",
+    "aliases": [
+      "ShanDun Network",
+      "ShanDun"
+    ],
+    "website": "https://www.shandun.net/",
+    "regions": [
+      "DE",
+      "CNHK"
+    ],
+    "features": [
+      "CN优化线路"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=shandun",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "ShanDun Network"
+    ]
+  },
+  {
+    "id": "terabix",
+    "name": "Terabix",
+    "aliases": [
+      "Terabix"
+    ],
+    "website": "https://terabix.net/",
+    "regions": [
+      "other"
+    ],
+    "features": [
+      "性能"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=terabix",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "Terabix"
+    ]
+  },
+  {
+    "id": "tothost",
+    "name": "TOTHOST",
+    "aliases": [
+      "TOTHOST"
+    ],
+    "website": "https://tothost.vn/",
+    "regions": [
+      "other"
+    ],
+    "features": [
+      "家宽"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=tothost",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "TOTHOST"
+    ]
+  },
+  {
+    "id": "vmvm",
+    "name": "VMVM",
+    "aliases": [
+      "VMVM"
+    ],
+    "website": "https://www.vmvm.io/",
+    "regions": [],
+    "features": [],
+    "directorySource": "https://meowvps.com/VPS/?id=vmvm",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "VMVM"
+    ]
+  },
+  {
+    "id": "vpstaxi",
+    "name": "VPSTAXI",
+    "aliases": [
+      "VPSTAXI",
+      "vps.taxi"
+    ],
+    "website": "https://vps.taxi/",
+    "regions": [
+      "US",
+      "JP",
+      "SG"
+    ],
+    "features": [
+      "家宽",
+      "CN优化线路"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=vpstaxi",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "VPSTAXI"
+    ]
+  },
+  {
+    "id": "webhorizon",
+    "name": "WebHorizon",
+    "aliases": [
+      "WebHorizon"
+    ],
+    "website": "https://webhorizon.net/",
+    "regions": [
+      "SG"
+    ],
+    "features": [
+      "性能"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=webhorizon",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "WebHorizon"
+    ]
+  },
+  {
+    "id": "wepc",
+    "name": "WePC(车库云)",
+    "aliases": [
+      "WePC(车库云)",
+      "车库云",
+      "WePC"
+    ],
+    "website": "https://wepc.au/",
+    "regions": [
+      "other"
+    ],
+    "features": [
+      "家宽"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=wepc",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "WePC(车库云)"
+    ]
+  },
+  {
+    "id": "wlx",
+    "name": "WLX",
+    "aliases": [
+      "WLX"
+    ],
+    "website": "https://wlx.hk/",
+    "regions": [
+      "CNHK"
+    ],
+    "features": [
+      "性能"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=wlx",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "WLX"
+    ]
+  },
+  {
+    "id": "zouter",
+    "name": "Zouter",
+    "aliases": [
+      "Zouter"
+    ],
+    "website": "https://www.zouter.io/",
+    "regions": [
+      "CNHK"
+    ],
+    "features": [],
+    "directorySource": "https://meowvps.com/VPS/?id=zouter",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "Zouter"
+    ]
+  },
+  {
+    "id": "ppflight",
+    "name": "PPFlight",
+    "aliases": [
+      "PPFlight"
+    ],
+    "website": "https://www.ppflight.com/",
+    "regions": [
+      "US"
+    ],
+    "features": [],
+    "directorySource": "https://meowvps.com/VPS/?id=ppflight",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "PPFlight"
+    ]
+  },
+  {
+    "id": "hostdzire",
+    "name": "HostDzire",
+    "aliases": [
+      "HostDzire",
+      "HostDZire"
+    ],
+    "website": "https://hostdzire.com/",
+    "regions": [
+      "SG",
+      "JP",
+      "US",
+      "DE",
+      "UK",
+      "other"
+    ],
+    "features": [],
+    "directorySource": "https://meowvps.com/VPS/?id=hostdzire",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "HostDzire"
+    ]
+  },
+  {
+    "id": "jdidc",
+    "name": "JDIDC",
+    "aliases": [
+      "JDIDC",
+      "极点云计算"
+    ],
+    "website": "https://www.jdidc.cn/",
+    "regions": [
+      "CNHK",
+      "US",
+      "CN",
+      "other"
+    ],
+    "features": [
+      "双 ISP",
+      "CN优化线路"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=jdidc",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "JDIDC"
+    ]
+  },
+  {
+    "id": "nosla",
+    "name": "NOSLA",
+    "aliases": [
+      "NOSLA",
+      "NoSla Cloud"
+    ],
+    "website": "https://nosla.cloud/",
+    "regions": [
+      "JP",
+      "US",
+      "DE"
+    ],
+    "features": [
+      "CN优化线路"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=nosla",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "NOSLA"
+    ]
+  },
+  {
+    "id": "peekabo",
+    "name": "Peekabo Networks",
+    "aliases": [
+      "Peekabo Networks",
+      "Peekabo"
+    ],
+    "website": "https://peekabo.io/",
+    "regions": [],
+    "features": [],
+    "directorySource": "https://meowvps.com/VPS/?id=peekabo",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "Peekabo Networks"
+    ]
+  },
+  {
+    "id": "breadcloud",
+    "name": "BreadCloud",
+    "aliases": [
+      "BreadCloud",
+      "面包云"
+    ],
+    "website": "https://breadcloud.io/",
+    "regions": [],
+    "features": [],
+    "directorySource": "https://meowvps.com/VPS/?id=breadcloud",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "BreadCloud"
+    ]
+  },
+  {
+    "id": "buyvm",
+    "name": "BuyVM",
+    "aliases": [
+      "BuyVM",
+      "FranTech"
+    ],
+    "website": "https://buyvm.net/",
+    "regions": [
+      "US",
+      "other"
+    ],
+    "features": [
+      "大盘鸡",
+      "性能"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=buyvm",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "BuyVM"
+    ]
+  },
+  {
+    "id": "coffeehost",
+    "name": "CoffeeHost",
+    "aliases": [
+      "CoffeeHost",
+      "Coffee Host"
+    ],
+    "website": "https://coffeehost.net/products/vps.html",
+    "regions": [
+      "CNTW"
+    ],
+    "features": [],
+    "directorySource": "https://meowvps.com/VPS/?id=coffeehost",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "CoffeeHost"
+    ]
+  },
+  {
+    "id": "dedirock",
+    "name": "DediRock",
+    "aliases": [
+      "DediRock"
+    ],
+    "website": "https://dedirock.com/",
+    "regions": [
+      "US"
+    ],
+    "features": [
+      "大盘鸡"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=dedirock",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "DediRock"
+    ]
+  },
+  {
+    "id": "halocloud",
+    "name": "HaloCloud",
+    "aliases": [
+      "HaloCloud"
+    ],
+    "website": "https://www.halocloudnet.com/",
+    "regions": [
+      "CNHK",
+      "US",
+      "JP",
+      "SG",
+      "CNTW"
+    ],
+    "features": [
+      "CN优化线路"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=halocloud",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "HaloCloud"
+    ]
+  },
+  {
+    "id": "hhost",
+    "name": "HHost",
+    "aliases": [
+      "HHost",
+      "HHOST"
+    ],
+    "website": "https://www.hhost.com/",
+    "regions": [
+      "CNHK"
+    ],
+    "features": [],
+    "directorySource": "https://meowvps.com/VPS/?id=hhost",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "HHost"
+    ]
+  },
+  {
+    "id": "highendnetwork",
+    "name": "HighEndNetwork",
+    "aliases": [
+      "HighEndNetwork"
+    ],
+    "website": "https://billing.highendnetwork.com/",
+    "regions": [],
+    "features": [],
+    "directorySource": "https://meowvps.com/VPS/?id=highendnetwork",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "HighEndNetwork"
+    ]
+  },
+  {
+    "id": "hkcloudx",
+    "name": "HKCloudX",
+    "aliases": [
+      "HKCloudX"
+    ],
+    "website": "https://hkcloudx.com/",
+    "regions": [
+      "CNHK"
+    ],
+    "features": [],
+    "directorySource": "https://meowvps.com/VPS/?id=hkcloudx",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "HKCloudX"
+    ]
+  },
+  {
+    "id": "hosthatch",
+    "name": "HostHatch",
+    "aliases": [
+      "HostHatch"
+    ],
+    "website": "https://hosthatch.com/",
+    "regions": [],
+    "features": [
+      "大盘鸡",
+      "性能"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=hosthatch",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "HostHatch"
+    ]
+  },
+  {
+    "id": "jtti",
+    "name": "JTTI",
+    "aliases": [
+      "JTTI",
+      "Jtti"
+    ],
+    "website": "https://www.jtti.cc/",
+    "regions": [
+      "SG",
+      "CNHK",
+      "US"
+    ],
+    "features": [],
+    "directorySource": "https://meowvps.com/VPS/?id=jtti",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "JTTI"
+    ]
+  },
+  {
+    "id": "kfchost",
+    "name": "KFCHost",
+    "aliases": [
+      "KFCHost"
+    ],
+    "website": "https://kfchost.com/",
+    "regions": [],
+    "features": [],
+    "directorySource": "https://meowvps.com/VPS/?id=kfchost",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "KFCHost"
+    ]
+  },
+  {
+    "id": "lamhosting",
+    "name": "LamHosting",
+    "aliases": [
+      "LamHosting"
+    ],
+    "website": "https://lamhosting.com/",
+    "regions": [],
+    "features": [],
+    "directorySource": "https://meowvps.com/VPS/?id=lamhosting",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "LamHosting"
+    ]
+  },
+  {
+    "id": "nobrand",
+    "name": "NoBrand",
+    "aliases": [
+      "NoBrand",
+      "NoBrand Cloud"
+    ],
+    "website": "https://cloud.nbdnet.com/",
+    "regions": [],
+    "features": [],
+    "directorySource": "https://meowvps.com/VPS/?id=nobrand",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "NoBrand"
+    ]
+  },
+  {
+    "id": "vmshell",
+    "name": "VmShell",
+    "aliases": [
+      "VmShell"
+    ],
+    "website": "https://vmshell.com/",
+    "regions": [
+      "CNHK",
+      "US"
+    ],
+    "features": [
+      "CN优化线路"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=vmshell",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "VmShell"
+    ]
+  },
+  {
+    "id": "wawo",
+    "name": "wawo(哇沃主机)",
+    "aliases": [
+      "wawo(哇沃主机)",
+      "哇沃主机",
+      "wawo"
+    ],
+    "website": "https://wawo.wiki/",
+    "regions": [
+      "CNHK",
+      "US"
+    ],
+    "features": [],
+    "directorySource": "https://meowvps.com/VPS/?id=wawo",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "wawo(哇沃主机)"
+    ]
+  },
+  {
+    "id": "jindouyun",
+    "name": "筋斗云",
+    "aliases": [
+      "筋斗云",
+      "筋斗雲",
+      "Nimbus"
+    ],
+    "website": "https://www.nimbus.com.tw/",
+    "regions": [
+      "CNTW"
+    ],
+    "features": [
+      "双 ISP",
+      "CN优化线路"
+    ],
+    "directorySource": "https://meowvps.com/VPS/?id=jindouyun",
+    "directoryStatus": "collecting",
+    "reviewedAt": "2026-11-22",
+    "inventoryNames": [
+      "筋斗云"
+    ]
   }
 ];

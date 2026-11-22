@@ -21,6 +21,9 @@ globalThis.fetch = async (input, options, redirects = 0) => {
   const route = routes[url];
   if (!route) throw new Error("Unexpected offline request: " + url);
   if (route.error) throw new Error(route.error);
+  if (route.hang) return new Promise((resolve, reject) => {
+    options.signal.addEventListener("abort", () => reject(options.signal.reason), { once: true });
+  });
   const status = route.status ?? 200;
   if (options.redirect === "follow" && [301, 302, 303, 307, 308].includes(status) && route.location) {
     if (redirects === 20) throw new TypeError("fetch failed: too many redirects");
@@ -54,7 +57,8 @@ function runMonitor(routes, overrides = {}) {
     writeFileSync(join(dir, "mock-fetch.mjs"), mockFetch);
     execFileSync(process.execPath, ["--import", join(dir, "mock-fetch.mjs"), monitorPath], {
       cwd: dir,
-      env: { ...process.env, MONITOR_FETCH_RETRIES: "0", MONITOR_CONCURRENCY: "1" }
+      env: { ...process.env, MONITOR_FETCH_RETRIES: "0", MONITOR_CONCURRENCY: "1" },
+      timeout: 10_000
     });
     return {
       products: JSON.parse(readFileSync(join(dir, "data/products.json"), "utf8")).products,
@@ -136,6 +140,47 @@ test("official redirects resolve relative paths and both allowed hostnames", () 
   assert.equal(products[0].status, "available");
   assert.equal(products[0].finalUrl, finalUrl);
   assert.equal(products[0].orderUrl, "http://aaitr.com/cart.php?a=add&pid=1");
+});
+
+test("WHMCS sold-out evidence wins over links and disabled buttons never prove availability", () => {
+  for (const [label, attributes, expected, count] of [
+    ['Sold Out', '', 'unavailable', 0], ['0 Available', '', 'unavailable', 0],
+    ['', 'class="disabled"', 'unknown', null], ['', 'aria-disabled="true"', 'unknown', null],
+    ['3 Available', '', 'available', 3]
+  ]) {
+    const html = `<div id="products"><div class="card"><h4>VPS</h4><p>${label}</p><a ${attributes} href="/cart.php?a=add&pid=1">Order Now</a></div></div>`;
+    const { products } = runMonitor({ [sourceUrl]: { body: html } }, { adapter: 'whmcs_group' });
+    assert.equal(products[0].status, expected);
+    assert.equal(products[0].stockCount, count);
+  }
+});
+
+test("source budget aborts an in-flight request instead of waiting for the HTTP timeout", () => {
+  const { products, calls } = runMonitor({ [sourceUrl]: { hang: true } }, { adapter: 'public_catalog', timeBudgetMs: 30 });
+  assert.equal(calls.length, 1);
+  assert.equal(products[0].status, 'error');
+  assert.equal(products[0].collection.timeBudgetReached, true);
+  assert.match(products[0].error, /Source time budget exceeded/);
+});
+
+test("collector distinguishes NAT/shared IP evidence from native IP and shared resources", () => {
+  const cases = [
+    ["Native IP", false], ["International Network", false], ["Shared CPU", false],
+    ["共享带宽", false], ["NAT VPS", true], ["IPV6_NAT", true],
+    ["Shared IPv4", true], ["共享端口", true]
+  ];
+  const html = `<div id="products">${cases.map(([name], i) => `<div class="card"><h4>${name}</h4><a href="/cart.php?a=add&pid=${i + 1}">Order Now</a></div>`).join("")}</div>`;
+  const { products } = runMonitor({ [sourceUrl]: { body: html } }, { adapter: "whmcs_group" });
+  for (const [name, expected] of cases) {
+    const product = products.find((p) => p.name === name);
+    assert.equal(product?.riskTags.some((t) => t.value === "nat-shared"), expected, name);
+  }
+});
+
+test("legacy adapter failures are diagnostics, not inventory plans", () => {
+  const { products } = runMonitor({ [sourceUrl]: { status: 500 } }, { adapter: "whmcs_group" });
+  assert.equal(products[0].status, "error");
+  assert.equal(products[0].diagnostic, true);
 });
 
 test("a later redirect cannot leave an allowed hostname", () => {
@@ -248,11 +293,13 @@ for (const strategy of ["official", "reader"]) {
       const record = products[0];
       assert.deepEqual([record.hardware, record.bandwidth, record.region], expected);
       assert.deepEqual(record.raw.features, features);
-      assert.equal(record.status, "available");
+      assert.equal(record.status, strategy === "reader" ? "unknown" : "available");
       assert.equal(record.stockCount, null);
       assert.equal(record.raw.strategy, strategy === "reader" ? "reader_snapshot" : "direct_http");
       assert.deepEqual(calls.map((call) => call.url), strategy === "reader" ? [sourceUrl, readerUrl] : [sourceUrl]);
       if (strategy === "reader") {
+        assert.equal(record.raw.snapshotStatus, "available");
+        assert.equal(record.evidenceLevel.value, "snapshot");
         assert.match(record.note, /第三方 Reader 快照/);
         assert.match(record.statusLabel, /^快照:/);
       }

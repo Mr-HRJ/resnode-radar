@@ -93,6 +93,9 @@ test("outdated, future, and invalid FX never produces a conversion", () => {
 test("currency and billing conflicts stay uncertain instead of creating a false bargain", () => {
   for (const product of [
     { price: "€12/month", priceValue: 12, currency: "USD" },
+    { price: "12元/月", priceValue: 12, currency: "USD" },
+    { price: "RMB 12/月", priceValue: 12, currency: "USD" },
+    { price: "€12 / £10 monthly", priceValue: 12 },
     { price: "USD 12 / CNY 80 monthly", priceValue: 12 },
     { price: "HK$12/month", priceValue: 12, currency: "USD" }
   ]) { assert.equal(priceQuote(product).currency, null); assert.equal(monthlyCny(product, rates, now), null); }
@@ -104,4 +107,6 @@ test("currency and billing conflicts stay uncertain instead of creating a false 
   assert.equal(priceQuote({ price: "$12/month", priceValue: 12, name: "Annual saver" }).months, 1);
   assert.equal(priceQuote({ price: "JPY ¥800/月", priceValue: 800 }).currency, "JPY");
   assert.equal(priceQuote({ price: "HKD $12/month", priceValue: 12 }).currency, "HKD");
+  assert.equal(priceQuote({ price: "USD 12美元/月", priceValue: 12 }).currency, "USD");
+  assert.equal(priceQuote({ price: "JPY 800日元/月", priceValue: 800 }).currency, "JPY");
 });

@@ -1,7 +1,7 @@
 import { parse } from "node-html-parser";
 
 const clean = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
-const regionNames = { "cn-hkg": "香港", "jp-tyo": "日本", "us-lax": "美国", "sg-sin": "新加坡" };
+const regionNames = { "cn-hkg": "香港", "jp-tyo": "日本", "us-lax": "美国", "sg-sin": "新加坡", "sg-sgp": "新加坡" };
 function stockStatus(available, count) {
   if (available === false || count === 0) return "unavailable";
   if (available === true || count > 0) return "available";
@@ -74,4 +74,122 @@ export function parseNodeMach(source, result, { baseRecord }) {
       raw: { productId: p.id, type: p.type }
     });
   });
+}
+
+const jdidcCycleLabels = {
+  monthly: "月",
+  quarterly: "季",
+  semiannually: "半年",
+  annually: "年",
+  biennially: "两年",
+  triennially: "三年",
+  onetime: "一次性"
+};
+
+function jdidcRegion(text) {
+  const choices = [
+    ["香港", /香港|HKG/i],
+    ["台湾", /台湾|台灣|台北/i],
+    ["日本", /日本|东京|大阪/i],
+    ["新加坡", /新加坡/i],
+    ["韩国", /韩国|首尔/i],
+    ["美国", /美国|洛杉矶|圣何塞|芝加哥|纽约|西雅图|达拉斯|硅谷/i],
+    ["英国", /英国|伦敦/i],
+    ["德国", /德国|法兰克福/i],
+    ["荷兰", /荷兰|阿姆斯特丹/i],
+    ["法国", /法国|巴黎/i],
+    ["澳大利亚", /澳洲|澳大利亚|悉尼/i],
+    ["加拿大", /加拿大|多伦多/i],
+    ["越南", /越南/i],
+    ["泰国", /泰国/i],
+    ["马来西亚", /马来/i],
+    ["中国内地", /大陆|宁波|十堰|西安|内蒙|德阳|成都|广州|深圳|上海|北京|浙江|江苏|湖北|宿迁|枣庄|镇江|泉州|福州|厦门|佛山|重庆|四川|辽宁|青岛/]
+  ];
+  return choices.find(([, re]) => re.test(text))?.[0] || null;
+}
+
+export function parseJdidcApi(source, result, { baseRecord }) {
+  const payload = JSON.parse(result.html);
+  const fgs = payload?.data?.fgs;
+  if (!Array.isArray(fgs)) throw new Error("JDIDC public product API schema changed: fgs missing");
+  const baseOrigin = new URL(source.website || source.url).origin;
+  const records = [];
+  for (const fg of fgs) {
+    const fgName = clean(fg?.name);
+    if (/物理机|面板服|SCDN|实名认证|云电脑/i.test(fgName)) continue;
+    for (const group of Array.isArray(fg?.group) ? fg.group : []) {
+      const groupName = clean(group?.name);
+      if (/物理机|面板服|CDN|实名认证|云电脑/i.test(groupName)) continue;
+      for (const item of Array.isArray(group?.products) ? group.products : []) {
+        if (!["dcimcloud", "cloud"].includes(item?.type)) continue;
+        if (!item?.id || !clean(item?.name)) continue;
+        const amount = Number(item.product_price);
+        if (!Number.isFinite(amount) || amount <= 0) continue;
+        const cycleKey = String(item.billingcycle || "").toLowerCase();
+        const cycleLabel = clean(item.billingcycle_zh) || jdidcCycleLabels[cycleKey] || "";
+        const controlled = Number(item.stock_control) === 1;
+        const qty = ["number", "string"].includes(typeof item.qty) && String(item.qty).trim() ? Number(item.qty) : NaN;
+        let status = "available";
+        let stockCount = null;
+        if (controlled) {
+          status = "unknown";
+          if (Number.isSafeInteger(qty) && qty <= 0) {
+            status = "unavailable";
+            stockCount = 0;
+          } else if (Number.isSafeInteger(qty)) {
+            status = "available";
+            stockCount = qty;
+          }
+        }
+        const descLines = parse(String(item.description || "")).structuredText.split(/\r?\n/).map(clean).filter(Boolean);
+        const features = {};
+        for (const line of descLines) {
+          const m = line.match(/^([^:：]{1,12})[:：]\s*(.+)$/);
+          if (m) features[clean(m[1])] = clean(m[2]);
+        }
+        const hardware = [
+          features.CPU || features["核心"],
+          features["内存"],
+          features["硬盘"] || features["系统盘"]
+        ].filter(Boolean).join(" / ") || descLines.filter((l) => /CPU|核心|内存|硬盘|SSD|NVMe/i.test(l)).slice(0, 3).join(" / ") || null;
+        const bandwidth = [
+          features["带宽"],
+          features["流量"]
+        ].filter(Boolean).join(" / ") || descLines.filter((l) => /带宽|流量|Mbps|Gbps/i.test(l)).slice(0, 2).join(" / ") || null;
+        const blob = `${fgName} ${groupName} ${item.name} ${descLines.join(" ")}`;
+        const routes = [...new Set(blob.match(/CN2\s*GIA|CN2\s*GT|CN2|CMIN2|9929|4837|BGP|IIJ|HiNet/gi) || [])].join(" / ");
+        const route = features["路线"] || features["线路"] || routes || null;
+        const isHome = /双\s*ISP|家宽|住宅/i.test(blob);
+        const orderUrl = `${baseOrigin}/user/product-config.php?id=${encodeURIComponent(item.id)}`;
+        records.push(baseRecord(source, result, {
+          id: `${source.id}:plan:${item.id}`,
+          sourceUrl: source.url,
+          name: clean(item.name),
+          category: isHome ? "home" : "vps",
+          region: jdidcRegion(item.name) || jdidcRegion(groupName) || jdidcRegion(fgName) || jdidcRegion(descLines.join(" ")),
+          route,
+          hardware,
+          bandwidth,
+          price: `CNY ${amount}${cycleLabel ? `/${cycleLabel}` : ""}`,
+          priceValue: amount,
+          currency: "CNY",
+          status,
+          statusLabel: status === "unknown" ? "库存待核验" : status === "unavailable" ? "不可订购" : stockCount !== null ? `库存 ${stockCount}` : "可订购入口",
+          stockCount,
+          orderUrl,
+          note: `${fgName}${groupName && groupName !== fgName ? ` · ${groupName}` : ""}`,
+          evidence: `Official JDIDC public API; id=${item.id}; stock_control=${controlled ? 1 : 0}; qty=${Number.isFinite(qty) ? qty : "unstated"}`,
+          raw: {
+            productId: item.id,
+            groupId: item.gid ?? group?.id ?? null,
+            groupName,
+            firstGroupName: fgName,
+            billingCycle: cycleLabel || cycleKey || null,
+            features
+          }
+        }));
+      }
+    }
+  }
+  return [...new Map(records.map((r) => [r.id, r])).values()];
 }

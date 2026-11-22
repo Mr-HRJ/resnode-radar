@@ -122,11 +122,19 @@ npm run monitor
 npm run monitor:validate
 ```
 
-GitHub Actions is scheduled at minutes 7 and 37 of each hour and commits `data/products.json` after collection. Check actual Actions runs and the published collection timestamp; a configured schedule alone does not prove a run occurred.
+Collection runs every 10 minutes. The Cloudflare Worker cron (`*/10 * * * *`)
+dispatches the `Monitor VPS Sources` workflow (requires the `GITHUB_DISPATCH_TOKEN`
+Worker secret); GitHub's own `*/10` schedule is only a fallback because it is often
+delayed by hours on public repositories, and a freshness guard skips duplicate runs.
+Each validated snapshot is force-published as a single commit on the `data` branch,
+which the Worker serves, so `main` history does not grow by ~150 data commits a day.
+Check actual Actions runs and the published collection timestamp; a configured
+schedule alone does not prove a run occurred.
 
-The directory contains 65 unique providers: all 57 entries from the public
-[MeowVPS directory](https://meowvps.com/VPS/) observed on 2026-11-10, merged with
-this site's existing providers and official ZgoCloud, BERO HOST, and Spartan Host catalogs. `providers.js` holds factual directory metadata;
+The directory contains 121 unique providers: all 117 entries from the public
+[MeowVPS directory](https://meowvps.com/VPS/) observed on 2026-11-22 (64 collected
+and 53 marked as collecting), deduplicated and merged with this site's existing
+providers and official ZgoCloud, BERO HOST, and Spartan Host catalogs. `providers.js` holds factual directory metadata;
 `monitor/sources.json` configures an automated read for every provider. Directory
 inclusion is not a claim that every provider exposes usable stock.
 
@@ -150,7 +158,7 @@ aliases and hardware search, region and network-route shortcuts, currency and
 billing filters, removable filter chips, pagination, source details, local
 bookmarks, and comparison of up to four plans. Filters are represented in the URL.
 The browser rereads the published snapshot every five minutes while visible and
-marks snapshots older than 90 minutes as stale. Refreshing never triggers a
+marks snapshots older than 30 minutes as stale. Refreshing never triggers a
 provider crawl.
 
 Original prices and billing cycles stay visible. `npm run fx:update` reads the

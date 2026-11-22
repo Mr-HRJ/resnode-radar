@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
-import { parseCatalogPage, cleanPublicUrl, discoverCatalogLinks } from "./adapters/catalog-pages.mjs";
+import { parseCatalogPage, cleanPublicUrl, canonicalCatalogPageKey, discoverCatalogLinks } from "./adapters/catalog-pages.mjs";
 import { monitorPublicCatalog, parseUsvps24 } from "./adapters/public-catalog.mjs";
-import { parseCatalogApi, parseNodeMach } from "./adapters/catalog-api.mjs";
+import { parseCatalogApi, parseJdidcApi, parseNodeMach } from "./adapters/catalog-api.mjs";
 import { providers } from "../providers.js";
-import { providerHealth } from "../directory.js";
+import { providerHealth } from "../src/domain/catalog.js";
 import { priceQuote, comparePrices } from "../pricing.js";
 const source = { id: "vendor", providerId: "vendor", provider: "Vendor", url: "https://vendor.example/store/vps", adapter: "public_catalog" };
 const baseRecord = (s, r, x) => ({ sourceId: s.id, provider: s.provider, sourceUrl: s.url, ...x });
@@ -28,7 +28,7 @@ test("bandwidth is not GBP, marketing cards are not plans, unknown stock stays u
   assert.equal(parse(card('No stock published', null))[0].status, 'unknown');
 });
 test("catalog excludes only explicit aggregate and add-on names, including table rows", () => {
-  for (const name of ['Additional Services', ' Simple   pricing ', 'POPULAR PLANS']) {
+  for (const name of ['Additional Services', ' Simple   pricing ', 'POPULAR PLANS', 'Configuration', 'VPS Plans & Pricing']) {
     assert.equal(parse(card().replace('Tokyo KVM', name)).length, 0, name);
     assert.equal(parse(`<table><tr><td>${name}</td><td>2 vCPU / 4 GB RAM</td><td>$12.00 monthly</td><td><a href="/cart.php?a=add&pid=4">Order now</a></td></tr></table>`).length, 0, name);
   }
@@ -46,6 +46,22 @@ test("discovery stays on official hosts, excludes checkout and language mirrors,
   const html = '<a href="/store/hk?ref=123">HK VPS</a><a href="https://evil.example/store/vps">VPS</a><a href="/store/hk?language=french">French</a><a href="/cart.php?a=add&pid=1">Order</a>';
   assert.deepEqual(discoverCatalogLinks(html, source.url, source).map((x) => x.url), ['https://vendor.example/store/hk']);
   assert.equal(cleanPublicUrl('http://127.0.0.1/store'), null); assert.equal(cleanPublicUrl('https://user:pass@vendor.example/'), null);
+  const dupHtml = '<a href="/index.php?rp=/store/usa-shared">US</a><a href="/store/usa-shared/">US Clean</a>';
+  assert.equal(canonicalCatalogPageKey("https://vendor.example/index.php?rp=/store/usa-shared"), "https://vendor.example/store/usa-shared");
+  assert.deepEqual(discoverCatalogLinks(dupHtml, source.url, source).map((x) => x.url), ["https://vendor.example/store/usa-shared/"]);
+});
+
+test("discovery excludes customer add-ons and configured non-catalog paths", () => {
+  const html = '<a href="/cart.php?gid=addons">Product Addons</a><a href="/cart.php?gid=renewals">Renewals</a><a href="/store/ssl">SSL</a><a href="/cart.php?gid=12">VPS</a><a href="/order/config/index/vps/?pricing_id=7">Configure VPS</a><a href="/products/vps/checkout">Buy</a>';
+  assert.deepEqual(discoverCatalogLinks(html, source.url, { ...source, excludePaths: ['/store/ssl'] }).map((x) => x.url), ['https://vendor.example/cart.php?gid=12']);
+});
+
+test("HostBill quickcart identity deduplicates the same offer across marketing pages without inventing stock", () => {
+  const html = card('No inventory published', 'https://billing.vendor.example/?cmd=module&module=quickcart&id=59&showconfig=1&cycle=a');
+  const first = parseCatalogPage(source, htmlResult(html), { baseRecord })[0];
+  const second = parseCatalogPage(source, htmlResult(html, { finalUrl: 'https://vendor.example/pricing' }), { baseRecord })[0];
+  assert.equal(first.id, second.id);
+  assert.equal(first.status, 'unknown');
 });
 test("safe document bases resolve catalog links and product order identities", () => {
   const pageUrl = 'https://vendor.example/products/kvm/';
@@ -118,6 +134,32 @@ test("document bases preserve explicit sellouts and fetched-page fallback record
 function helpers(routes, calls) {
   return { baseRecord, fetchHtml: async (_, url) => { calls.push(url); if (!routes[url]) throw new Error('Unconfigured read'); return routes[url]; }, blockedRecord: (s,r,message) => baseRecord(s,r,{status:'blocked',evidence:message}), errorRecord: (s,error) => baseRecord(s,null,{status:'error',evidence:error.message}) };
 }
+
+test("redirect destinations count as visited without consuming a second page budget", async () => {
+  const calls = [];
+  const target = 'https://vendor.example/store/tokyo';
+  const next = 'https://vendor.example/store/osaka';
+  const routes = {
+    [source.url]: htmlResult(card() + `<a href="${target}">Tokyo VPS</a><a href="${next}">Osaka VPS</a>`, { finalUrl: target }),
+    [next]: htmlResult(card('0 Available', '/cart.php?a=add&pid=5'), { finalUrl: next })
+  };
+  const records = await monitorPublicCatalog({ ...source, maxPages: 2 }, helpers(routes, calls));
+  assert.deepEqual(calls, [source.url, next]);
+  assert.equal(records.length, 2);
+  assert.deepEqual(records[0].collection, { pagesChecked: 2, pageLimitReached: false, failedPages: 0 });
+});
+
+test("source deadline preserves parsed plans with an explicit incomplete-coverage diagnostic", async () => {
+  const calls = [];
+  const routes = { [source.url]: htmlResult(card() + '<a href="/store/next">Next VPS</a>') };
+  let time = 0;
+  const records = await monitorPublicCatalog(source, { ...helpers(routes, calls), deadline: 1, now: () => time++ });
+  assert.deepEqual(calls, [source.url]);
+  assert.ok(records.some((p) => p.status === 'available'));
+  assert.ok(records.some((p) => p.diagnostic && p.status === 'error'));
+  assert.equal(records[0].collection.timeBudgetReached, true);
+  assert.equal(records[0].collection.pageLimitReached, false);
+});
 test("V.PS document bases prevent repeated relative catalog paths and duplicate plans", async () => {
   const configured = { ...source, url: 'https://vps.hosting/products/', maxPages: 4 };
   const next = 'https://vps.hosting/cart/mini-kvm-vps/';
@@ -134,9 +176,24 @@ test("V.PS document bases prevent repeated relative catalog paths and duplicate 
   assert.equal(records[0].sourceUrl, next);
   assert.deepEqual(records[0].collection, { pagesChecked: 2, pageLimitReached: false, failedPages: 0 });
 });
-test("public catalogs tolerate a normal login-widget script without falsely reporting a challenge", async () => {
-  const calls = []; const records = await monitorPublicCatalog({...source,discover:false},helpers({[source.url]:htmlResult(card()+'<script src="cf-turnstile.js"></script>')},calls));
-  assert.equal(records.length,1); assert.equal(records[0].status,'available');
+test("public catalogs tolerate a normal login-widget script and cf-turnstile widget on HTTP 200 without falsely reporting a challenge", async () => {
+  const html = `<html><head><title>Portal Home</title></head><body><div class="cf-turnstile"></div>${card()}</body></html>`;
+  const rows = await monitorPublicCatalog(
+    { ...source, discover: false },
+    {
+      fetchHtml: async () => htmlResult(html),
+      isAntiBotResult: (r) => /cf-turnstile/i.test(r.html),
+      baseRecord,
+      blockedRecord: (s, r, e) => baseRecord(s, r, { status: "blocked", evidence: e }),
+      errorRecord: (s, e) => baseRecord(s, null, { status: "error", evidence: e.message })
+    }
+  );
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].status, "available");
+  const calls = [];
+  const records = await monitorPublicCatalog({ ...source, discover: false }, helpers({ [source.url]: htmlResult(card() + '<script src="cf-turnstile.js"></script>') }, calls));
+  assert.equal(records.length, 1);
+  assert.equal(records[0].status, "available");
 });
 test("blocked responses and empty public catalogs produce diagnostics, never sold-out plans", async () => {
   for (const result of [htmlResult('Just a moment',{ok:false,statusCode:403}),htmlResult('<h1>Sign in</h1>')]) {
@@ -165,7 +222,8 @@ test("NodeMach public list excludes proxy products and respects payable flag", (
 test("all directory providers have scheduled collection and no copied referral URLs", () => {
   const sources=JSON.parse(readFileSync(new URL('../monitor/sources.json',import.meta.url)));
   assert.equal(new Set(providers.map(p=>p.id)).size,providers.length);
-  for(const id of ['zgovps','berohost','spartan']) assert.ok(providers.some(p=>p.id===id),id);
+  assert.equal(providers.length, 121);
+  for(const id of ['zgovps','berohost','spartan','attvps','bocchi','jcloud','mondoze','nexkr','tamago','666clouds','cloudsilk','tothost','buyvm','jindouyun']) assert.ok(providers.some(p=>p.id===id),id);
   for(const p of providers){assert.ok(sources.some(s=>s.providerId===p.id),p.id);assert.doesNotMatch(p.website,/(?:aff(?:iliate)?|ref(?:erral)?|utm_)[=/]/i);}
 });
 test("provider health distinguishes coverage from actual inventory", () => {
@@ -182,4 +240,63 @@ test("price comparison preserves currency, billing period and starting-price unc
 test("a verified price selector reads the active DPNET price instead of the crossed-out offer", () => {
   const [p]=parse('<div class="pr9x-card"><h6>2 CPU / 4 GB RAM</h6><span>US$ 2.99</span><div><span>USD</span><h3>2.19</h3><span>/mo</span></div><p>50 GB SSD</p><a href="https://my.vendor.example/index.php?rp=/store/budget-vps/budget-1">Get This Plan</a></div>',{nameSelector:'h6',priceSelector:'h3',currency:'USD'});
   assert.equal(p.priceValue,2.19); assert.match(p.price,/USD 2.19/);
+});
+
+test("JDIDC public API preserves exact stock, negative sellouts, dual-ISP category, and excludes non-VPS groups", () => {
+  const payload = {
+    status: 200,
+    data: {
+      fgs: [
+        {
+          id: 58,
+          name: "双ISP",
+          group: [
+            {
+              id: 223,
+              name: "美国家宽ISP A区",
+              products: [
+                { id: 1403, type: "dcimcloud", gid: 223, name: "美国双ISP住宅云主机 2核2G", description: "<li>核心：2核</li><li>内存：2GB</li><li>硬盘：40G SSD</li><li>带宽：25Mbps</li><li>流量：不限流量</li><li>路线：回国9929+CMIN2</li>", stock_control: 1, qty: 12, product_price: "38.00", billingcycle: "monthly", billingcycle_zh: "月" },
+                { id: 1404, type: "dcimcloud", gid: 223, name: "美国双ISP住宅云主机 售罄款", description: "<li>核心：2核</li>", stock_control: 1, qty: -2, product_price: "38.00", billingcycle: "monthly", billingcycle_zh: "月" }
+              ]
+            }
+          ]
+        },
+        {
+          id: 11,
+          name: "大陆 · 物理机",
+          group: [{ id: 111, name: "物理机", products: [{ id: 999, type: "dcimcloud", name: "物理机E5", product_price: "500.00", stock_control: 1, qty: 5, billingcycle: "monthly" }] }]
+        }
+      ]
+    }
+  };
+  const jdidcSource = { id: "catalog-jdidc", providerId: "jdidc", provider: "JDIDC", url: "https://www.jdidc.cn/api/common/prolist-proxy.php", website: "https://www.jdidc.cn/", catalogFormat: "jdidc" };
+  const rows = parseJdidcApi(jdidcSource, htmlResult(JSON.stringify(payload)), { baseRecord });
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].category, "home");
+  assert.equal(rows[0].status, "available");
+  assert.equal(rows[0].stockCount, 12);
+  assert.equal(rows[0].region, "美国");
+  assert.equal(rows[0].price, "CNY 38/月");
+  assert.equal(rows[0].orderUrl, "https://www.jdidc.cn/user/product-config.php?id=1403");
+  assert.equal(rows[1].status, "unavailable");
+  assert.equal(rows[1].stockCount, 0);
+});
+
+test("JDIDC plan location outranks routing prose and missing stock never becomes a sellout", () => {
+  const quantities = [null, "", undefined, "invalid", 1.5, true, 0, "3"];
+  const products = quantities.map((qty, i) => ({
+    id: i + 1, name: "德国9929 2核2GB", type: "cloud", product_price: 28,
+    billingcycle: "monthly", stock_control: 1, qty, description: "<li>美国中转线路</li>"
+  }));
+  const result = htmlResult(JSON.stringify({ data: { fgs: [{ name: "美国 / 德国", group: [{ name: "德国9929", products }] }] } }));
+  const rows = parseJdidcApi({ ...source, website: "https://www.jdidc.cn/" }, result, { baseRecord });
+  for (const row of rows) assert.equal(row.region, "德国");
+  for (const row of rows.slice(0, 6)) {
+    assert.equal(row.status, "unknown");
+    assert.equal(row.stockCount, null);
+  }
+  assert.equal(rows[6].status, "unavailable");
+  assert.equal(rows[6].stockCount, 0);
+  assert.equal(rows[7].status, "available");
+  assert.equal(rows[7].stockCount, 3);
 });

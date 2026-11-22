@@ -31,8 +31,8 @@ export function priceQuote(product) {
   const codes = [...label.matchAll(/\b(USD|CNY|EUR|GBP|CAD|AUD|HKD|JPY|TWD|SGD|KRW)\b/gi)].map((match) => match[1].toUpperCase());
   const field = typeof product.currency === "string" ? product.currency.toUpperCase() : null;
   let currency = field || codes[0] || (/NT\$/.test(label) ? "TWD" : /HK\$/.test(label) ? "HKD" : /(?:CA|C)\$/.test(label) ? "CAD" : /A\$/.test(label) ? "AUD" : /€/.test(label) ? "EUR" : /£/.test(label) ? "GBP" : /[¥￥]|元|RMB/.test(label) ? "CNY" : /\$/.test(label) ? "USD" : null);
-  const symbolCurrency = /NT\$/.test(label) ? "TWD" : /HK\$/.test(label) ? "HKD" : /(?:CA|C)\$/.test(label) ? "CAD" : /A\$/.test(label) ? "AUD" : /US\$/.test(label) ? "USD" : /€/.test(label) ? "EUR" : /£/.test(label) ? "GBP" : null;
-  if (codes.some((code) => code !== currency) || (symbolCurrency && symbolCurrency !== currency)) currency = null;
+  const symbols = [[/NT\$/, "TWD"], [/HK\$/, "HKD"], [/(?:CA|C)\$/, "CAD"], [/(?<![A-Z])A\$/, "AUD"], [/US\$/, "USD"], [/€/, "EUR"], [/£/, "GBP"], [/\bRMB\b|人民币|人民幣|(?<![美日欧歐加澳港新韩韓台臺])元/i, "CNY"]];
+  if (codes.some((code) => code !== currency) || symbols.some(([pattern, code]) => pattern.test(label) && code !== currency)) currency = null;
   const amount = Number.isFinite(product.priceValue) && product.priceValue >= 0 ? product.priceValue : null;
   const labelPeriod = billingPeriod(label), rawPeriod = billingPeriod(String(product.raw?.billingCycle ?? ""), product.raw?.billingDays);
   let [months, period] = labelPeriod[1] === "周期未注明" ? rawPeriod : labelPeriod;

@@ -4,6 +4,9 @@
   "compatibility_date": "2026-11-10",
   "workers_dev": true,
   "preview_urls": false,
+  "triggers": {
+    "crons": ["*/10 * * * *"]
+  },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
@@ -11,6 +14,7 @@
   },
   "vars": {
     "DATA_REPOSITORY": "Mr-HRJ/resnode-radar",
+    "DATA_BRANCH": "data",
     "SITE_URL": "https://resnode-radar.haorenjie1997.workers.dev/"
   }
 }

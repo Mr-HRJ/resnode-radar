@@ -573,7 +573,7 @@
     "adapter": "public_catalog",
     "url": "https://buy.leikwanhost.com/",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "maxPages": 24
   },
   {
     "id": "catalog-lightlayer",
@@ -581,13 +581,11 @@
     "provider": "LightLayer",
     "category": "unclassified",
     "adapter": "public_catalog",
-    "url": "https://account.lightlayer.net/",
+    "url": "https://account.lightlayer.net/index.php?/cart/",
     "requestIntervalMs": 2000,
-    "maxPages": 12,
-    "catalogUrls": [
-      "https://account.lightlayer.net/index.php?/cart/"
-    ],
-    "accessNote": "商品目录当前重定向到客户页面，公开访问未取得套餐库存。"
+    "maxPages": 1,
+    "discover": false,
+    "accessNote": "商品目录（含匿名会话）重定向到客户登录页；公开官网只有展示报价，未取得实时套餐库存。"
   },
   {
     "id": "catalog-quicksrv",
@@ -611,7 +609,9 @@
       "https://v.ps/products/mini-kvm-vps/",
       "https://v.ps/products/performance-kvm-vps/"
     ],
-    "allowedOrigins": ["https://vps.hosting"],
+    "allowedOrigins": [
+      "https://vps.hosting"
+    ],
     "coverageNote": "已覆盖 Cloud、Mini、Performance 产品系列的公开报价与规格；这些页面未声明实时库存，其他系列尚未接入。",
     "requestIntervalMs": 2000,
     "discover": false,
@@ -666,7 +666,7 @@
     "adapter": "public_catalog",
     "url": "https://bestvm.cloud/",
     "requestIntervalMs": 2000,
-    "maxPages": 12,
+    "maxPages": 24,
     "excludePaths": [
       "iepl"
     ],
@@ -689,11 +689,15 @@
     "id": "catalog-moonvm",
     "providerId": "moonvm",
     "provider": "MoonVM",
-    "category": "unclassified",
+    "category": "home",
     "adapter": "public_catalog",
-    "url": "https://store.moonvm.com/",
+    "catalogFormat": "moonvm",
+    "url": "https://store.moonvm.com/cart.php",
+    "currency": "USD",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "maxPages": 1,
+    "discover": false,
+    "coverageNote": "官方单页已包含所有产品分组；按商品 ID 去重，售罄套餐保留，不抓客户附加服务。"
   },
   {
     "id": "catalog-sixtynet",
@@ -709,11 +713,17 @@
     "id": "catalog-netcup",
     "providerId": "netcup",
     "provider": "netcup",
-    "category": "unclassified",
+    "category": "vps",
     "adapter": "public_catalog",
-    "url": "https://www.netcup.com/en",
+    "url": "https://www.netcup.com/en/server/vps",
+    "catalogUrls": [
+      "https://www.netcup.com/en/server/arm-server"
+    ],
+    "currency": "EUR",
+    "discover": false,
+    "coverageNote": "已覆盖官方 VPS 与 ARM Server 公开目录报价；页面未公开具体库存余量。",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "maxPages": 2
   },
   {
     "id": "catalog-vmrack",
@@ -739,11 +749,17 @@
     "id": "catalog-rivencloud",
     "providerId": "rivencloud",
     "provider": "RivenCloud(极云)",
-    "category": "unclassified",
+    "category": "vps",
     "adapter": "public_catalog",
-    "url": "https://portal.sa.net/",
+    "url": "https://portal.sa.net/store/cloud-server",
+    "catalogUrls": [
+      "https://portal.sa.net/store/cloud-server-unmetered"
+    ],
+    "currency": "USD",
+    "discover": false,
+    "coverageNote": "已覆盖官方商店 Cloud Server 与 Unmetered 公开产品组及库存信号。",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "maxPages": 2
   },
   {
     "id": "catalog-yunyoo",
@@ -753,7 +769,7 @@
     "adapter": "public_catalog",
     "url": "https://yunyoo.cc/",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "maxPages": 24
   },
   {
     "id": "catalog-taipei101",
@@ -762,8 +778,10 @@
     "category": "unclassified",
     "adapter": "public_catalog",
     "url": "https://vps.taipei/",
+    "discover": false,
+    "maxPages": 1,
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "accessNote": "官网仅提供按资源计价的计算器（$0.85/核、$0.80/GB 内存、$0.03/GB NVMe 每月），无固定套餐；创建实例需登录。"
   },
   {
     "id": "catalog-synexvm",
@@ -802,8 +820,10 @@
     "category": "unclassified",
     "adapter": "public_catalog",
     "url": "https://www.geelinx.com/",
+    "discover": false,
+    "maxPages": 1,
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "accessNote": "官网跳转至 /console SPA；商店路由需登录，目录接口 /janus/catalog 匿名返回 401，无公开套餐目录。"
   },
   {
     "id": "catalog-100tb",
@@ -836,7 +856,7 @@
     "adapter": "public_catalog",
     "url": "https://kaze.network/",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "maxPages": 24
   },
   {
     "id": "catalog-dpnet",
@@ -870,9 +890,12 @@
     "provider": "NMCloud(牛马云)",
     "category": "unclassified",
     "adapter": "public_catalog",
-    "url": "https://nmcloud.cc/",
+    "url": "https://new.nmcloud.cc/api/v1/catalog/products",
+    "catalogFormat": "nmcloud",
+    "discover": false,
+    "maxPages": 1,
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "accessNote": "官方 /pricing 页匿名加载的产品目录 API；stockAvailable=0 即售罄。"
   },
   {
     "id": "catalog-isif",
@@ -880,19 +903,133 @@
     "provider": "ISIF Cloud",
     "category": "unclassified",
     "adapter": "public_catalog",
-    "url": "https://cloud.isif.net/",
+    "url": "https://cloud.isif.net/pricing",
+    "discover": false,
+    "maxPages": 1,
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "accessNote": "公开 /pricing、/vm 预渲染页不含套餐数据，前端从 api.isif.net/api/store/products 动态加载，而该接口对匿名采集返回 Cloudflare 质询（403 cf-mitigated: challenge），不绕过，库存无法确认。"
   },
   {
     "id": "catalog-bwh",
     "providerId": "bwh",
     "provider": "搬瓦工(BWH)",
-    "category": "unclassified",
+    "category": "vps",
     "adapter": "public_catalog",
-    "url": "https://bandwagonhost.com/",
+    "catalogFormat": "bwh",
+    "url": "https://bandwagonhost.com/cart.php",
+    "currency": "USD",
+    "coverageNote": "已覆盖搬瓦工官方 cart.php 全部公开产品线（含 CN2 GIA-E、香港/东京/大阪/新加坡 CN2 GIA、常规 KVM 与迪拜系列）；另由 bwh-limited-pids 专项监控限量促销款。",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "discover": false,
+    "maxPages": 1
+  },
+  {
+    "id": "bwh-limited-pids",
+    "providerId": "bwh",
+    "provider": "搬瓦工(BWH)",
+    "category": "vps",
+    "adapter": "whmcs_pid_watch",
+    "url": "https://bandwagonhost.com/cart.php",
+    "currency": "USD",
+    "requestIntervalMs": 1500,
+    "plans": [
+      {
+        "pid": "159",
+        "name": "The Amsterdam Plan",
+        "region": "荷兰",
+        "route": "CN2 GIA / 9929 / CMIN2"
+      },
+      {
+        "pid": "151",
+        "name": "MINIBOX-10-512 (DC99)",
+        "region": "美国",
+        "route": "CN2 GIA"
+      },
+      {
+        "pid": "152",
+        "name": "BIGGERBOX-20-1024 (DC99)",
+        "region": "美国",
+        "route": "CN2 GIA"
+      },
+      {
+        "pid": "153",
+        "name": "POWERBOX (DC99)",
+        "region": "美国",
+        "route": "CN2 GIA"
+      },
+      {
+        "pid": "154",
+        "name": "SAKURABOX (Tokyo DC39)",
+        "region": "日本",
+        "route": "CMI"
+      },
+      {
+        "pid": "156",
+        "name": "BIGGERBOX-PRO (DC1)",
+        "region": "美国",
+        "route": "CN2 GIA / CMIN2"
+      },
+      {
+        "pid": "157",
+        "name": "MEGABOX-PRO (DC1)",
+        "region": "美国",
+        "route": "CN2 GIA / CMIN2"
+      },
+      {
+        "pid": "158",
+        "name": "MINICHICKEN (Fremont)",
+        "region": "美国",
+        "route": "HE"
+      },
+      {
+        "pid": "162",
+        "name": "The Tokyo Plan (DC39v2)",
+        "region": "日本",
+        "route": "CMI"
+      },
+      {
+        "pid": "163",
+        "name": "The Tokyo Plan v2 (DC39v2)",
+        "region": "日本",
+        "route": "CMI"
+      },
+      {
+        "pid": "164",
+        "name": "20G KVM - ECOMMERCE SLA LOS ANGELES",
+        "region": "美国",
+        "route": "CN2 GIA"
+      },
+      {
+        "pid": "87",
+        "name": "SPECIAL 20G KVM PROMO V5 - CN2 GIA ECOMMERCE",
+        "region": "美国",
+        "route": "CN2 GIA"
+      },
+      {
+        "pid": "94",
+        "name": "SPECIAL 10G KVM PROMO V5 - CN2 GIA LIMITED EDITION",
+        "region": "美国",
+        "route": "CN2 GIA"
+      },
+      {
+        "pid": "105",
+        "name": "SPECIAL 20G KVM PROMO V5 - SYDNEY LIMITED EDITION",
+        "region": "澳大利亚",
+        "route": "BGP"
+      },
+      {
+        "pid": "131",
+        "name": "THE PLAN v2",
+        "region": "多地区（下单选择）",
+        "route": "CN2 GIA / 9929 / CMIN2"
+      },
+      {
+        "pid": "132",
+        "name": "SPECIAL 40G KVM PROMO V5 - CN2 GIA-E LIMITED EDITION",
+        "region": "多地区（下单选择）",
+        "route": "CN2 GIA"
+      }
+    ]
   },
   {
     "id": "catalog-ipraft",
@@ -901,8 +1038,10 @@
     "category": "unclassified",
     "adapter": "public_catalog",
     "url": "https://ipraft.com/",
+    "discover": false,
+    "maxPages": 1,
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "accessNote": "官网仅列地区无价格；console.ipraft.com 订购页的 /api/products、/api/regions 匿名返回 401（需登录），无法公开采集套餐与库存。"
   },
   {
     "id": "catalog-rfc",
@@ -954,7 +1093,7 @@
     "adapter": "public_catalog",
     "url": "https://www.bagevm.com/",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "maxPages": 24
   },
   {
     "id": "catalog-akko",
@@ -988,11 +1127,11 @@
     "id": "catalog-boil",
     "providerId": "boil",
     "provider": "Boil の家裡雲(港仔)",
-    "category": "unclassified",
+    "category": "home",
     "adapter": "public_catalog",
     "url": "https://cloud.boil.network/index.php",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "maxPages": 24
   },
   {
     "id": "catalog-gomami",
@@ -1022,8 +1161,10 @@
     "adapter": "public_catalog",
     "catalogFormat": "skyline",
     "url": "https://api.skylineconnect.io/v1/api/payment/payment_product_list",
-    "publicClientScript": "https://www.skylineconnect.io/_next/static/chunks/2pec0zszfss4b.js",
-    "allowedOrigins": ["https://www.skylineconnect.io"],
+    "publicClientScript": "https://www.skylineconnect.io/_next/static/chunks/0xd67k30fer1j.js",
+    "allowedOrigins": [
+      "https://www.skylineconnect.io"
+    ],
     "website": "https://www.skylineconnect.io/products",
     "currency": "USD",
     "requestIntervalMs": 2000,
@@ -1036,9 +1177,10 @@
     "provider": "WireCat(维猫)",
     "category": "unclassified",
     "adapter": "public_catalog",
-    "url": "https://billing.wirecat.net/order/main/packages/resnet/?group_id=15",
+    "url": "https://billing.wirecat.net/order/main/packages/resnet/?group_id=23",
+    "discover": false,
+    "maxPages": 1,
     "requestIntervalMs": 2000,
-    "maxPages": 12,
     "accessNote": "官方公开目录目前仅展示验证服务，注明需完成 KYC 后通过工单申请；未公开 VPS 库存。"
   },
   {
@@ -1057,9 +1199,11 @@
     "provider": "Flawless Node",
     "category": "unclassified",
     "adapter": "public_catalog",
-    "url": "https://www.flawlessnode.com/",
+    "url": "https://www.flawlessnode.com/pricing/",
+    "catalogFormat": "flawlessnode",
+    "discover": false,
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "maxPages": 1
   },
   {
     "id": "catalog-fachost",
@@ -1069,7 +1213,7 @@
     "adapter": "public_catalog",
     "url": "https://fachost.cloud/",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "maxPages": 20
   },
   {
     "id": "catalog-qqpw",
@@ -1087,9 +1231,28 @@
     "provider": "BUG NET(虫网)",
     "category": "unclassified",
     "adapter": "public_catalog",
-    "url": "https://bug.pw/",
+    "url": "https://bug.pw/products/us-northwest-seattle-lite",
+    "catalogUrls": [
+      "https://bug.pw/products/us-northwest-seattle-performance",
+      "https://bug.pw/products/japan-tokyo-performance",
+      "https://bug.pw/products/us-northwest-seattle-lite/seattle-vps-marsbilled-yearly",
+      "https://bug.pw/products/us-northwest-seattle-lite/seattle-vps-venus",
+      "https://bug.pw/products/us-northwest-seattle-lite/seattle-vps-neptune",
+      "https://bug.pw/products/us-northwest-seattle-lite/seattle-vps-uranus",
+      "https://bug.pw/products/us-northwest-seattle-performance/seattle-vps-mercurybilled-yearly",
+      "https://bug.pw/products/us-northwest-seattle-performance/seattle-vps-earth",
+      "https://bug.pw/products/us-northwest-seattle-performance/seattle-vps-saturn",
+      "https://bug.pw/products/us-northwest-seattle-performance/seattle-vps-jupiter",
+      "https://bug.pw/products/japan-tokyo-performance/tokyo-vps-fluorine-1120",
+      "https://bug.pw/products/japan-tokyo-performance/tokyo-vps-chlorine-1230",
+      "https://bug.pw/products/japan-tokyo-performance/tokyo-vps-bromine-2445",
+      "https://bug.pw/products/japan-tokyo-performance/tokyo-vps-iodine-4875"
+    ],
+    "catalogFormat": "paymenter",
+    "discover": false,
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "maxPages": 15,
+    "accessNote": "Paymenter 商店：分类页给价格，产品页给明确库存徽章；价格为最低周期价。"
   },
   {
     "id": "catalog-ciallonetworks",
@@ -1130,7 +1293,9 @@
     "adapter": "public_catalog",
     "catalogFormat": "zgovps",
     "url": "https://clients.zgovps.com/index.php?/cart/hongkong-amd-vps/",
-    "catalogUrls": ["https://clients.zgovps.com/index.php?/cart/los-angeles-amd-optimised-vps/"],
+    "catalogUrls": [
+      "https://clients.zgovps.com/index.php?/cart/los-angeles-amd-optimised-vps/"
+    ],
     "coverageNote": "已覆盖香港 AMD 与洛杉矶 AMD Optimised 产品组及其公开计费周期，其他产品组尚未接入。",
     "requestIntervalMs": 2000,
     "maxPages": 2,
@@ -1166,5 +1331,799 @@
     "requestIntervalMs": 2000,
     "maxPages": 3,
     "discover": false
+  },
+  {
+    "id": "catalog-attvps",
+    "providerId": "attvps",
+    "provider": "ATTVPS",
+    "category": "home",
+    "adapter": "public_catalog",
+    "url": "https://attvps.com/",
+    "currency": "USD",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-bocchi",
+    "providerId": "bocchi",
+    "provider": "Bocchi",
+    "category": "vps",
+    "adapter": "public_catalog",
+    "url": "https://bocchi.sh/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-jcloud",
+    "providerId": "jcloud",
+    "provider": "JCloudHosting",
+    "category": "home",
+    "adapter": "public_catalog",
+    "url": "https://discord.com/invite/jcloud",
+    "accessNote": "该商家主要在官方 Discord 社区运营与接单（官网 jcloudhosting.com 仅为 Coming Soon 占位页），未提供公开网页固定套餐目录。",
+    "requestIntervalMs": 2000,
+    "discover": false,
+    "maxPages": 1
+  },
+  {
+    "id": "catalog-mondoze",
+    "providerId": "mondoze",
+    "provider": "Mondoze",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://www.mondoze.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-nexkr",
+    "providerId": "nexkr",
+    "provider": "NexKr",
+    "category": "home",
+    "adapter": "public_catalog",
+    "url": "https://nexkr.sh/app/shop",
+    "discover": false,
+    "maxPages": 1,
+    "requestIntervalMs": 2000,
+    "accessNote": "商店页 /app/shop 需登录（SPA 路由强制跳转 /app/auth），公开首页无套餐信息；不能据此判断库存。"
+  },
+  {
+    "id": "catalog-tamago",
+    "providerId": "tamago",
+    "provider": "Tamago Network",
+    "category": "home",
+    "adapter": "public_catalog",
+    "url": "https://tamago.network/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-666clouds",
+    "providerId": "666clouds",
+    "provider": "六六云(666Clouds)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://666clouds.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-blossomhost",
+    "providerId": "blossomhost",
+    "provider": "BlossomHost",
+    "category": "home",
+    "adapter": "public_catalog",
+    "url": "https://blossomhost.us/",
+    "requestIntervalMs": 2000,
+    "maxPages": 8
+  },
+  {
+    "id": "catalog-cloudsilk",
+    "providerId": "cloudsilk",
+    "provider": "CloudSilk(白丝云)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://cloudsilk.io/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-dataonline",
+    "providerId": "dataonline",
+    "provider": "DataOnline",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://my.dataonline.vn/cart/cloud-vps-vn/",
+    "catalogUrls": [
+      "https://my.dataonline.vn/cart/vps-ai-openclaw/",
+      "https://my.dataonline.vn/cart/vps-nuoc-ngoai/"
+    ],
+    "catalogFormat": "hostbill-onestep",
+    "discover": false,
+    "maxPages": 3,
+    "requestIntervalMs": 2000,
+    "accessNote": "官方 HostBill 公开订购页（VND 计价）；未公开库存数量。"
+  },
+  {
+    "id": "catalog-fxtransit",
+    "providerId": "fxtransit",
+    "provider": "FXTRANSIT",
+    "category": "vps",
+    "adapter": "public_catalog",
+    "catalogFormat": "100tb",
+    "url": "https://fxtransit.io/api/v1/services/products",
+    "website": "https://fxtransit.io/store",
+    "requestIntervalMs": 2000,
+    "discover": false,
+    "maxPages": 1
+  },
+  {
+    "id": "catalog-gatewaysentry",
+    "providerId": "gatewaysentry",
+    "provider": "GatewaySentry",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://gatewaysentry.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 8
+  },
+  {
+    "id": "catalog-goldcloud",
+    "providerId": "goldcloud",
+    "provider": "GoldCloud",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://goldcloud.dev/api/v1/products",
+    "catalogFormat": "goldcloud",
+    "discover": false,
+    "maxPages": 1,
+    "requestIntervalMs": 2000,
+    "accessNote": "官方商店 my.goldcloud.dev/products 匿名加载的公开产品接口（含实时库存数）；下单需登录。"
+  },
+  {
+    "id": "catalog-goodlycloud",
+    "providerId": "goodlycloud",
+    "provider": "GoodlyCloud(吉云)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://goodlyclouds.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-hostblazer",
+    "providerId": "hostblazer",
+    "provider": "HostBlazer",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://hostblazer.net/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-iaclouds",
+    "providerId": "iaclouds",
+    "provider": "破云 BreaCloud（原 艾云）",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://brea.cloud/api/v1/products?currency=HKD",
+    "catalogFormat": "breacloud",
+    "discover": false,
+    "maxPages": 1,
+    "requestIntervalMs": 2000,
+    "accessNote": "官方 /products 页匿名加载的产品 API（HKD，百万分位金额）；地区池 available=false 视为地区已满。"
+  },
+  {
+    "id": "catalog-ipmela",
+    "providerId": "ipmela",
+    "provider": "IPMELA",
+    "category": "home",
+    "adapter": "public_catalog",
+    "url": "https://ipmela.com/clients/store/residential-rdp",
+    "catalogUrls": [
+      "https://ipmela.com/clients/store/private-windows-rdp-usa"
+    ],
+    "discover": false,
+    "requestIntervalMs": 2000,
+    "maxPages": 2
+  },
+  {
+    "id": "catalog-langya",
+    "providerId": "langya",
+    "provider": "Langya",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://langya.io/",
+    "discover": false,
+    "maxPages": 1,
+    "requestIntervalMs": 2000,
+    "accessNote": "langya.io 为个人/AS213876 NOC 主页，未发布任何 VPS 套餐、价格或下单入口。"
+  },
+  {
+    "id": "catalog-lazycat",
+    "providerId": "lazycat",
+    "provider": "LazyCatCloud(懒猫云)",
+    "category": "home",
+    "adapter": "public_catalog",
+    "url": "https://dash.lazycat.wiki/api/packages/public/regions",
+    "catalogUrls": [
+      "https://dash.lazycat.wiki/api/packages/public"
+    ],
+    "catalogFormat": "lazycat",
+    "discover": false,
+    "maxPages": 2,
+    "requestIntervalMs": 2000,
+    "accessNote": "官方公开套餐 API（门户页匿名加载）；VIP 专享套餐标记为 unknown，下单需登录。"
+  },
+  {
+    "id": "catalog-legendvps",
+    "providerId": "legendvps",
+    "provider": "LegendVPS",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://legendvps.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-lightnode",
+    "providerId": "lightnode",
+    "provider": "LightNode",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://go.lightnode.com/the-united-states-vps",
+    "catalogUrls": [
+      "https://go.lightnode.com/washington-vps",
+      "https://go.lightnode.com/mexico-vps",
+      "https://go.lightnode.com/brazil-vps",
+      "https://go.lightnode.com/argentina-vps",
+      "https://go.lightnode.com/chile-vps",
+      "https://go.lightnode.com/colombia-vps",
+      "https://go.lightnode.com/lightnode-lima-vps",
+      "https://go.lightnode.com/germany-vps",
+      "https://go.lightnode.com/bulgaria-vps",
+      "https://go.lightnode.com/greece-vps",
+      "https://go.lightnode.com/london-vps",
+      "https://go.lightnode.com/marseille-vps",
+      "https://go.lightnode.com/russia-vps",
+      "https://go.lightnode.com/south-africa-vps",
+      "https://go.lightnode.com/egypt-vps",
+      "https://go.lightnode.com/turkey-vps",
+      "https://go.lightnode.com/saudi-arabia-vps",
+      "https://go.lightnode.com/jeddah-vps",
+      "https://go.lightnode.com/the-united-arab-emirates-vps"
+    ],
+    "catalogFormat": "lightnode",
+    "discover": false,
+    "requestIntervalMs": 2000,
+    "maxPages": 20,
+    "accessNote": "区域落地页标准套餐；下单需登录控制台，库存接口需客户端签名，不采集库存。"
+  },
+  {
+    "id": "catalog-lightnode-asia",
+    "providerId": "lightnode",
+    "provider": "LightNode",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://go.lightnode.com/bahrain-vps",
+    "catalogUrls": [
+      "https://go.lightnode.com/oman-vps",
+      "https://go.lightnode.com/kuwait-vps",
+      "https://go.lightnode.com/iraq-vps",
+      "https://go.lightnode.com/qatar-vps",
+      "https://go.lightnode.com/thailand-vps",
+      "https://go.lightnode.com/hanoi-vps",
+      "https://go.lightnode.com/vietnam-vps",
+      "https://go.lightnode.com/cambodia-vps",
+      "https://go.lightnode.com/singapore-vps",
+      "https://go.lightnode.com/philippines-vps",
+      "https://go.lightnode.com/malaysia-vps",
+      "https://go.lightnode.com/indonesia-vps",
+      "https://go.lightnode.com/myanmar-vps",
+      "https://go.lightnode.com/hong-kong-vps",
+      "https://go.lightnode.com/taiwan-vps",
+      "https://go.lightnode.com/korea-vps",
+      "https://go.lightnode.com/japan-vps",
+      "https://go.lightnode.com/bangladesh-vps",
+      "https://go.lightnode.com/pakistan-vps",
+      "https://go.lightnode.com/nepal-vps"
+    ],
+    "catalogFormat": "lightnode",
+    "discover": false,
+    "requestIntervalMs": 2000,
+    "maxPages": 21,
+    "accessNote": "同上（亚洲/中东区域）。"
+  },
+  {
+    "id": "catalog-misaka",
+    "providerId": "misaka",
+    "provider": "Misaka",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://www.misaka.io/locations/hongkong",
+    "catalogUrls": [
+      "https://www.misaka.io/locations/tokyo",
+      "https://www.misaka.io/locations/singapore",
+      "https://www.misaka.io/locations/taipei",
+      "https://www.misaka.io/locations/losangeles",
+      "https://www.misaka.io/locations/sanjose",
+      "https://www.misaka.io/locations/seattle",
+      "https://www.misaka.io/locations/kansas",
+      "https://www.misaka.io/locations/miami",
+      "https://www.misaka.io/locations/ashburn",
+      "https://www.misaka.io/locations/newyork",
+      "https://www.misaka.io/locations/montreal",
+      "https://www.misaka.io/locations/saopaulo",
+      "https://www.misaka.io/locations/johannesburg",
+      "https://www.misaka.io/locations/lagos",
+      "https://www.misaka.io/locations/amsterdam",
+      "https://www.misaka.io/locations/london",
+      "https://www.misaka.io/locations/berlin",
+      "https://www.misaka.io/locations/frankfurt"
+    ],
+    "catalogFormat": "misaka",
+    "discover": false,
+    "maxPages": 19,
+    "requestIntervalMs": 2000,
+    "accessNote": "官网各机房页服务端渲染库存表（Deploy 链接=可部署，Sold out=售罄）；官方注明库存以结算为准。本源覆盖亚太/美洲/非洲及核心欧洲机房，其余欧洲边缘机房见 catalog-misaka-europe。"
+  },
+  {
+    "id": "catalog-misaka-europe",
+    "providerId": "misaka",
+    "provider": "Misaka",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://www.misaka.io/locations/athens",
+    "catalogUrls": [
+      "https://www.misaka.io/locations/brussels",
+      "https://www.misaka.io/locations/marseille",
+      "https://www.misaka.io/locations/bordeaux",
+      "https://www.misaka.io/locations/madrid",
+      "https://www.misaka.io/locations/milan",
+      "https://www.misaka.io/locations/bucharest",
+      "https://www.misaka.io/locations/zurich",
+      "https://www.misaka.io/locations/vienna",
+      "https://www.misaka.io/locations/copenhagen",
+      "https://www.misaka.io/locations/stockholm",
+      "https://www.misaka.io/locations/oslo",
+      "https://www.misaka.io/locations/warsaw",
+      "https://www.misaka.io/locations/istanbul",
+      "https://www.misaka.io/locations/lisbon",
+      "https://www.misaka.io/locations/dublin",
+      "https://www.misaka.io/locations/kyiv",
+      "https://www.misaka.io/locations/zagreb",
+      "https://www.misaka.io/locations/prague"
+    ],
+    "catalogFormat": "misaka",
+    "discover": false,
+    "maxPages": 19,
+    "requestIntervalMs": 2000,
+    "accessNote": "官网各机房页服务端渲染库存表（Deploy 链接=可部署，Sold out=售罄）；官方注明库存以结算为准。本源覆盖欧洲边缘机房。"
+  },
+  {
+    "id": "catalog-orangevps",
+    "providerId": "orangevps",
+    "provider": "OrangeVPS",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://orangevps.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-panstar",
+    "providerId": "panstar",
+    "provider": "PanstarCloud",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://panstar.ai/",
+    "requestIntervalMs": 2000,
+    "maxPages": 8
+  },
+  {
+    "id": "catalog-radonet",
+    "providerId": "radonet",
+    "provider": "RadoNet",
+    "category": "home",
+    "adapter": "public_catalog",
+    "url": "https://radonet.co.uk/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-residentialvps",
+    "providerId": "residentialvps",
+    "provider": "ResidentialVPS",
+    "category": "home",
+    "adapter": "public_catalog",
+    "url": "https://www.residentialvps.com/",
+    "catalogUrls": [
+      "https://www.residentialvps.com/residential-vps/"
+    ],
+    "requestIntervalMs": 2000,
+    "maxPages": 8
+  },
+  {
+    "id": "catalog-shandun",
+    "providerId": "shandun",
+    "provider": "ShanDun Network",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://www.shandun.net/console/v1/product?id=11&page=1&limit=12",
+    "catalogUrls": [
+      "https://www.shandun.net/console/v1/product?id=12&page=1&limit=12",
+      "https://www.shandun.net/console/v1/product?id=13&page=1&limit=12",
+      "https://www.shandun.net/console/v1/product?id=14&page=1&limit=12"
+    ],
+    "catalogFormat": "shandun",
+    "discover": false,
+    "maxPages": 4,
+    "requestIntervalMs": 2000,
+    "accessNote": "官网云服务器页公开调用的商品列表 API；售罄判定与官方商店一致（stock_control=1 且 qty≤0）。价格为可配置机型起步价。"
+  },
+  {
+    "id": "catalog-terabix",
+    "providerId": "terabix",
+    "provider": "Terabix",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://clients.terabix.net/",
+    "catalogUrls": [
+      "https://terabix.net/"
+    ],
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-tothost",
+    "providerId": "tothost",
+    "provider": "TOTHOST",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://billing.tothost.vn/store/vps-ssd-k-plans",
+    "catalogUrls": [
+      "https://billing.tothost.vn/store/vps-m",
+      "https://billing.tothost.vn/store/vps-ssd-d-plans",
+      "https://billing.tothost.vn/store/vps-gt",
+      "https://billing.tothost.vn/store/tot-gpu",
+      "https://billing.tothost.vn/store/reseller-cloud-vps",
+      "https://billing.tothost.vn/store/vps-tot-w"
+    ],
+    "discover": false,
+    "requestIntervalMs": 2000,
+    "maxPages": 7
+  },
+  {
+    "id": "catalog-vmvm",
+    "providerId": "vmvm",
+    "provider": "VMVM",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://www.vmvm.io/",
+    "requestIntervalMs": 2000,
+    "maxPages": 4
+  },
+  {
+    "id": "catalog-vpstaxi",
+    "providerId": "vpstaxi",
+    "provider": "VPSTAXI",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://vps.taxi/",
+    "catalogUrls": [
+      "https://my.vps.taxi/"
+    ],
+    "requestIntervalMs": 2000,
+    "maxPages": 24
+  },
+  {
+    "id": "catalog-webhorizon",
+    "providerId": "webhorizon",
+    "provider": "WebHorizon",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://clients.webhorizon.net/?/cart/kvm-virtual-servers-norway/",
+    "catalogUrls": [
+      "https://clients.webhorizon.net/?/cart/kvm-virtual-servers-netherlands/",
+      "https://clients.webhorizon.net/?/cart/singapore-epyc/",
+      "https://clients.webhorizon.net/?/cart/japan-epyc/",
+      "https://clients.webhorizon.net/?/cart/vdedicated-servers-singapore/",
+      "https://clients.webhorizon.net/?/cart/vdedicated-servers-japan/",
+      "https://clients.webhorizon.net/?/cart/vdedicated-servers-netherlands/",
+      "https://clients.webhorizon.net/?/cart/performance-ryzen-vps-india/",
+      "https://clients.webhorizon.net/?/cart/performance-ryzen-vps-singapore/"
+    ],
+    "catalogFormat": "hostbill-onestep",
+    "discover": false,
+    "maxPages": 9,
+    "requestIntervalMs": 2000,
+    "accessNote": "官方 HostBill 公开订购页；outofstock 标记为缺货，未公开具体库存数量。"
+  },
+  {
+    "id": "catalog-wepc",
+    "providerId": "wepc",
+    "provider": "WePC(车库云)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://wepc.au/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-wlx",
+    "providerId": "wlx",
+    "provider": "WLX",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://wlx.hk/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-zouter",
+    "providerId": "zouter",
+    "provider": "Zouter",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://www.zouter.io/",
+    "requestIntervalMs": 2000,
+    "maxPages": 8
+  },
+  {
+    "id": "catalog-ppflight",
+    "providerId": "ppflight",
+    "provider": "PPFlight",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://www.ppflight.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-hostdzire",
+    "providerId": "hostdzire",
+    "provider": "HostDzire",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://hostdzire.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-jdidc",
+    "providerId": "jdidc",
+    "provider": "JDIDC",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "catalogFormat": "jdidc",
+    "url": "https://www.jdidc.cn/api/common/prolist-proxy.php",
+    "website": "https://www.jdidc.cn/",
+    "currency": "CNY",
+    "coverageNote": "已覆盖官方公开商品接口中的云服务器与双 ISP 住宅云套餐，自动排除物理机、CDN 与面板服。",
+    "requestIntervalMs": 2000,
+    "discover": false,
+    "maxPages": 1
+  },
+  {
+    "id": "catalog-nosla",
+    "providerId": "nosla",
+    "provider": "NOSLA",
+    "category": "vps",
+    "adapter": "public_catalog",
+    "catalogFormat": "nosla",
+    "url": "https://ccp.nosla.cloud/order/main/index/tyo-pre-nor",
+    "catalogUrls": [
+      "https://ccp.nosla.cloud/order/main/index/lax-promo",
+      "https://ccp.nosla.cloud/order/main/index/lax-std-mon",
+      "https://ccp.nosla.cloud/order/main/index/sjc-pre-mon",
+      "https://ccp.nosla.cloud/order/main/index/fra-pre-mon"
+    ],
+    "currency": "CNY",
+    "coverageNote": "已覆盖官方 Blesta 公开订购页中的东京、洛杉矶、圣何塞、法兰克福 5 个产品组。",
+    "requestIntervalMs": 2000,
+    "discover": false,
+    "maxPages": 5
+  },
+  {
+    "id": "catalog-peekabo",
+    "providerId": "peekabo",
+    "provider": "Peekabo Networks",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://peekabo.io/",
+    "discover": false,
+    "maxPages": 1,
+    "requestIntervalMs": 2000,
+    "accessNote": "官方公开商店当前仅展示 Photon CDN 加速套餐，未公开固定 VPS 套餐目录。"
+  },
+  {
+    "id": "catalog-breadcloud",
+    "providerId": "breadcloud",
+    "provider": "BreadCloud",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://breadcloud.io/",
+    "requestIntervalMs": 2000,
+    "maxPages": 8
+  },
+  {
+    "id": "catalog-buyvm",
+    "providerId": "buyvm",
+    "provider": "BuyVM",
+    "category": "vps",
+    "adapter": "public_catalog",
+    "url": "https://buyvm.net/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-coffeehost",
+    "providerId": "coffeehost",
+    "provider": "CoffeeHost",
+    "category": "vps",
+    "adapter": "public_catalog",
+    "url": "https://coffeehost.net/products/vps.html",
+    "currency": "TWD",
+    "coverageNote": "已覆盖官方台湾 VPS 云端主机页面（新台币计价），已排除 Minecraft 等游戏主机产品组。",
+    "requestIntervalMs": 2000,
+    "discover": false,
+    "maxPages": 1
+  },
+  {
+    "id": "catalog-dedirock",
+    "providerId": "dedirock",
+    "provider": "DediRock",
+    "category": "vps",
+    "adapter": "public_catalog",
+    "url": "https://dedirock.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-halocloud",
+    "providerId": "halocloud",
+    "provider": "HaloCloud",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://www.halocloudnet.com/",
+    "catalogUrls": [
+      "https://my.halocloud.net/"
+    ],
+    "allowedOrigins": [
+      "https://my.halocloud.net"
+    ],
+    "requestIntervalMs": 2000,
+    "maxPages": 8
+  },
+  {
+    "id": "catalog-hhost",
+    "providerId": "hhost",
+    "provider": "HHost",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://members.hhost.com/Console/Cloud/getPlans",
+    "catalogFormat": "hhost",
+    "discover": false,
+    "maxPages": 1,
+    "requestIntervalMs": 2000,
+    "accessNote": "官网套餐链接的会员中心游客页（#/affCloud）匿名加载的云服务器套餐 API；仅含云服务器，不含独立服务器。"
+  },
+  {
+    "id": "catalog-highendnetwork",
+    "providerId": "highendnetwork",
+    "provider": "HighEndNetwork",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://billing.highendnetwork.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-hkcloudx",
+    "providerId": "hkcloudx",
+    "provider": "HKCloudX",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://hkcloudx.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-hosthatch",
+    "providerId": "hosthatch",
+    "provider": "HostHatch",
+    "category": "vps",
+    "adapter": "public_catalog",
+    "url": "https://hosthatch.com/js/app.js",
+    "catalogFormat": "hosthatch",
+    "discover": false,
+    "maxPages": 1,
+    "requestIntervalMs": 2000,
+    "accessNote": "官网 hosthatch.com/products 为 Vue SPA，套餐与价格内置于官方 js/app.js；官网不公开库存，部署需登录 cloud.hosthatch.com，状态一律为库存未公开。"
+  },
+  {
+    "id": "catalog-jtti",
+    "providerId": "jtti",
+    "provider": "JTTI",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://www.jtti.cc/",
+    "catalogUrls": [
+      "https://www.jtti.cc/light_cloud.html"
+    ],
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-kfchost",
+    "providerId": "kfchost",
+    "provider": "KFCHost",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://kfchost.com/api/front/get-ecs-products?region=jp",
+    "catalogFormat": "kfchost",
+    "discover": false,
+    "maxPages": 1,
+    "requestIntervalMs": 2000,
+    "accessNote": "官方 /center/pricing 页加载的 ECS 套餐 API（GET 可用）；价格取 price_json 标价，is_sell_out=1 为售罄；地区列表接口仅 POST，当前仅日本区。"
+  },
+  {
+    "id": "catalog-lamhosting",
+    "providerId": "lamhosting",
+    "provider": "LamHosting",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://lamhosting.com/",
+    "requestIntervalMs": 2000,
+    "maxPages": 24
+  },
+  {
+    "id": "catalog-nobrand",
+    "providerId": "nobrand",
+    "provider": "NoBrand",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://cloud.nbdnet.com/",
+    "discover": false,
+    "maxPages": 1,
+    "requestIntervalMs": 2000,
+    "accessNote": "旧站 cloud.nbdnet.com 已公告仅续费（新站 nnb.ltd），分类页 404 或仅有 BGP/Transit/托管，无 VPS 套餐；新站为按资源小时计费、无固定套餐。"
+  },
+  {
+    "id": "catalog-vmshell",
+    "providerId": "vmshell",
+    "provider": "VmShell",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://vmshell.com/index.php?rp=/store/cmin2hk",
+    "catalogUrls": [
+      "https://vmshell.com/index.php?rp=/store/usa-vps",
+      "https://vmshell.com/"
+    ],
+    "discover": false,
+    "requestIntervalMs": 2000,
+    "maxPages": 3,
+    "accessNote": "站点有 CC 验证跳转（/GE/CC/VALIDATOR），偶发 403 时记为受限，不绕过。"
+  },
+  {
+    "id": "catalog-wawo",
+    "providerId": "wawo",
+    "provider": "wawo(哇沃主机)",
+    "category": "unclassified",
+    "adapter": "public_catalog",
+    "url": "https://wawo.wiki/",
+    "requestIntervalMs": 2000,
+    "maxPages": 12
+  },
+  {
+    "id": "catalog-jindouyun",
+    "providerId": "jindouyun",
+    "provider": "筋斗云",
+    "category": "home",
+    "adapter": "public_catalog",
+    "url": "https://www.nimbus.com.tw/",
+    "currency": "TWD",
+    "requestIntervalMs": 2000,
+    "maxPages": 24
   }
 ]

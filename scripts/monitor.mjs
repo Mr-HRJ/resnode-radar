@@ -1,34 +1,54 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { setTimeout as delay } from "node:timers/promises";
 import { URL } from "node:url";
 import { parse } from "node-html-parser";
 import { parseLagomProductList } from "./adapters/lagom-product-list.mjs";
 import { parseZlidcProductWrap } from "./adapters/zlidc-product-wrap.mjs";
 import { parseRacknerdKvm } from "./adapters/racknerd-kvm.mjs";
 import { monitorPublicCatalog } from "./adapters/public-catalog.mjs";
-import { buildSkylinePublicCatalogRequest, buildNeburstPublicCatalogRequest, NEBURST_PUBLIC_CATALOG_URL } from "./adapters/dynamic-catalogs.mjs";
+import { monitorWhmcsPidWatch } from "./adapters/whmcs-pid-watch.mjs";
+import {
+  buildSkylinePublicCatalogRequest,
+  buildNeburstPublicCatalogRequest,
+  hasSkylinePublicKey,
+  discoverSkylineChunkUrls,
+  NEBURST_PUBLIC_CATALOG_URL
+} from "./adapters/dynamic-catalogs.mjs";
 import { cleanPublicUrl, catalogUrlAllowed } from "./adapters/catalog-pages.mjs";
 import { createOriginPacer } from "./request-pacing.mjs";
 import { trackEvents } from "./radar-events.mjs";
 import { readFxSnapshot } from "./fx-rates.mjs";
+import { validateMonitorPayload } from "./validate-monitor-data.mjs";
+import { hasSharedIpEvidence } from "../src/domain/network.js";
 
 // Read persisted state before collection. FX refresh is a separate command, so
 // importing/running the monitor never adds a currency-provider request.
+const outputPath = process.env.MONITOR_OUTPUT || "data/products.json";
 let previousPayload = null;
 try {
-  previousPayload = JSON.parse(readFileSync("data/products.json", "utf8"));
+  previousPayload = JSON.parse(readFileSync(outputPath, "utf8"));
 } catch (error) {
   if (error.code !== "ENOENT") console.warn(`Previous monitor snapshot unavailable: ${error.message}`);
 }
 const exchangeRates = readFxSnapshot();
-const sources = JSON.parse(readFileSync("monitor/sources.json", "utf8"));
+const allSources = JSON.parse(readFileSync("monitor/sources.json", "utf8"));
+// MONITOR_ONLY=id1,id2 limits a debugging run to selected sources; production runs leave it unset.
+const onlySourceIds = new Set(String(process.env.MONITOR_ONLY ?? "").split(",").map((id) => id.trim()).filter(Boolean));
+if (onlySourceIds.size && !process.env.MONITOR_OUTPUT) throw new Error("MONITOR_ONLY requires MONITOR_OUTPUT to protect the full snapshot");
+const sources = onlySourceIds.size ? allSources.filter((source) => onlySourceIds.has(source.id)) : allSources;
 const generatedAt = new Date().toISOString();
 const userAgent = "Mozilla/5.0 ResNodeRadar/0.2 (+https://github.com/Mr-HRJ/resnode-radar)";
 const execFileAsync = promisify(execFile);
 const antiBotPattern = /Just a moment|cf_chl|challenge-platform|Enable JavaScript and cookies|cf-turnstile|正在进行安全验证|Cloudflare Ray ID|cf-mitigated/i;
-const monitorConcurrency = Number(process.env.MONITOR_CONCURRENCY ?? 5);
+// Requests are paced per origin, so parallel lanes for different origins stay polite while
+// keeping a full run comfortably inside the 10-minute collection cadence.
+const monitorConcurrency = Math.max(1, Number(process.env.MONITOR_CONCURRENCY ?? 12));
 const fetchRetries = Number(process.env.MONITOR_FETCH_RETRIES ?? 2);
+const fetchTimeoutMs = Number(process.env.MONITOR_FETCH_TIMEOUT_MS ?? 20000);
+const sourceTimeBudgetMs = Number(process.env.MONITOR_SOURCE_BUDGET_MS ?? 150000);
 const waitForRequestSlot = createOriginPacer();
 
 function cleanText(value) {
@@ -137,7 +157,7 @@ function riskTags(product) {
 
   const missingFields = ["region", "route", "hardware", "bandwidth"].filter((field) => !cleanText(product[field]));
   if (missingFields.length > 0) addRiskTag(tags, "incomplete-fields", "字段不完整", "medium");
-  if (/NAT|共享|shared/i.test(evidence)) addRiskTag(tags, "nat-shared", "NAT/共享", "medium");
+  if (hasSharedIpEvidence(product)) addRiskTag(tags, "nat-shared", "NAT/共享", "medium");
   if (/实名|实名认证|KYC|需要认证/i.test(evidence)) addRiskTag(tags, "identity-required", "需要实名", "high");
   if (/无退款|不退款|no refund|non[-\s]?refundable/i.test(evidence)) addRiskTag(tags, "refund-limited", "退款限制", "medium");
   if (/预售|pre[-\s]?order|support confirmation|客服确认|人工确认/i.test(evidence)) {
@@ -167,6 +187,7 @@ function aaitrUrl(targetUrl, baseUrl) {
 }
 
 async function fetchHtml(source, targetUrl = source.url, restrictAaitr = false) {
+  source.signal?.throwIfAborted();
   const restrictCatalog = source.adapter === "public_catalog";
   const validateUrl = (value, base) => {
     if (restrictAaitr) return aaitrUrl(value, base);
@@ -183,18 +204,38 @@ async function fetchHtml(source, targetUrl = source.url, restrictAaitr = false) 
   }
   let publicClientScript = null;
   if (source.catalogFormat === "skyline") {
-    if (initialUrl !== "https://api.skylineconnect.io/v1/api/payment/payment_product_list" || !source.publicClientScript) {
-      throw new Error("Skyline collection requires its public product-list URL and published client script");
+    if (initialUrl !== "https://api.skylineconnect.io/v1/api/payment/payment_product_list") {
+      throw new Error("Skyline collection requires its public product-list URL");
     }
-    const client = await fetchHtml({ ...source, catalogFormat: null }, source.publicClientScript);
-    if (!client.ok) throw new Error(`Skyline public client script returned HTTP ${client.statusCode}`);
-    publicClientScript = client.html;
+    const probeSource = { ...source, catalogFormat: null, requestIntervalMs: Math.min(source.requestIntervalMs ?? 2000, 300) };
+    if (source.publicClientScript) {
+      const client = await fetchHtml(probeSource, source.publicClientScript);
+      if (client.ok && hasSkylinePublicKey(client.html)) {
+        publicClientScript = client.html;
+      }
+    }
+    if (!publicClientScript) {
+      const entryUrl = source.website || "https://www.skylineconnect.io/products";
+      const page = await fetchHtml(probeSource, entryUrl);
+      if (!page.ok) throw new Error(`Skyline public storefront returned HTTP ${page.statusCode}`);
+      const chunkUrls = discoverSkylineChunkUrls(page.html, page.finalUrl || entryUrl).slice(0, 30);
+      for (const chunkUrl of chunkUrls) {
+        const chunk = await fetchHtml(probeSource, chunkUrl);
+        if (chunk.ok && hasSkylinePublicKey(chunk.html)) {
+          publicClientScript = chunk.html;
+          break;
+        }
+      }
+      if (!publicClientScript) {
+        throw new Error("Skyline published public encryption key not found in official client bundles");
+      }
+    }
   }
   let lastError;
   for (let attempt = 0; attempt <= fetchRetries; attempt += 1) {
-    await waitForRequestSlot(initialUrl, source.requestIntervalMs);
+    await waitForRequestSlot(initialUrl, source.requestIntervalMs, source.signal);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
+    const timeout = setTimeout(() => controller.abort(), fetchTimeoutMs);
     try {
       let currentUrl = initialUrl;
       let response;
@@ -209,7 +250,7 @@ async function fetchHtml(source, targetUrl = source.url, restrictAaitr = false) 
             ...publicRequest?.headers
           },
           redirect: restrictAaitr || restrictCatalog ? "manual" : "follow",
-          signal: controller.signal
+          signal: source.signal ? AbortSignal.any([controller.signal, source.signal]) : controller.signal
         });
         const location = response.headers.get("location");
         if (!(restrictAaitr || restrictCatalog) || ![301, 302, 303, 307, 308].includes(response.status) || !location) break;
@@ -217,6 +258,7 @@ async function fetchHtml(source, targetUrl = source.url, restrictAaitr = false) 
         if (publicRequest) throw new Error(`${source.provider} public catalog redirected unexpectedly`);
         if (redirects === 20) throw new Error("AaITR HTTP redirect limit exceeded");
         currentUrl = validateUrl(location, currentUrl);
+        await waitForRequestSlot(currentUrl, source.requestIntervalMs, source.signal);
       }
       const html = await response.text();
       return {
@@ -227,9 +269,10 @@ async function fetchHtml(source, targetUrl = source.url, restrictAaitr = false) 
         html
       };
     } catch (error) {
+      source.signal?.throwIfAborted();
       lastError = error;
       if (attempt === fetchRetries) break;
-      await new Promise((resolve) => setTimeout(resolve, 800 * (attempt + 1)));
+      await delay(800 * (attempt + 1), undefined, { signal: source.signal });
     } finally {
       clearTimeout(timeout);
     }
@@ -263,6 +306,7 @@ function baseRecord(source, fetchResult, extra = {}) {
 
 function blockedRecord(source, fetchResult, reason, extra = {}) {
   return baseRecord(source, fetchResult, {
+    diagnostic: true,
     name: `${source.provider} 监控源`,
     status: "blocked",
     statusLabel: "被阻断",
@@ -279,7 +323,10 @@ function blockedRecord(source, fetchResult, reason, extra = {}) {
 }
 
 function errorRecord(source, error, extra = {}) {
+  const transportCode = /^[A-Z][A-Z0-9_]+$/.test(error.cause?.code ?? "") ? error.cause.code : null;
+  const message = `${error.message}${transportCode ? ` [${transportCode}]` : ""}`;
   return baseRecord(source, null, {
+    diagnostic: true,
     name: `${source.provider} 监控源`,
     status: "error",
     statusLabel: "抓取失败",
@@ -289,8 +336,8 @@ function errorRecord(source, error, extra = {}) {
     bandwidth: null,
     stockCount: null,
     orderUrl: source.url,
-    evidence: error.message,
-    error: error.message,
+    evidence: message,
+    error: message,
     ...extra
   });
 }
@@ -374,14 +421,20 @@ function parseWhmcsGroup(source, fetchResult) {
     const priceCore = cleanText(card.querySelector(".price-cls")?.text);
     const period = cleanText(card.querySelector(".text-small.text-muted")?.text);
     const order = card.querySelector('a[href*="cart.php?a=add"]');
-    const orderUrl = absoluteUrl(source.url, order?.getAttribute("href"));
-    const pid = orderUrl ? new URL(orderUrl).searchParams.get("pid") : String(index + 1);
+    const linkedUrl = absoluteUrl(fetchResult.finalUrl || source.url, order?.getAttribute("href"));
+    const orderUrl = order && !order.hasAttribute("disabled") && order.getAttribute("aria-disabled") !== "true" && !order.classList.contains("disabled") ? linkedUrl : null;
+    const pid = linkedUrl ? new URL(linkedUrl).searchParams.get("pid") : String(index + 1);
     const features = featureMap(card);
     const hardware = cleanText([features.CPU, features["内存"], features["硬盘"]].filter(Boolean).join(" / "));
     const bandwidth = cleanText([features["带宽"], features["流量"], features.IP].filter(Boolean).join(" / "));
     const description = cleanText(card.querySelector("p")?.text);
     const orderText = cleanText(order?.text);
     const price = priceCore ? `${priceCore}${period ? `/${period}` : ""}` : null;
+    const visibleText = cleanText(card.structuredText);
+    const soldOut = /Sold Out|Out of Stock|售罄|缺货|無庫存|无库存/i.test(visibleText);
+    const stock = visibleText.match(/(?:库存|庫存)\s*[:：]?\s*(\d+)|(\d+)\s*(?:可用|Available\b|in stock\b)/i);
+    const count = soldOut ? 0 : stock ? Number(stock[1] ?? stock[2]) : null;
+    const status = count === 0 ? "unavailable" : orderUrl ? "available" : "unknown";
 
     return baseRecord(source, fetchResult, {
       id: `${source.id}-pid-${pid}`,
@@ -393,11 +446,11 @@ function parseWhmcsGroup(source, fetchResult) {
       bandwidth,
       price,
       priceValue: parsePriceValue(priceCore),
-      status: orderUrl ? "available" : "unknown",
-      statusLabel: orderUrl ? "可订购" : "未知",
-      stockCount: null,
+      status,
+      statusLabel: status === "unavailable" ? "已售罄" : status === "available" ? (count === null ? "可订购入口" : `库存 ${count}`) : "未知",
+      stockCount: count,
       orderUrl,
-      evidence: orderUrl ? `WHMCS order link found; pid=${pid}; button=${orderText}` : "WHMCS product card found without order link",
+      evidence: `WHMCS product card; pid=${pid}; stock=${count ?? "not stated"}; order=${Boolean(orderUrl)}; button=${orderText}`,
       raw: {
         pid,
         features,
@@ -659,8 +712,9 @@ function parseAaitrReaderSnapshot(source, fetchResult, sourcePageUrl, attempt) {
     const hardware = cleanText([features.CPU, features["内存"] ?? features.RAM, features["硬盘"] ?? features.Disk].filter(Boolean).join(" / "));
     const bandwidth = cleanText([features["带宽"] ?? features.Bandwidth, features["流量"] ?? features.Traffic, features["转发"] ?? features["Port Forwarding"]].filter(Boolean).join(" / "));
     const route = features.IP ?? features.T ?? source.routeHint ?? null;
-    const status = statusFromSnapshotStock(block.stockLabel, bodyText);
-    const statusLabel = status === "available" ? `快照: ${block.stockLabel}` : status === "unavailable" ? `快照: ${block.stockLabel}` : "快照: 未知";
+    const snapshotStatus = statusFromSnapshotStock(block.stockLabel, bodyText);
+    const status = "unknown";
+    const statusLabel = `快照: ${block.stockLabel}（实时库存未确认）`;
     const price = extractAaitrPrice(bodyText);
 
     return baseRecord(source, fetchResult, {
@@ -679,6 +733,7 @@ function parseAaitrReaderSnapshot(source, fetchResult, sourcePageUrl, attempt) {
       orderUrl: sourcePageUrl,
       evidence: `AaITR reader_snapshot parsed ${sourcePageUrl}; stock=${block.stockLabel}; no parseable official product data obtained; see attempts`,
       raw: {
+        snapshotStatus,
         stockLabel: block.stockLabel,
         features,
         strategy: "reader_snapshot",
@@ -720,7 +775,7 @@ async function renderWithChrome(source, targetUrl, chromeBin) {
       "--dump-dom",
       targetUrl
     ],
-    { timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 }
+    { timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024, signal: source.signal }
   );
   return {
     ok: true,
@@ -890,7 +945,13 @@ async function monitorAaitrStore(source) {
 async function monitorSource(source) {
   try {
     if (source.adapter === "aaitr_store") return await monitorAaitrStore(source);
-    if (source.adapter === "public_catalog") return await monitorPublicCatalog(source, { fetchHtml, isAntiBotResult, baseRecord, blockedRecord, errorRecord });
+    if (source.adapter === "public_catalog") {
+      return await monitorPublicCatalog(source, {
+        fetchHtml, isAntiBotResult, baseRecord, blockedRecord, errorRecord,
+        deadline: source.deadline
+      });
+    }
+    if (source.adapter === "whmcs_pid_watch") return await monitorWhmcsPidWatch(source, { waitForRequestSlot, userAgent, isAntiBotResult, baseRecord, blockedRecord, errorRecord });
 
     const fetchResult = await fetchHtml(source);
     if (source.adapter === "vircs_inertia_product" && new URL(fetchResult.finalUrl).host !== new URL(source.url).host) {
@@ -906,6 +967,7 @@ async function monitorSource(source) {
 
     if (!fetchResult.ok) {
       return [baseRecord(source, fetchResult, {
+        diagnostic: true,
         name: `${source.provider} 监控源`,
         status: "error",
         statusLabel: `HTTP ${fetchResult.statusCode}`,
@@ -950,7 +1012,51 @@ async function mapWithConcurrency(items, limit, mapper) {
   return out;
 }
 
-const products = (await mapWithConcurrency(sources, monitorConcurrency, monitorSource)).flat().map(enrichProductSignals);
+function sourceLaneKey(source) {
+  try {
+    return new URL(source.url).hostname.replace(/^www\./, "");
+  } catch {
+    return source.id;
+  }
+}
+
+// Sources sharing an origin are paced against each other anyway (e.g. 14 ZoroCloud pages at 10 s).
+// Running them as one sequential lane stops them from occupying every worker while they sleep.
+function buildSourceLanes(items) {
+  const lanes = new Map();
+  items.forEach((source, index) => {
+    const key = sourceLaneKey(source);
+    if (!lanes.has(key)) lanes.set(key, []);
+    lanes.get(key).push({ source, index });
+  });
+  return [...lanes.values()].sort((a, b) => b.length - a.length);
+}
+
+async function timedMonitorSource(source) {
+  const startedMs = Date.now();
+  const budget = Number(source.timeBudgetMs ?? sourceTimeBudgetMs);
+  if (!Number.isFinite(budget) || budget <= 0) throw new Error(`Invalid time budget for ${source.id}`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error("Source time budget exceeded; collection is incomplete")), budget);
+  try {
+    const records = await monitorSource({ ...source, signal: controller.signal, deadline: startedMs + budget });
+    return { records, durationMs: Date.now() - startedMs };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const runStartedMs = Date.now();
+const timings = [];
+const resultsBySource = [];
+await mapWithConcurrency(buildSourceLanes(sources), monitorConcurrency, async (lane) => {
+  for (const { source, index } of lane) {
+    const { records, durationMs } = await timedMonitorSource(source);
+    resultsBySource[index] = records;
+    timings.push({ id: source.id, durationMs });
+  }
+});
+const products = resultsBySource.flat().map(enrichProductSignals);
 products.sort((a, b) => statusRank(a.status) - statusRank(b.status) || (a.priceValue ?? 999999) - (b.priceValue ?? 999999));
 
 const summary = products.reduce(
@@ -972,11 +1078,13 @@ const payload = {
   products
 };
 
-if (products.length === 0) {
-  throw new Error("Monitor produced zero records");
-}
+const validationErrors = validateMonitorPayload(payload, { expectedSourceIds: sources.map((source) => source.id) });
+if (validationErrors.length) throw new Error(`Monitor data validation failed: ${validationErrors.slice(0, 5).join("; ")}`);
 
-mkdirSync("data", { recursive: true });
-writeFileSync("data/products.json", `${JSON.stringify(payload, null, 2)}\n`);
-console.log(`Wrote data/products.json with ${products.length} records`);
+mkdirSync(dirname(outputPath), { recursive: true });
+const tempProductsPath = `${outputPath}.${process.pid}.tmp`;
+writeFileSync(tempProductsPath, `${JSON.stringify(payload, null, 2)}\n`);
+renameSync(tempProductsPath, outputPath);
+console.log(`Wrote ${outputPath} with ${products.length} records from ${sources.length} sources in ${((Date.now() - runStartedMs) / 1000).toFixed(1)}s (concurrency ${monitorConcurrency})`);
 console.log(JSON.stringify(summary));
+console.log(`Slowest sources: ${timings.sort((a, b) => b.durationMs - a.durationMs).slice(0, 10).map((t) => `${t.id}=${(t.durationMs / 1000).toFixed(1)}s`).join(", ")}`);

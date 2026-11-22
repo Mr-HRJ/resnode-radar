@@ -32,3 +32,13 @@ test("sources without pacing remain immediate and expired reservations do not ad
   time = 20000;
   await pace("https://merchant.example/b", 10000);
 });
+
+test("a source deadline cancels an origin pacing wait before another HTTP request starts", async () => {
+  const pace = createOriginPacer();
+  await pace("https://merchant.example/a", 60_000);
+  const controller = new AbortController();
+  const pending = pace("https://merchant.example/b", 60_000, controller.signal);
+  controller.abort(new Error("source deadline"));
+  await assert.rejects(pending, /aborted|source deadline/i);
+  await assert.rejects(pace("https://other.example/a", 0, controller.signal), /source deadline/);
+});

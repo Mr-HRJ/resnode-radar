@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { timestampMs } from "./radar-events.mjs";
@@ -86,7 +86,9 @@ export async function updateRates({ filePath = "data/fx.json", fetchImpl = globa
     if (!isFxSnapshot(snapshot)) throw new Error("ECB returned rates dated after the fetch timestamp");
     if (previous && snapshot.date < previous.date) throw new Error(`ECB returned an older reference date (${snapshot.date})`);
     mkdirSync(dirname(resolve(filePath)), { recursive: true });
-    writeFileSync(filePath, `${JSON.stringify(snapshot, null, 2)}\n`);
+    const tempFxPath = `${filePath}.${process.pid}.tmp`;
+    writeFileSync(tempFxPath, `${JSON.stringify(snapshot, null, 2)}\n`);
+    renameSync(tempFxPath, filePath);
     logger.log(`Wrote ${filePath} with ECB reference rates for ${snapshot.date}`);
     return { updated: true, snapshot };
   } catch (error) {
