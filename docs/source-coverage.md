@@ -55,6 +55,8 @@ Live requests from the production VPS showed that several official storefronts r
 
 DataWave's official product API returns an authentication failure (`code: 401`) anonymously; its public homepage has no plans. Remaining WAF/CAPTCHA/login failures stay visible. VMVM's `www.vmvm.io` returns NXDOMAIN through both Google and Cloudflare DNS; the apex `vmvm.io` has no A/AAAA answers. This is an upstream domain issue, not evidence of sold-out stock. `ENOTFOUND` now identifies the failing hostname and skips futile retries within that run; the next scheduled collection still tries again. Temporary `EAI_AGAIN` failures retain retries.
 
+Temporary origin failures (502–504 and 520–524) receive the existing bounded retry/backoff for GET reads. Explicit challenge responses are not retried by this rule. A Cloudflare Ray ID on a 5xx page alone no longer misclassifies an upstream failure as a CAPTCHA; exhausted retries retain the HTTP error. This was prompted by a live ZoroCloud Japan group returning [HTTP 522, an origin connection timeout](https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-522/).
+
 ## Diagnostics & Deduplication
 
 Generic catalog discovery respects a valid official-host HTML `<base href>` for navigation and orders while retaining the fetched-page provenance. WHMCS store route aliases (`/store/<slug>` and `/index.php?rp=/store/<slug>`) are canonicalized to a single visit so multi-region stores (such as Boil, BestVM, YUNYOO, and BageVM) do not waste page budgets on duplicate routes. Obvious aggregate headings and resource add-ons are excluded from products.

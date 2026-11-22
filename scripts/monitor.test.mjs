@@ -18,7 +18,8 @@ globalThis.fetch = async (input, options, redirects = 0) => {
   const url = String(input);
   calls.push({ url, redirect: options.redirect });
   writeFileSync("calls.json", JSON.stringify(calls));
-  const route = routes[url];
+  const configured = routes[url];
+  const route = Array.isArray(configured) ? configured[Math.min(calls.filter((call) => call.url === url).length - 1, configured.length - 1)] : configured;
   if (!route) throw new Error("Unexpected offline request: " + url);
   if (route.error) throw new Error(route.error, route.code ? { cause: { code: route.code, hostname: new URL(url).hostname } } : undefined);
   if (route.hang) return new Promise((resolve, reject) => {
@@ -183,6 +184,30 @@ test("WHMCS public catalog redirects retain the configured query route", () => {
   assert.deepEqual(calls.map(c=>c.url), [entry, 'https://www.aaitr.com/index.php?rp=%2Fstore%2Fvps']);
   assert.equal(products[0].status, 'available');
   assert.equal(products[0].stockCount, 2);
+});
+
+test("temporary origin failures retry and recover without treating a Ray ID as a challenge", () => {
+  const { products, calls } = runMonitor({ [sourceUrl]: [
+    { status: 522, body: 'Connection timed out. Cloudflare Ray ID' },
+    { body: '<div class="product"><h3>Recovered VPS</h3><span class="price">$5.00 Monthly</span><p>1 CPU / 1 GB RAM / 10 GB SSD / 2 Available</p><a href="/cart.php?a=add&pid=1">Order</a></div>' }
+  ] }, { adapter: 'public_catalog', requestIntervalMs: 1 }, { MONITOR_FETCH_RETRIES: '2' });
+  assert.equal(calls.length, 2);
+  assert.equal(products[0].status, 'available');
+  assert.equal(products[0].collection.failedPages, 0);
+});
+
+test("persistent origin errors stop after the retry budget and retain HTTP failure status", () => {
+  const { products, calls } = runMonitor({ [sourceUrl]: { status: 522, body: 'Connection timed out. Cloudflare Ray ID' } }, { adapter: 'lagom_product_list', requestIntervalMs: 1 }, { MONITOR_FETCH_RETRIES: '2' });
+  assert.equal(calls.length, 3);
+  assert.equal(products[0].status, 'error');
+  assert.equal(products[0].httpStatus, 522);
+  assert.equal(products[0].statusLabel, 'HTTP 522');
+});
+
+test("an explicit challenge on HTTP 503 is not retried as a temporary origin failure", () => {
+  const { products, calls } = runMonitor({ [sourceUrl]: { status: 503, body: '<title>Just a moment...</title>Cloudflare Ray ID' } }, { adapter: 'public_catalog', requestIntervalMs: 1 }, { MONITOR_FETCH_RETRIES: '2' });
+  assert.equal(calls.length, 1);
+  assert.equal(products[0].status, 'blocked');
 });
 
 test("collector distinguishes NAT/shared IP evidence from native IP and shared resources", () => {

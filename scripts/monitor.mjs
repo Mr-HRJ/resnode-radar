@@ -44,7 +44,7 @@ const sources = onlySourceIds.size ? allSources.filter((source) => onlySourceIds
 const generatedAt = new Date().toISOString();
 const userAgent = "Mozilla/5.0 ResNodeRadar/0.2 (+https://github.com/Mr-HRJ/resnode-radar)";
 const execFileAsync = promisify(execFile);
-const antiBotPattern = /Just a moment|cf_chl|challenge-platform|Enable JavaScript and cookies|cf-turnstile|正在进行安全验证|Cloudflare Ray ID|cf-mitigated/i;
+const antiBotPattern = /Just a moment|cf_chl|challenge-platform|Enable JavaScript and cookies|cf-turnstile|正在进行安全验证|cf-mitigated/i;
 // Requests are paced per origin, so parallel lanes for different origins stay polite while
 // keeping a full run comfortably inside the 20-minute collection cadence.
 const monitorConcurrency = Math.max(1, Number(process.env.MONITOR_CONCURRENCY ?? 12));
@@ -264,13 +264,17 @@ async function fetchHtml(source, targetUrl = source.url, restrictAaitr = false) 
         await waitForRequestSlot(currentUrl, source.requestIntervalMs, source.signal);
       }
       const html = await response.text();
-      return {
+      const result = {
         ok: response.ok,
         statusCode: response.status,
         finalUrl: response.url,
         headers: Object.fromEntries(response.headers.entries()),
         html
       };
+      if (!publicRequest && attempt < fetchRetries && [502, 503, 504, 520, 521, 522, 523, 524].includes(result.statusCode) && !isAntiBotResult(result)) {
+        throw new Error(`Temporary upstream HTTP ${result.statusCode}`);
+      }
+      return result;
     } catch (error) {
       source.signal?.throwIfAborted();
       lastError = error;
@@ -286,7 +290,10 @@ async function fetchHtml(source, targetUrl = source.url, restrictAaitr = false) 
 function isAntiBotResult(fetchResult) {
   if (!fetchResult) return false;
   const cfMitigated = fetchResult.headers?.["cf-mitigated"];
-  return cfMitigated === "challenge" || antiBotPattern.test(fetchResult.html ?? "");
+  const html = fetchResult.html ?? "";
+  // Cloudflare origin-error pages also carry a Ray ID; it is not a challenge.
+  return cfMitigated === "challenge" || antiBotPattern.test(html) ||
+    ((fetchResult.statusCode ?? 200) < 500 && /Cloudflare Ray ID/i.test(html));
 }
 
 function baseRecord(source, fetchResult, extra = {}) {
