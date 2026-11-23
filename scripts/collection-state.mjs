@@ -136,7 +136,7 @@ export class CollectionState {
     this.db.prepare(`INSERT INTO announcements VALUES(?,?,?,?,?,?,?) ON CONFLICT(source_id,item_key) DO UPDATE SET
       content_hash=excluded.content_hash,record=excluded.record,last_seen=excluded.last_seen`)
       .run(record.id, source.id, item.key, item.hash, JSON.stringify(record), record.firstSeenAt, at);
-    return { record, changed: !old || old.content_hash !== item.hash };
+    return { record, created: !old, changed: !old || old.content_hash !== item.hash };
   }
   announcementPayload(at) {
     const cutoff = iso(Date.parse(at) - 30 * 86400000);

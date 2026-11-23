@@ -48,6 +48,10 @@ test("old baseline announcements do not enqueue obsolete offers; edited/new anno
   t.mock.method(globalThis, "fetch", async () => new Response(body));
   await refreshAnnouncements(db, [source], vendors, at);
   assert.equal(db.pendingJobs("vendor").length, 0);
+  body = body.replace("New plan", "Updated plan").replace("pid=42", "pid=43");
+  await refreshAnnouncements(db, [source], vendors, at);
+  assert.equal(db.pendingJobs("vendor").length, 1, "editing an old imported announcement must verify newly added product links");
+  assert.match(db.pendingJobs("vendor")[0].url, /pid=43/);
   body = body.replace("<guid>one</guid>", "<guid>two</guid>");
   await refreshAnnouncements(db, [source], vendors, at);
   assert.equal(db.pendingJobs("vendor").length, 1);

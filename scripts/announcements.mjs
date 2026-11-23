@@ -125,7 +125,7 @@ export async function refreshAnnouncements(store, config, sources, at = new Date
           const item = normalizeAnnouncement(row, source, sources, at); if (!item) continue;
           const ingested = store.ingestAnnouncement(source, item, at); accepted++;
           // Historical imports establish a baseline; only recent offers deserve immediate verification.
-          if (ingested.changed && (!ingested.record.baseline || Date.parse(item.publishedAt) >= Date.parse(at) - 7 * 86400000)) {
+          if (ingested.changed && (!ingested.created || !ingested.record.baseline || Date.parse(item.publishedAt) >= Date.parse(at) - 7 * 86400000)) {
             for (const candidate of item.candidates) store.enqueue(candidate.url, candidate.sourceId, at);
           }
         }
