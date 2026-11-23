@@ -11,12 +11,14 @@ import { pageLimitCatalogFormats, parsePageLimitCatalog } from "./page-limit-cat
 import { parse } from "node-html-parser";
 import { transportErrorDetails } from "../transport-errors.mjs";
 import { monitorPanstarCatalog } from "./panstar-catalog.mjs";
+import { monitorDmitCatalog } from "./dmit-catalog.mjs";
 import { cleanPublicUrl, catalogUrlAllowed, canonicalCatalogPageKey, discoverCatalogLinks, parseCatalogPage } from "./catalog-pages.mjs";
 
 // A bounded walk of published catalog links. Checkout, login and challenge pages
 // are never submitted; a blocked read is a monitoring result, not empty stock.
 export async function monitorPublicCatalog(source, helpers) {
   if (source.catalogFormat === "panstar") return monitorPanstarCatalog(source, helpers);
+  if (source.catalogFormat === "dmit") return monitorDmitCatalog(source, helpers);
   const { fetchHtml, isAntiBotResult, baseRecord, blockedRecord, errorRecord, deadline = Infinity, now = Date.now } = helpers;
   const queue = [...new Set([source.url, ...(source.catalogUrls ?? [])])].map((url) => ({ url, label: "", depth: 0 }));
   const seen = new Set();

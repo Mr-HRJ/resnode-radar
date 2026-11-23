@@ -62,7 +62,7 @@ Cloudflare 规则 `VPS Radar public cache — origin TTL`（`4998758453244597875
 
 ## 家宽备用采集出口
 
-启用后，绿云和 NovixLink 先从 VPS 直连，只有连接错误或公开页面的 403/验证页才重试家宽出口；单独的登录要求与 429 限流不会触发切换。其他商家继续直连。两次尝试各受原有的源级时间预算、请求间隔和官方域名校验约束；整体仍由 `resnode-radar` 每 20 分钟执行且不重叠。家宽结果在 `raw.egress` 标记为 `residential`，失败时保留诊断与直连已采到的商品，不把失败当成缺货。
+启用后，绿云和 NovixLink 先从 VPS 直连，只有连接错误或公开页面的 403/验证页才重试家宽出口；单独的登录要求与 429 限流不会触发切换。DMIT 的可选接入见下文，其他商家继续直连。两次尝试各受源级时间预算、请求间隔和官方域名校验约束；整体仍由 `resnode-radar` 每 20 分钟执行且不重叠。家宽结果在 `raw.egress` 标记为 `residential`，失败时保留诊断与直连已采到的商品，不把失败当成缺货。
 
 VPS 独立运行 Mihomo v1.19.33，无需本地电脑在线。部署该版本时核验官方 Linux amd64-v1 压缩包 SHA-256：`8ec92e7b2fdc6b853ba00156bab7e4e965c8b0d843b8c4ac8ab98795f02ad524`。二进制放在 `/opt/resnode-radar-egress/mihomo`。
 
@@ -73,7 +73,19 @@ VPS 独立运行 Mihomo v1.19.33，无需本地电脑在线。部署该版本时
 - 先验证 VPS 能独立连接节点、两个目录能通过代理采集，再将 `deploy/vps/residential-fallback.conf` 安装到 `/etc/systemd/system/resnode-radar.service.d/residential-fallback.conf`，执行 `systemctl daemon-reload`，在采集空闲时重启主服务。连通验证失败时保留配置但不启用 drop-in，继续原有直连采集。
 - 备用服务故障不阻止主服务启动；停用备用功能可移除该 drop-in 后 reload/restart 主服务。不要设置全局 `HTTP_PROXY` 或修改服务器默认路由。
 
-HTTP/1.1 与 HTTP/2 都通过 CONNECT 隧道连接，仍验证上游 HTTPS 证书。验收需检查两个服务、回环监听端口、实际出口 IP，以及完整新快照中只有上述两家出现 `raw.egress=residential`。
+HTTP/1.1 与 HTTP/2 都通过 CONNECT 隧道连接，仍验证上游 HTTPS 证书。验收需检查两个服务、回环监听端口、实际出口 IP，以及完整新快照的 `raw.egress=residential` 仅属于已启用的商家。
+
+### DMIT 备用采集客户端
+
+DMIT 使用固定 Chrome 150 macOS 指纹的 `impers` 0.1.3，在独立 Node 子进程中运行。该库仍处于 Alpha；子进程崩溃、超时和 SKU 受阻都保留为诊断，不当作缺货。运行时不下载库、不执行网页脚本、不安装 Chrome 或 Brimp。
+
+1. 在新的独立发布目录中运行 `npm ci --ignore-scripts`，安装锁定的依赖与平台对应 Koffi 二进制。
+2. 在 Ubuntu x86_64 上运行 `python3 deploy/vps/install-impersonation.py`。它核验官方 curl-impersonate 2.3.2 压缩包的 SHA-256，仅提取动态库到 `/opt/resnode-radar-egress/libcurl-impersonate.so`。
+3. 在服务器私密 Mihomo 配置的 `MATCH,REJECT` 前添加 `DOMAIN-SUFFIX,dmit.io,RESIDENTIAL`；保留原来的商家规则、回环端口与文件权限。不要将完整节点配置写入仓库。
+4. 将 `deploy/vps/dmit-fallback.conf` 安装到 `/etc/systemd/system/resnode-radar.service.d/dmit-fallback.conf`。它设置 `MONITOR_DMIT_CURL_LIB`；未设置时 DMIT 仅尝试普通直连。
+5. 先用 `MONITOR_ONLY=catalog-dmit` 和独立的 `MONITOR_OUTPUT` 验证目录、全部公开 PID、失败诊断和 `raw.referencePrice`；在采集空闲时启用配置并发布。验证完整新快照及下一轮计划仍为 20 分钟。
+
+DMIT 的请求及跳转至少间隔 8 秒，单次源预算为 900 秒，其余源仍使用各自预算。定价页是参考报价；SKU 可订购时读取实际配置页的账期价格，缺货时保留注明来源的参考价格。目录中没有 PID、明确标注缺货的卡片也保留；不会猜测 PID 或精确库存数量。
 
 ## 验收证据
 

@@ -1057,7 +1057,7 @@ async function timedMonitorSource(source) {
     } finally {
       clearTimeout(timer);
     }
-  }, process.env.MONITOR_FALLBACK_PROXY);
+  }, process.env.MONITOR_FALLBACK_PROXY, { dmitEnabled: Boolean(process.env.MONITOR_DMIT_CURL_LIB) });
   return { records, durationMs: Date.now() - startedMs };
 }
 

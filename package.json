@@ -35,6 +35,7 @@
     "service:uninstall": "node scripts/macos-service.mjs uninstall"
   },
   "dependencies": {
+    "impers": "0.1.3",
     "node-html-parser": "7.0.1"
   }
 }

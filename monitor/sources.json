@@ -1207,11 +1207,14 @@
     "id": "catalog-dmit",
     "providerId": "dmit",
     "provider": "DMIT",
-    "category": "unclassified",
+    "category": "vps",
     "adapter": "public_catalog",
-    "url": "https://www.dmit.io/",
-    "requestIntervalMs": 2000,
-    "maxPages": 12
+    "url": "https://www.dmit.io/pages/pricing",
+    "catalogFormat": "dmit",
+    "discover": false,
+    "requestIntervalMs": 8000,
+    "timeBudgetMs": 900000,
+    "maxPages": 1
   },
   {
     "id": "catalog-flawlessnode",

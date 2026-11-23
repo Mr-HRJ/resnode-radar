@@ -57,3 +57,29 @@ test("connection errors can retry but empty results cannot erase the direct diag
   assert.strictEqual(await collectWithResidentialFallback(source, async () => ++calls === 1 ? direct : [], proxy), direct);
   assert.equal(calls, 2);
 });
+
+test("DMIT impersonation fallback requires its explicit runtime and catalog adapter", async () => {
+  for (const [format, enabled, expected] of [["dmit", true, 2], ["dmit", false, 1], [undefined, true, 1]]) {
+    let calls = 0;
+    const result = await collectWithResidentialFallback({ ...source, id: "catalog-dmit", catalogFormat: format }, async (attempt) => {
+      calls++; return attempt.proxyUrl ? [product("dmit-plan")] : [blocked()];
+    }, proxy, { dmitEnabled: enabled });
+    assert.equal(calls, expected);
+    if (expected === 2) assert.equal(result[0].raw.egress, "residential");
+  }
+});
+
+test("DMIT keeps verified direct SKU inventory if the backup only obtains reference prices", async () => {
+  const verified = { ...product("dmit-plan"), raw: { inventoryChecked: true } };
+  const result = await collectWithResidentialFallback({ ...source, id: "catalog-dmit", catalogFormat: "dmit" }, async (attempt) =>
+    attempt.proxyUrl ? [product("dmit-plan", "unknown"), blocked()] : [verified, blocked()], proxy, { dmitEnabled: true });
+  assert.strictEqual(result[0], verified);
+  assert.equal(result.at(-1).status, "blocked");
+});
+
+test("a rate limit overrides earlier retryable failures and prevents residential retries", async () => {
+  let calls = 0;
+  const direct = [{ ...blocked(), raw: { attempts: [{ reason: "challenge", httpStatus: 403 }, { reason: "rate-limited", httpStatus: 429 }] } }];
+  assert.strictEqual(await collectWithResidentialFallback(source, async () => { calls++; return direct; }, proxy), direct);
+  assert.equal(calls, 1);
+});
