@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildCloudflare } from "./build-cloudflare.mjs";
 
-export function buildVps(outputDirectory, siteUrl = "https://vps.bnoai.com/") {
+export function buildVps(outputDirectory, siteUrl = "https://vpsld.com/") {
   const output = outputDirectory ?? fileURLToPath(new URL("../dist/", import.meta.url));
   buildCloudflare(output, { siteUrl });
   const assets = ["styles", "src", "assets", "providers.js", "pricing.js", "saved.js", "favicon.svg"];

@@ -12,7 +12,7 @@ test("VPS assets use the production origin and leave collection data outside the
     assert.match(first.revision, /^[a-f0-9]{16}$/);
     for (const file of ["index.html", "reviews/aaitr.html", "reviews/lisahost.html", "sitemap.xml", "robots.txt"]) {
       const body = readFileSync(join(output, file), "utf8");
-      assert.match(body, /https:\/\/vps\.bnoai\.com\//, file);
+      assert.match(body, /https:\/\/vpsld\.com\//, file);
       assert.doesNotMatch(body, /majiayu000\.github\.io|haorenjie1997\.workers\.dev/, file);
     }
     for (const file of [".git", ".env", "data", "scripts", "monitor", "deploy", "node_modules"]) {

@@ -1,8 +1,9 @@
 # VPS 部署
 
-2026-11-22 已在 Ubuntu 24.04.5 LTS 上恢复完整项目。网站、采集程序与数据运行在 `62.83.135.52`；当前版本为 `/opt/resnode-radar/releases/20261122T171023Z`，Node.js 为 24.22.3。
+网站、采集程序与数据运行在 Ubuntu VPS `62.83.135.52`，主应用 Node.js 为 24.22.3。当前版本由 `/opt/resnode-radar/current` 指向，可读取该目录的 `DEPLOYED_REVISION` 核对提交。
 
-- 正式入口：`https://vps.bnoai.com/`，按用户同日最新要求使用源站直连，Cloudflare 只提供 DNS。
+- 正式入口：`https://vpsld.com/`，2026-11-23 接入；Spaceship DNS 的根域名 A 记录指向 `62.83.135.52`，`www` CNAME 指向 `vpsld.com`，TTL 为 300 秒。网站保持源站直连。
+- 兼容入口：`https://www.vpsld.com/`、`https://vps.bnoai.com/`；旧域名继续使用 Cloudflare DNS-only。HTML canonical、分享元数据及站点地图统一使用正式入口。
 - 备用入口：`https://vps-direct.bnoai.com/`，同一应用与数据，同样直连源站。
 - 采集周期：**20 分钟**，以每轮启动时间为基准，不重叠执行；失败退避重试，成功校验后原子替换数据。
 - GitHub 的 `monitor.yml` 已停用，CI 保留。生产采集不依赖 GitHub Actions、Cloudflare Worker 或 `GITHUB_DISPATCH_TOKEN`。
@@ -47,7 +48,7 @@ Cloudflare 规则 `VPS Radar public cache — origin TTL`（`4998758453244597875
 
 ## HTTPS 与发布
 
-证书同时覆盖两个域名，使用 `/etc/letsencrypt/live/vps.bnoai.com/`。Certbot 定时器已启用，`deploy/vps/renew-certificate.sh` 在续期后检查并重新加载 Nginx。HTTP 分别跳转到本域名的 HTTPS。HTTP 与 HTTPS 均提供 ACME Webroot 验证路径，兼容 Cloudflare 的 HTTPS 重定向；加入直连域名后的双域名续期演练已通过。
+证书覆盖 `vpsld.com`、`www.vpsld.com`、`vps.bnoai.com`、`vps-direct.bnoai.com`，沿用 `/etc/letsencrypt/live/vps.bnoai.com/` 证书路径。Certbot 定时器已启用，`deploy/vps/renew-certificate.sh` 在续期后检查并重新加载 Nginx。HTTP 分别跳转到本域名的 HTTPS，现有链接与数据接口继续有效。HTTP 与 HTTPS 均提供 ACME Webroot 验证路径。
 
 首次部署可先用 `deploy/vps/nginx.conf` 完成正式域名的 Webroot 验证，再安装 `deploy/vps/nginx-https.conf`，添加直连域名并扩展证书。所有操作只改本项目的文件和服务。
 
