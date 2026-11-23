@@ -93,6 +93,15 @@ test("DMIT exposes native worker failure without fabricated inventory", async ()
   assert.match(records[0].error, /native runtime failed/);
 });
 
+test("DMIT rotates persisted SKU priorities and records the actual attempt time", async () => {
+  const urls = [];
+  const result = await collectDmitPlans({ ...source, skuPriority: ["125", "253"] }, async (url) => {
+    urls.push(url); return url === source.url ? catalog : url.includes("125") ? configure : soldOut;
+  });
+  assert.match(urls[1], /pid=125/); assert.match(urls[2], /pid=253/);
+  assert.ok(result.plans.filter((p) => p.raw.pid).every((p) => Number.isFinite(Date.parse(p.raw.inventoryAttemptedAt))));
+});
+
 test("DMIT stops on HTTP 429 without retrying or changing egress", async () => {
   let calls = 0;
   const result = await collectDmitPlans(source, async () => ++calls === 1 ? catalog : { ...challenge, statusCode: 429 });

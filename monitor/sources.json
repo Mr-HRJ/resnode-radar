@@ -1213,7 +1213,7 @@
     "catalogFormat": "dmit",
     "discover": false,
     "requestIntervalMs": 8000,
-    "timeBudgetMs": 900000,
+    "timeBudgetMs": 300000,
     "maxPages": 1
   },
   {

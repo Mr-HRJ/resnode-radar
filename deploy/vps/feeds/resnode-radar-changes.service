@@ -1,0 +1,25 @@
+[Unit]
+Description=ResNode Radar supplemental page change monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=resnode-radar
+Group=resnode-radar
+WorkingDirectory=/opt/resnode-radar-changes
+ExecStart=/opt/resnode-radar-changes/venv/bin/changedetection.io -d /var/lib/resnode-radar/changes -h 127.0.0.1 -p 12500 -l WARNING
+Environment=FETCH_WORKERS=1
+Environment=PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+Environment=TZ=UTC
+Restart=on-failure
+RestartSec=10
+MemoryMax=768M
+CPUQuota=100%
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/resnode-radar/changes
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

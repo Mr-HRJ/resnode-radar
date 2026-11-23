@@ -1,0 +1,7 @@
+[
+  {"id":"dmit-news","name":"DMIT 官方公告","providerId":"dmit","trust":"official","kind":"rss","url":"https://dmit.news/feed.xml","linkHosts":["dmit.news","www.dmit.io","dmit.io"]},
+  {"id":"vmiss-telegram","name":"VMISS 官方公开频道","providerId":"vmiss","trust":"official","kind":"rsshub","channel":"vmiss_com","url":"https://t.me/s/vmiss_com","linkHosts":["t.me"]},
+  {"id":"netcup-deals","name":"netcup 官方优惠","providerId":"netcup","trust":"official","kind":"rss","url":"https://www.netcup.com/rss/deals/en","linkHosts":["www.netcup.com","netcup.com"]},
+  {"id":"lowendbox","name":"LowEndBox 优惠线索","trust":"third-party","kind":"rss","url":"https://lowendbox.com/feed/","linkHosts":["lowendbox.com"]},
+  {"id":"netcup-blog","name":"netcup 官方博客变化","providerId":"netcup","trust":"official","kind":"changedetection","url":"https://www.netcup.com/en/blog","linkHosts":["www.netcup.com"]}
+]

@@ -1,0 +1,9 @@
+{
+  "url": "https://www.netcup.com/en/blog",
+  "title": "netcup 官方博客",
+  "fetch_backend": "html_requests",
+  "processor": "text_json_diff",
+  "time_between_check_use_default": false,
+  "time_between_check": { "minutes": 20 },
+  "include_filters": ["a[href*=\"/en/blog/\"]"]
+}

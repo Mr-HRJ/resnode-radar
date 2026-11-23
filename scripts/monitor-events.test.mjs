@@ -52,18 +52,31 @@ function fixture(available, total) {
     available, total, data: { id: 42, name: "Basic VPS", payable: true, description: [] }
   } } })}</script>` };
 }
-function run(dir, at, response) {
+function run(dir, at, response, extraEnv = {}) {
   writeFileSync(join(dir, "fixture.json"), JSON.stringify(response));
   writeFileSync(join(dir, "calls.json"), "[]");
   execFileSync(process.execPath, ["--import", join(dir, "preload.mjs"), monitorPath], {
     cwd: dir, stdio: "pipe", timeout: 15000,
-    env: { ...process.env, MONITOR_TEST_TIME: at, MONITOR_FETCH_RETRIES: "0", MONITOR_CONCURRENCY: "1" }
+    env: { ...process.env, MONITOR_TEST_TIME: at, MONITOR_FETCH_RETRIES: "0", MONITOR_CONCURRENCY: "1", ...extraEnv }
   });
   assert.deepEqual(JSON.parse(readFileSync(join(dir, "calls.json"), "utf8")), [sourceUrl], "monitor must not fetch FX or any unexpected provider");
   const payload = JSON.parse(readFileSync(join(dir, "data/products.json"), "utf8"));
   assert.deepEqual(validateMonitorPayload(payload), []);
   return payload;
 }
+
+test("state-enabled collector retains a failed product as history and publishes truthful source health", (t) => {
+  const dir = workspace(t), env = { MONITOR_STATE_DB: join(dir, "state.sqlite") };
+  const first = run(dir, firstAt, fixture(3, 8), env);
+  assert.equal(first.products[0].verification.verifiedAt, firstAt);
+  const failed = run(dir, secondAt, { url: sourceUrl, body: "Just a moment cf_chl", status: 403 }, env);
+  assert.equal(failed.products.length, 2);
+  const old = failed.products.find((p) => p.raw?.historical);
+  assert.equal(old.verification.verifiedAt, firstAt);
+  assert.equal(old.status, "unknown"); assert.equal(old.evidenceLevel.value, "unverified");
+  assert.equal(failed.sourceHealth[0].status, "blocked");
+  assert.deepEqual(failed.events, []);
+});
 
 test("offline collector runs persist real comparisons, keep the baseline, and embed local FX without fetching it", (t) => {
   const dir = workspace(t);

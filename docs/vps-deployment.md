@@ -85,7 +85,7 @@ DMIT 使用固定 Chrome 150 macOS 指纹的 `impers` 0.1.3，在独立 Node 子
 4. 将 `deploy/vps/dmit-fallback.conf` 安装到 `/etc/systemd/system/resnode-radar.service.d/dmit-fallback.conf`。它设置 `MONITOR_DMIT_CURL_LIB`；未设置时 DMIT 仅尝试普通直连。
 5. 先用 `MONITOR_ONLY=catalog-dmit` 和独立的 `MONITOR_OUTPUT` 验证目录、全部公开 PID、失败诊断和 `raw.referencePrice`；在采集空闲时启用配置并发布。验证完整新快照及下一轮计划仍为 20 分钟。
 
-DMIT 的请求及跳转至少间隔 8 秒，单次源预算为 900 秒，其余源仍使用各自预算。定价页是参考报价；SKU 可订购时读取实际配置页的账期价格，缺货时保留注明来源的参考价格。目录中没有 PID、明确标注缺货的卡片也保留；不会猜测 PID 或精确库存数量。
+DMIT 的请求及跳转至少间隔 8 秒，单次源预算为 300 秒（直连及备用出口共享），其余源仍使用各自预算。定价页是参考报价；SKU 可订购时读取实际配置页的账期价格，缺货时保留注明来源的参考价格。目录中没有 PID、明确标注缺货的卡片也保留；不会猜测 PID 或精确库存数量。
 
 ## 验收证据
 
@@ -98,3 +98,35 @@ DMIT 的请求及跳转至少间隔 8 秒，单次源预算为 900 秒，其余�
 两轮真实快照时间为 `2026-11-22T17:13:33.909Z` 与 `2026-11-22T17:33:34.373Z`，间隔 1200.464 秒。第二轮由守护进程自动启动，耗时 221.476 秒，完成后约 3 秒已从 Cloudflare 取得新快照；161 个源校验通过，下一次启动计划为 `17:53:33.960Z`。主站和直连站的最新数据哈希一致。
 
 本地 `logs/ubuntu-release.json`、`logs/ubuntu-assets-verification.json`、`logs/ubuntu-cache-verification.json` 保存发布及验证记录；定时更新结果见 `logs/ubuntu-cadence-verification.json`，最终页面截图为 `logs/ubuntu-live.jpg`。已部署版本及本轮数据的恢复包为 `logs/resnode-ubuntu-verified-20261122.tar.gz`，依赖可通过锁文件重新安装。恢复包不包含证书私钥、SSH 私钥、Node.js 运行时或完整系统配置，不能视为完整系统备份。
+
+### 公告发现与采集状态（2026-11-23）
+
+正式采集仍由 `resnode-radar.service` 每 20 分钟运行。`deploy/vps/feeds/collection-state.conf`
+开启 SQLite 状态及公告读取；数据库放在 `/var/lib/resnode-radar/state/collection.sqlite`，不在公开 data 目录。
+SQLite 使用 WAL，每个商家完成后事务提交；最终公开快照通过校验后原子替换。
+没有独立的分布式队列：公告中的官方链接保存在 SQLite，下轮由已有商家适配器处理。
+
+- 原生 RSS：DMIT 公告、netcup 优惠、LowEndBox（明确标为第三方）。合法空订阅不算故障。
+- RSSHub：只提供 VMISS 的公开 Telegram 频道，监听 `127.0.0.1:12180`，不配置登录凭据。
+- changedetection.io：以 HTTP 模式每 20 分钟监控 netcup 博客文章链接，监听 `127.0.0.1:12500`。
+  使用 `a[href*="/en/blog/"]` 过滤器，排除导航及其他页面内容。没有部署浏览器或对外通知。
+- 侧服务代码/依赖固定在 `deploy/vps/feeds/`；RSSHub 使用独立 Node 26.13.0，主应用继续使用 Node 24。
+  安装 npm 依赖使用 `npm ci --ignore-scripts`，Python 使用独立 venv 和 `requirements.lock`。
+  Node 下载需与 `runtime-sha256.txt` 校验。服务各限制 768 MiB 内存，只允许本机访问。
+- changedetection API 密钥保存在 `/etc/resnode-radar-feeds/changes-api-key`（root:root 0600），
+  通过 systemd `LoadCredential` 提供给采集器；禁止放入仓库、公开快照或环境输出。
+
+公告按源与 GUID 去重，内容编辑更新同一条记录；首次导入不当作新补货。
+仅已配置商家的 HTTPS 域名与明确产品链接能进入核验队列，不枚举 PID，不接受登录、结算、订阅退订链接。
+商品核验结果随之后的采集更新；公告本身从不证明库存。界面保留原文链接、发布时间（缺失时明确标注）与核验时间。
+`fetchedAt` 继续表示采集批次；实际库存证据时间为 `verification.verifiedAt`。
+参考价格和历史价格不产生价格变动事件。失败时保留最近 7 天的套餐资料，状态改为未知，不沿用旧的“有货”。
+
+DMIT 保持至少 8 秒请求间隔，每轮共享 5 分钟预算，并按最久未尝试的 SKU 轮转。
+正常来源每轮检查；受限来源退避 20–120 分钟并尊重 Retry-After，其他来源继续运行。
+公告、核验任务、变动历史保留 30 天；超过 7 天未再见到的套餐历史清理。
+主站保持 DNS-only，家宽出口仍只按已授权商家规则使用。
+
+回滚：保存当前 release 路径，停采集服务后移除 `collection-state.conf` 并切回旧 release，
+执行 daemon-reload/start。SQLite 保留供排查，旧版本不会读取它；不要直接覆盖运行中的 SQLite 文件。
+在线备份请用 SQLite backup API，或停服务后备份数据库及 WAL/SHM；发布前同时备份公开快照与 daemon 状态。

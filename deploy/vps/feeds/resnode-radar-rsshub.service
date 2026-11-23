@@ -1,0 +1,24 @@
+[Unit]
+Description=ResNode Radar public channel feed adapter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=resnode-radar
+Group=resnode-radar
+WorkingDirectory=/opt/resnode-radar-rsshub
+ExecStart=/opt/resnode-radar-rsshub/node/bin/node --max-old-space-size=384 rsshub-server.mjs
+Environment=NODE_ENV=production
+Environment=NO_LOGFILES=true
+Environment=LOGGER_LEVEL=warn
+Restart=on-failure
+RestartSec=10
+MemoryMax=768M
+CPUQuota=100%
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

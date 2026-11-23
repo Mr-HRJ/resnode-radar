@@ -1,3 +1,4 @@
+import { renderAnnouncements } from "./announcements.js";
 import {
   MACRO_REGIONS,
   escapeHtml,
@@ -125,6 +126,8 @@ export function renderRadarView(state, now = Date.now()) {
         <button type="button" class="btn btn-sm" data-action="copy-share-url">分享大盘链接</button>
       </div>
     </div>
+
+    ${renderAnnouncements(state.payload?.announcements)}
 
     <!-- 全网现货横截面概览（100% 真实快照实时聚合） -->
     <section class="market-board-grid" aria-label="全网实时现货结构">

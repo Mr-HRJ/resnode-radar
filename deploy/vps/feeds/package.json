@@ -1,0 +1,8 @@
+{
+  "name": "resnode-rsshub-sidecar",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "rsshub": "2026.11.23-8728.g61f4512"
+  }
+}

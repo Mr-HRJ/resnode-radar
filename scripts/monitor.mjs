@@ -26,6 +26,8 @@ import { transportErrorDetails } from "./transport-errors.mjs";
 import { trackEvents } from "./radar-events.mjs";
 import { readFxSnapshot } from "./fx-rates.mjs";
 import { validateMonitorPayload } from "./validate-monitor-data.mjs";
+import { CollectionState } from "./collection-state.mjs";
+import { refreshAnnouncements } from "./announcements.mjs";
 import { hasSharedIpEvidence } from "../src/domain/network.js";
 
 // Read persisted state before collection. FX refresh is a separate command, so
@@ -44,6 +46,10 @@ const onlySourceIds = new Set(String(process.env.MONITOR_ONLY ?? "").split(",").
 if (onlySourceIds.size && !process.env.MONITOR_OUTPUT) throw new Error("MONITOR_ONLY requires MONITOR_OUTPUT to protect the full snapshot");
 const sources = onlySourceIds.size ? allSources.filter((source) => onlySourceIds.has(source.id)) : allSources;
 const generatedAt = new Date().toISOString();
+if (onlySourceIds.size && process.env.MONITOR_STATE_DB && process.env.MONITOR_ALLOW_SUBSET_STATE !== "1") throw new Error("Subset collection requires a separate state database and MONITOR_ALLOW_SUBSET_STATE=1");
+const collectionState = process.env.MONITOR_STATE_DB ? new CollectionState(process.env.MONITOR_STATE_DB) : null;
+collectionState?.seed(previousPayload);
+process.once("exit", () => collectionState?.close());
 const userAgent = "Mozilla/5.0 ResNodeRadar/0.2 (+https://github.com/Mr-HRJ/resnode-radar)";
 const execFileAsync = promisify(execFile);
 const antiBotPattern = /Just a moment|cf_chl|challenge-platform|Enable JavaScript and cookies|cf-turnstile|正在进行安全验证|cf-mitigated/i;
@@ -107,6 +113,7 @@ function productEvidenceText(product) {
 }
 
 function evidenceLevel(product) {
+  if (product.raw?.historical) return { value: "unverified", label: "历史资料·库存待核验", className: "is-unknown", rank: 6 };
   const evidence = productEvidenceText(product);
   const stockCount = numericStockCount(product);
   const hasPreciseStock = stockCount !== null;
@@ -310,6 +317,7 @@ function baseRecord(source, fetchResult, extra = {}) {
     sourceUrl: source.url,
     finalUrl: fetchResult?.finalUrl ?? source.url,
     fetchedAt: generatedAt,
+    observedAt: new Date().toISOString(),
     httpStatus: fetchResult?.statusCode ?? null,
     region: source.regionHint ?? null,
     route: source.routeHint ?? null,
@@ -1049,19 +1057,34 @@ async function timedMonitorSource(source) {
   const startedMs = Date.now();
   const budget = Number(source.timeBudgetMs ?? sourceTimeBudgetMs);
   if (!Number.isFinite(budget) || budget <= 0) throw new Error(`Invalid time budget for ${source.id}`);
+  if (collectionState && !collectionState.due(source.id, new Date().toISOString())) {
+    const health = collectionState.sourceState(source.id);
+    const records = [{ ...errorRecord(source, new Error(`上次核验受限，冷却至 ${health.nextAttemptAt} 后重试`)),
+      id: `${source.id}:diagnostic`, diagnostic: true, status: "blocked", statusLabel: "冷却中", raw: { cooldownUntil: health.nextAttemptAt } }];
+    return { records: collectionState.saveSource(source, records, new Date().toISOString(), generatedAt, { skipped: true }), durationMs: 0 };
+  }
+  if (collectionState) source = { ...source, skuPriority: collectionState.priorityPids(source.id),
+    catalogUrls: [...new Set([...(source.catalogUrls ?? []), ...collectionState.pendingJobs(source.id).map((j) => j.url)])].slice(0, 32) };
   const records = await collectWithResidentialFallback(source, async (attemptSource) => {
+    const remaining = budget - (Date.now() - startedMs);
+    if (remaining <= 0) return [{ ...errorRecord(source, new Error("Source time budget exceeded; collection is incomplete")), diagnostic: true }];
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(new Error("Source time budget exceeded; collection is incomplete")), budget);
+    const timer = setTimeout(() => controller.abort(new Error("Source time budget exceeded; collection is incomplete")), remaining);
     try {
-      return await monitorSource({ ...attemptSource, signal: controller.signal, deadline: Date.now() + budget });
+      return await monitorSource({ ...attemptSource, signal: controller.signal, deadline: Date.now() + remaining });
     } finally {
       clearTimeout(timer);
     }
   }, process.env.MONITOR_FALLBACK_PROXY, { dmitEnabled: Boolean(process.env.MONITOR_DMIT_CURL_LIB) });
-  return { records, durationMs: Date.now() - startedMs };
+  return { records: collectionState ? collectionState.saveSource(source, records, new Date().toISOString(), generatedAt) : records,
+    durationMs: Date.now() - startedMs };
 }
 
 const runStartedMs = Date.now();
+if (process.env.MONITOR_ANNOUNCEMENTS === "1") {
+  if (!collectionState) throw new Error("Announcement collection requires MONITOR_STATE_DB");
+  await refreshAnnouncements(collectionState, JSON.parse(readFileSync("monitor/announcements.json", "utf8")), sources);
+}
 const timings = [];
 const resultsBySource = [];
 await mapWithConcurrency(buildSourceLanes(sources), monitorConcurrency, async (lane) => {
@@ -1086,6 +1109,9 @@ const summary = products.reduce(
 const payload = {
   schemaVersion: 1,
   generatedAt,
+  publishedAt: new Date().toISOString(),
+  ...(collectionState ? { sourceHealth: collectionState.sourceHealth() } : {}),
+  ...(collectionState && process.env.MONITOR_ANNOUNCEMENTS === "1" ? { announcements: collectionState.announcementPayload(new Date().toISOString()) } : {}),
   sourceCount: sources.length,
   summary,
   ...trackEvents(previousPayload, { generatedAt, products }),
@@ -1100,6 +1126,7 @@ mkdirSync(dirname(outputPath), { recursive: true });
 const tempProductsPath = `${outputPath}.${process.pid}.tmp`;
 writeFileSync(tempProductsPath, `${JSON.stringify(payload, null, 2)}\n`);
 renameSync(tempProductsPath, outputPath);
+collectionState?.finishRun(generatedAt, summary);
 console.log(`Wrote ${outputPath} with ${products.length} records from ${sources.length} sources in ${((Date.now() - runStartedMs) / 1000).toFixed(1)}s (concurrency ${monitorConcurrency})`);
 console.log(JSON.stringify(summary));
 console.log(`Slowest sources: ${timings.sort((a, b) => b.durationMs - a.durationMs).slice(0, 10).map((t) => `${t.id}=${(t.durationMs / 1000).toFixed(1)}s`).join(", ")}`);

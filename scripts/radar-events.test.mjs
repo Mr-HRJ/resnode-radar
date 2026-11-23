@@ -15,6 +15,13 @@ function plan(extra = {}) {
   };
 }
 const later = (extra = {}) => plan({ fetchedAt: secondAt, ...extra });
+
+test("reference and historical quotes cannot produce price changes", () => {
+  const before = plan({ price: "USD 20/月", priceValue: 20, raw: { referencePrice: false } });
+  const after = later({ price: "USD 10/月", priceValue: 10, status: "unavailable", raw: { referencePrice: true } });
+  assert.deepEqual(diffRuns([before], [after], secondAt, firstAt).map((e) => e.type), ["soldout"]);
+  assert.equal(diffRuns([{ ...before, raw: { referencePrice: true } }], [later({ price: "USD 10/月", priceValue: 10 })], secondAt, firstAt).length, 0);
+});
 function snapshot(at, products, previous = null) {
   const current = { schemaVersion: 1, generatedAt: at, products };
   return { ...current, ...trackEvents(previous, current) };

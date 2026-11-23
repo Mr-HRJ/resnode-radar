@@ -14,6 +14,8 @@ export function validateMonitorPayload(payload, { expectedSourceIds } = {}) {
   const generatedAt = timestampMs(payload.generatedAt);
   if (payload.schemaVersion !== 1) fail("schemaVersion must be 1");
   if (!Number.isFinite(generatedAt)) fail("generatedAt must be an ISO date");
+  const publishedAt = payload.publishedAt === undefined ? generatedAt : timestampMs(payload.publishedAt);
+  if (!Number.isFinite(publishedAt) || publishedAt < generatedAt) fail("publishedAt must follow generatedAt");
   if (!Array.isArray(payload.products)) fail("products must be an array");
   if (!payload.products?.length) fail("products must not be empty");
 
@@ -32,6 +34,16 @@ export function validateMonitorPayload(payload, { expectedSourceIds } = {}) {
     counts.total += 1;
     if (validStatuses.has(product.status)) counts[product.status] += 1;
     if (timestampMs(product.fetchedAt) !== generatedAt) fail(`product ${product.id} must belong to the current collection`);
+    if (product.verification) {
+      const v = product.verification;
+      if (!["verified", "unverified", "historical"].includes(v.state)) fail(`product ${product.id} has invalid verification state`);
+      if (!["observed", "reference", "historical"].includes(v.priceKind)) fail(`product ${product.id} has invalid price kind`);
+      for (const key of ["observedAt", "attemptedAt", "verifiedAt"]) {
+        if (v[key] != null && (!Number.isFinite(timestampMs(v[key])) || timestampMs(v[key]) > publishedAt)) fail(`product ${product.id} has invalid ${key}`);
+      }
+      if (v.state === "verified" && (!v.verifiedAt || !["available", "unavailable"].includes(product.status))) fail(`product ${product.id} verification contradicts stock`);
+      if (v.state === "historical" && (product.status !== "unknown" || product.stockCount != null || !product.raw?.historical)) fail(`product ${product.id} historical data must not claim live stock`);
+    }
     if (product.stockCount != null && (!Number.isSafeInteger(product.stockCount) || product.stockCount < 0)) fail(`product ${product.id} has invalid stockCount`);
     if (product.status === "available" && product.stockCount === 0) fail(`available product ${product.id} has zero stock`);
     if (product.status === "available" && !product.orderUrl) fail(`available product ${product.id} must include orderUrl`);
@@ -78,6 +90,28 @@ export function validateMonitorPayload(payload, { expectedSourceIds } = {}) {
     seen.add(key);
   }
   if (payload.exchangeRates !== undefined && !isFxSnapshot(payload.exchangeRates)) fail("exchangeRates must be a valid CNY reference-rate snapshot");
+  if (payload.sourceHealth !== undefined) {
+    if (!Array.isArray(payload.sourceHealth)) fail("sourceHealth must be an array");
+    else for (const source of payload.sourceHealth) {
+      if (!sourceIds.has(source.id) || !["ok", "partial", "blocked", "error"].includes(source.status)) fail("sourceHealth contains an invalid source");
+      if (!Number.isFinite(timestampMs(source.lastAttemptAt)) || timestampMs(source.lastAttemptAt) > publishedAt) fail("sourceHealth contains an invalid attempt time");
+    }
+  }
+  if (payload.announcements !== undefined) {
+    const a = payload.announcements;
+    const https = (value) => { try { const u = new URL(value); return u.protocol === "https:" && !u.username && !u.password; } catch { return false; } };
+    if (!Array.isArray(a?.items) || !Array.isArray(a?.sources) || a.items.length > 100) fail("announcements must contain bounded items and sources");
+    const announcementIds = new Set();
+    for (const item of a?.items ?? []) {
+      if (!item.id || announcementIds.has(item.id) || !item.title || !https(item.url) || !["official", "third-party"].includes(item.trust)) fail("invalid announcement provenance");
+      announcementIds.add(item.id);
+      if (item.publishedAt !== null && !Number.isFinite(timestampMs(item.publishedAt))) fail("invalid announcement publication time");
+      if (!Number.isFinite(timestampMs(item.observedAt)) || timestampMs(item.observedAt) > publishedAt) fail("invalid announcement observation time");
+      for (const candidate of item.candidates ?? []) {
+        if (!sourceIds.has(candidate.sourceId) || !https(candidate.url) || !["pending", "verified", "blocked", "unmatched"].includes(candidate.verification?.state)) fail("invalid announcement verification");
+      }
+    }
+  }
   return errors;
 }
 

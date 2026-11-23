@@ -36,7 +36,7 @@ export function renderInspectorDrawer(state, now = Date.now()) {
   const orderHref = safeUrl(plan.orderUrl);
   const sourceHref = safeUrl(plan.sourceUrl);
   const finalHref = safeUrl(plan.finalUrl);
-  const freshness = monitorFreshness(plan.fetchedAt, now);
+  const freshness = monitorFreshness(plan.verification ? plan.verification.verifiedAt : plan.fetchedAt, now);
   const p = plan._pricing;
   const features = featureEntries(plan).filter(([k, v]) => k || v);
   const attempts = Array.isArray(plan.raw?.attempts) ? plan.raw.attempts : [];
@@ -45,6 +45,8 @@ export function renderInspectorDrawer(state, now = Date.now()) {
   const relatedEvents = skuEvents.length ? skuEvents : (state.eventIndex?.byProvider?.get(plan._providerId) || []).slice(0, 5);
 
   const caveats = [];
+  if (plan.verification?.state === "historical") caveats.push("本轮未取得该套餐结果，保留的历史价格与配置不代表当前库存。");
+  if (plan.verification?.priceKind === "reference") caveats.push("展示的是公开参考价格，未核验当前可结算价格。");
   if (plan._isSnapshot) caveats.push("当前行来自第三方 Reader 公开快照（官方站点直连受阻），价格与库存请务必前往官方下单页复核。");
   if (plan._classify.isNat) caveats.push("该套餐含 NAT / 共享 IPv4 标记，非独享独立 IPv4。");
   if (plan.evidenceLevel?.value === "official-order") caveats.push("仅核验到官方订购入口按钮，商家页面未公布具体剩余台数。");
@@ -137,8 +139,11 @@ export function renderInspectorDrawer(state, now = Date.now()) {
             <dd class="mono" style="font-size:11.5px">${escapeHtml(plain(plan.evidence) || "-")}</dd>
             <dt>采集适配器</dt>
             <dd class="mono">${escapeHtml(plan.adapter || "-")} ${plan.httpStatus ? `· HTTP ${escapeHtml(plan.httpStatus)}` : ""}</dd>
-            <dt>抓取时间</dt>
-            <dd class="mono">${escapeHtml(formatDateTime(plan.fetchedAt))}${freshness.stale ? ` <span style="color:var(--warn-fg)">(已超 30 分钟)</span>` : ""}</dd>
+            <dt>采集批次</dt>
+            <dd class="mono">${escapeHtml(formatDateTime(plan.fetchedAt))}</dd>
+            ${plan.verification ? `<dt>最近库存核验</dt><dd class="mono">${plan.verification.verifiedAt ? escapeHtml(formatDateTime(plan.verification.verifiedAt)) : "尚未核验"}${freshness.stale ? " · 已过期" : ""}</dd>
+            <dt>本轮证据</dt><dd>${plan.verification.state === "verified" ? "已核验库存" : plan.verification.state === "historical" ? "历史资料，当前状态未知" : "取得资料，库存尚未核验"}</dd>
+            <dt>价格口径</dt><dd>${plan.verification.priceKind === "reference" ? "目录参考价" : plan.verification.priceKind === "historical" ? "历史价格" : "本轮公开报价"}</dd>` : ""}
             <dt>公开来源页</dt>
             <dd>${sourceHref ? `<a href="${escapeHtml(sourceHref)}" target="_blank" rel="nofollow noopener noreferrer">${escapeHtml(sourceHref)} ↗</a>` : "-"}</dd>
             ${

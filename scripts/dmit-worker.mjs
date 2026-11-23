@@ -17,7 +17,8 @@ async function main() {
   for await (const chunk of process.stdin) { input += chunk; if (input.length > 16384) throw new Error("DMIT worker input exceeds limit"); }
   const source = JSON.parse(input);
   dmitUrl(source.url);
-  if (source.id !== "catalog-dmit" || !Number.isFinite(source.timeoutMs) || source.timeoutMs <= 0 || source.timeoutMs > 900000) throw new Error("Invalid DMIT worker configuration");
+  if (source.id !== "catalog-dmit" || !Number.isFinite(source.timeoutMs) || source.timeoutMs <= 0 || source.timeoutMs > 300000 ||
+      !Array.isArray(source.skuPriority ?? []) || (source.skuPriority?.length ?? 0) > 200 || (source.skuPriority ?? []).some((pid) => !/^\d+$/.test(pid))) throw new Error("Invalid DMIT worker configuration");
   const signal = AbortSignal.timeout(Math.ceil(source.timeoutMs));
   let Session;
   if (source.proxyUrl) {
@@ -52,7 +53,7 @@ async function main() {
           try {
             if (size > 8 * 1024 * 1024) throw new Error("DMIT response exceeds 8 MiB");
             statusCode = response.status;
-            headers = Object.fromEntries(["location", "cf-mitigated", "content-type"].map((name) => [name, response.headers.get(name)]));
+            headers = Object.fromEntries(["location", "cf-mitigated", "content-type", "retry-after"].map((name) => [name, response.headers.get(name)]));
             html = Buffer.concat(chunks).toString("utf8");
           } finally { await response.close(); }
         } else {
@@ -65,7 +66,7 @@ async function main() {
             if (separator > 0) cookies.set(cookie.slice(0, separator), cookie.slice(separator + 1));
           }
           statusCode = response.status;
-          headers = Object.fromEntries(["location", "cf-mitigated", "content-type"].map((name) => [name, response.headers.get(name)]));
+          headers = Object.fromEntries(["location", "cf-mitigated", "content-type", "retry-after"].map((name) => [name, response.headers.get(name)]));
           const chunks = []; let size = 0;
           for await (const chunk of response.body) {
             size += chunk.length;

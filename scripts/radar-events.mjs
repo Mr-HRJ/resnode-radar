@@ -86,6 +86,8 @@ function samePlan(before, after) {
 }
 
 function comparableQuote(record) {
+  if (record.raw?.referencePrice || record.raw?.historical ||
+      ["reference", "historical"].includes(record.verification?.priceKind)) return null;
   const quote = priceQuote(record);
   const label = String(record.price ?? "");
   const explicit = [...label.matchAll(/(?<![a-z])(USD|CNY|EUR|GBP|CAD|AUD|HKD|JPY|TWD|SGD|KRW|VND)(?![a-z])/gi)].map((match) => match[1].toUpperCase());

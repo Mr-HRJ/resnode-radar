@@ -72,7 +72,13 @@ function accessIssue(result) {
   const reason = result.statusCode === 429 ? "rate-limited"
     : result.headers?.["cf-mitigated"] === "challenge" || /Just a moment|Attention Required.*Cloudflare|Security Check/i.test(title) ? "challenge"
     : [401, 403].includes(result.statusCode) ? `http-${result.statusCode}` : null;
-  if (reason) return { status: "blocked", reason, httpStatus: result.statusCode, title, message: `DMIT 公开入口受限（HTTP ${result.statusCode}，${title}），库存无法确认` };
+  if (reason) {
+    const retry = result.headers?.["retry-after"];
+    const retryMs = /^\d+$/.test(retry ?? "") ? Date.now() + Number(retry) * 1000 : Date.parse(retry);
+    return { status: "blocked", reason, httpStatus: result.statusCode, title,
+      ...(Number.isFinite(retryMs) && Math.abs(retryMs) <= 8.64e15 ? { retryAfterAt: new Date(retryMs).toISOString() } : {}),
+      message: `DMIT 公开入口受限（HTTP ${result.statusCode}，${title}），库存无法确认` };
+  }
   if (!result.ok) return { status: "error", reason: "http-error", httpStatus: result.statusCode, message: `DMIT 公开页面返回 HTTP ${result.statusCode}` };
   return null;
 }
@@ -128,10 +134,13 @@ export async function collectDmitPlans(source, fetchPage, { signal } = {}) {
   if (catalog.issue) return result;
   plans.push(...parseDmitPlans(source, catalog.response));
   result.skuTotal = plans.filter((p) => p.raw.pid).length;
-  for (let index = 0; index < plans.length; index++) {
+  const priorities = new Map((source.skuPriority ?? []).map((pid, index) => [String(pid), index]));
+  const indices = plans.map((_, index) => index).sort((a, b) => (priorities.get(plans[a].raw.pid) ?? -1) - (priorities.get(plans[b].raw.pid) ?? -1));
+  for (const index of indices) {
     const plan = plans[index]; if (!plan.raw.pid) continue;
     if (signal?.aborted) { result.timeBudgetReached = true; break; }
     const sku = await request(plan.orderUrl, plan.raw.pid);
+    plan.raw.inventoryAttemptedAt = new Date().toISOString();
     result.skuChecked++;
     if (sku.issue) {
       plans[index] = { ...plan, status: "unknown", statusLabel: "SKU 核验受阻" };
@@ -139,6 +148,7 @@ export async function collectDmitPlans(source, fetchPage, { signal } = {}) {
       continue;
     }
     const checked = applyDmitSku(plan, sku.response); plans[index] = checked.plan;
+    if (checked.plan.raw.inventoryChecked) checked.plan.raw.inventoryCheckedAt = plan.raw.inventoryAttemptedAt;
     if (checked.issue) { Object.assign(attempts.at(-1), checked.issue); result.failedPages++; }
   }
   if (result.skuChecked < result.skuTotal && !result.failedPages) {
@@ -150,7 +160,7 @@ export async function collectDmitPlans(source, fetchPage, { signal } = {}) {
 }
 
 export function runDmitWorker(source) {
-  const timeoutMs = Math.max(1, Math.min(900000, (source.deadline ?? Date.now() + 900000) - Date.now()));
+  const timeoutMs = Math.max(1, Math.min(300000, (source.deadline ?? Date.now() + 300000) - Date.now()));
   return new Promise((resolve, reject) => {
     const child = execFile(process.execPath, [fileURLToPath(new URL("../dmit-worker.mjs", import.meta.url))], {
       timeout: timeoutMs, signal: source.signal, maxBuffer: 4 * 1024 * 1024
@@ -159,7 +169,7 @@ export function runDmitWorker(source) {
       try { resolve(JSON.parse(stdout)); } catch { reject(fail("invalid worker response")); }
     });
     child.stdin.on("error", () => {}); // Process failure is reported by execFile's callback.
-    child.stdin.end(JSON.stringify({ id: source.id, url: source.url, proxyUrl: source.proxyUrl || null, timeoutMs: Math.max(1, timeoutMs - 1500), requestIntervalMs: Math.max(8000, source.requestIntervalMs || 8000) }));
+    child.stdin.end(JSON.stringify({ id: source.id, url: source.url, proxyUrl: source.proxyUrl || null, skuPriority: source.skuPriority ?? [], timeoutMs: Math.max(1, timeoutMs - 1500), requestIntervalMs: Math.max(8000, source.requestIntervalMs || 8000) }));
   });
 }
 
