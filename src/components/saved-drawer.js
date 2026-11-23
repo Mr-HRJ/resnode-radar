@@ -62,7 +62,7 @@ export function renderSavedDrawer(state) {
                       </div>
                       <div style="font-weight:600;font-size:var(--text-sm);line-height:1.4;overflow-wrap:anywhere">${escapeHtml(plain(plan.name))}</div>
                       <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
-                        <span class="mono" style="font-weight:700;font-size:var(--text-sm)">${escapeHtml(plan._pricing.originalLabel)}</span>
+                        <span class="mono" style="font-weight:700;font-size:var(--text-sm)" title="${escapeHtml(plan._pricing.originalLabel)}">${escapeHtml(plan._pricing.displayLabel)}</span>
                         <span class="mono" style="font-size:var(--text-2xs);color:${plan._pricing.cnyTone === "ok" ? "var(--ok-fg)" : "var(--warn-fg)"}">${escapeHtml(plan._pricing.cnyLabel)}</span>
                       </div>
                       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">

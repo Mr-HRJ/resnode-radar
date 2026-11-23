@@ -107,10 +107,12 @@ export function renderInspectorDrawer(state, now = Date.now()) {
             <span class="pill ${p.cnyTone === "ok" ? "pill-ok" : "pill-warn"}">${escapeHtml(p.quote.period)}</span>
           </h3>
           <div class="insp-price-hero">
-            <span class="insp-price-orig num">${escapeHtml(p.originalLabel)}</span>
+            <span class="insp-price-orig num" title="${escapeHtml(p.originalLabel)}">${escapeHtml(p.displayLabel)}</span>
             <span class="insp-price-cny num" style="color:${p.cnyTone === "ok" ? "var(--ok-fg)" : "var(--warn-fg)"}">${escapeHtml(p.cnyLabel)}</span>
           </div>
           <dl class="kv-table">
+            <dt>官方报价原文</dt>
+            <dd class="mono">${escapeHtml(p.originalLabel)}</dd>
             <dt>识别币种</dt>
             <dd class="mono">${escapeHtml(p.quote.currency || "未明确 / 存在冲突")}</dd>
             <dt>计费周期</dt>

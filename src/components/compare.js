@@ -77,7 +77,7 @@ export function renderCompareModal(state) {
     {
       label: "原始账单报价",
       values: items.map((p) => p._pricing.originalLabel),
-      render: (p) => `<div class="mono" style="font-weight:700;font-size:var(--text-base)">${escapeHtml(p._pricing.originalLabel)}</div><div style="color:var(--ink-muted);margin-top:2px">周期：${escapeHtml(p._pricing.quote.period)}</div>`
+      render: (p) => `<div class="mono" style="font-weight:700;font-size:var(--text-base)" title="${escapeHtml(p._pricing.originalLabel)}">${escapeHtml(p._pricing.displayLabel)}</div><div style="color:var(--ink-muted);margin-top:2px">周期：${escapeHtml(p._pricing.quote.period)}</div>`
     },
     {
       label: "参考月均 (CNY)",

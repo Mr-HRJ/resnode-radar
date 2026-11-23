@@ -8,22 +8,22 @@ export function renderGuideView() {
     </div>
 
     <div class="guide-presets" aria-label="高频业务场景一键直达">
-      <button type="button" class="guide-preset-card" data-action="apply-preset" data-preset="us-home-dedicated">
+      <button type="button" class="guide-preset-card" style="--stagger-i:0" data-action="apply-preset" data-preset="us-home-dedicated">
         <span class="pill pill-home" style="align-self:flex-start">跨境电商 / 社媒</span>
         <strong>美区家宽（排除 NAT 标记） →</strong>
         <span>自动隔离普通机房原生 IP，排除 NAT 共享端口，仅看当前可购的美区住宅/双 ISP 套餐。</span>
       </button>
-      <button type="button" class="guide-preset-card" data-action="apply-preset" data-preset="cn2-opt">
+      <button type="button" class="guide-preset-card" style="--stagger-i:1" data-action="apply-preset" data-preset="cn2-opt">
         <span class="pill pill-vps" style="align-self:flex-start">低延迟回程 / 建站</span>
         <strong>CN2 GIA 精品优化 →</strong>
         <span>锁定明确声明 CN2 GIA / GT（AS4809）且当前可订购的节点，按证据强度与价格排序。</span>
       </button>
-      <button type="button" class="guide-preset-card" data-action="apply-preset" data-preset="budget-monthly">
+      <button type="button" class="guide-preset-card" style="--stagger-i:2" data-action="apply-preset" data-preset="budget-monthly">
         <span class="pill pill-ok" style="align-self:flex-start">轻量试错</span>
-        <strong>≤ ¥60/月 明码月付 →</strong>
+        <strong>≤ ￥60/月 明码月付 →</strong>
         <span>剔除起步选配价与周期不明套餐，基于 ECB 有效汇率筛选人民币月均 60 元以内月付方案。</span>
       </button>
-      <button type="button" class="guide-preset-card" data-action="apply-preset" data-preset="exact-stock">
+      <button type="button" class="guide-preset-card" style="--stagger-i:3" data-action="apply-preset" data-preset="exact-stock">
         <span class="pill pill-ok" style="align-self:flex-start">最高确定性</span>
         <strong>仅看精确库存数字 →</strong>
         <span>只保留官方页面公布具体剩余台数（<code>stock-count</code>）的高置信度在售套餐。</span>
@@ -84,7 +84,7 @@ export function renderGuideView() {
       <article class="guide-card">
         <h3>3. 价格防套路与 ECB 参考汇率红线</h3>
         <ul>
-          <li><strong>永不篡改原始账单</strong>：每一行主数字永远完整展示官方币种与原始计费周期（如 <code>USD 72 / Annually</code>），绝不把年付伪装成低价月付。</li>
+          <li><strong>永不篡改原始账单</strong>：主价格统一使用货币符号与实际计费周期（如 <code>$72/年</code>），保持官方金额不变；下方另列参考月均，详情保留官方报价原文。</li>
           <li><strong>起步价 &amp; 周期不明拒绝折算</strong>：包含「起 / from / configurable」或未标明自然月周期（如按 30 天/小时/一次性计费、周期表述冲突）的套餐，前端明确标注原因并停止月均折算。</li>
           <li><strong>7 天 ECB 汇率红线</strong>：外币折算参考人民币均来自欧洲央行（ECB）官方每日 XML 快照；若汇率日期超过 7 天，前端将自动熔断外币折算并弹出诚实提示，绝不使用陈旧汇率。</li>
           <li><strong>非结算价声明</strong>：参考月均人民币仅用于横向比价，不包含增值税（VAT）、发卡行货币转换费或支付网关手续费。</li>

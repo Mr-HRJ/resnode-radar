@@ -101,8 +101,12 @@
   --shadow-lg: 0 24px 56px rgba(15, 23, 42, 0.18), 0 4px 14px rgba(15, 23, 42, 0.08);
   --shadow-cta: 0 3px 10px rgba(79, 70, 229, 0.28);
 
-  /* Focus Ring */
+  /* Focus Ring & Motion Curves */
   --ring-color: rgba(37, 99, 235, 0.32);
+  --spotlight-color: rgba(37, 99, 235, 0.075);
+  --telemetry-grid-line: rgba(37, 99, 235, 0.045);
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
   /* Typography Stacks (Local-first, zero CDN blocking in China) */
   --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", "Segoe UI", sans-serif;
@@ -240,4 +244,6 @@
   --shadow-cta: 0 4px 14px rgba(59, 130, 246, 0.34);
 
   --ring-color: rgba(96, 165, 250, 0.42);
+  --spotlight-color: rgba(59, 130, 246, 0.13);
+  --telemetry-grid-line: rgba(96, 165, 250, 0.055);
 }

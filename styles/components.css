@@ -421,10 +421,20 @@
   padding: 0 10px;
   border-radius: var(--r-sm);
   border: 1px solid var(--border-default);
-  background: var(--bg-surface-2);
+  background-color: var(--bg-surface-2);
   color: var(--ink-primary);
   font-size: var(--text-xs);
-  transition: border-color 110ms ease, background 110ms ease;
+  transition: border-color 110ms ease, background-color 110ms ease;
+}
+
+.select-field {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 34px;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: right 14px center, right 10px center;
+  background-size: 4px 4px;
+  background-repeat: no-repeat;
 }
 
 .input-field:hover,
@@ -434,7 +444,7 @@
 
 .input-field:focus,
 .select-field:focus {
-  background: var(--bg-surface);
+  background-color: var(--bg-surface);
   border-color: var(--accent);
 }
 
@@ -1198,29 +1208,122 @@
   color: #ffffff;
 }
 
-.f-pill.is-hot-shop:not(.is-active) {
+.shop-shortcut:not(.is-active) {
   border-color: var(--border-default);
   background: var(--bg-surface-2);
-  font-weight: 600;
-  color: var(--ink-primary);
 }
 
-.f-pill.is-hot-shop:not(.is-active):hover {
+.shop-shortcut:not(.is-active):hover {
   border-color: var(--accent-border);
   background: var(--accent-soft);
   color: var(--accent);
 }
 
-.shop-hot-mark {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #f97316;
-  flex-shrink: 0;
+.shop-choice-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.f-pill.is-active .shop-hot-mark {
-  background: #ffffff;
+.shop-choice-count {
+  flex-shrink: 0;
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+
+.shop-shortcut .shop-choice-count {
+  margin-left: 3px;
+}
+
+.shop-shortcut.is-active .shop-choice-count {
+  color: inherit;
+}
+
+.shop-picker {
+  padding: 12px 14px 14px;
+  background: var(--bg-surface-2);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.shop-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.shop-picker-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--ink-primary);
+}
+
+.shop-picker-heading span {
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+
+.shop-picker-search {
+  width: 260px;
+  background-color: var(--bg-surface);
+}
+
+.shop-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 6px 8px;
+  max-height: 246px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 3px;
+}
+
+.shop-choice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--ink-secondary);
+  font-size: 12px;
+  text-align: left;
+  transition: border-color 110ms ease, background-color 110ms ease;
+}
+
+.shop-choice:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+
+.shop-choice.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.shop-choice.is-active .shop-choice-count {
+  color: inherit;
+}
+
+.shop-picker-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 80px;
+  color: var(--ink-muted);
+  font-size: 12px;
 }
 
 .expand-btn {
@@ -1246,33 +1349,34 @@
   color: var(--accent);
 }
 
-/* Strict 2-Column × 3-Row Pixel-Aligned Hardware & Budget Specification Grid */
+/* Three groups per row on wide screens; two on compact desktops. */
 .spec-matrix-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   border-bottom: 1px solid var(--border-subtle);
   background: color-mix(in srgb, var(--bg-surface-2) 55%, var(--bg-surface));
 }
 
 .spec-cell {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   padding: 6px 14px;
   border-bottom: 1px solid var(--border-subtle);
   min-width: 0;
 }
 
-.spec-cell:nth-child(odd) {
+.spec-cell:not(:nth-child(3n)) {
   border-right: 1px solid var(--border-subtle);
 }
 
-.spec-cell:nth-last-child(-n + 2) {
+.spec-cell:nth-last-child(-n + 3) {
   border-bottom: 0;
 }
 
 .spec-cell-label {
   width: 58px;
+  padding-top: 5px;
   flex-shrink: 0;
   font-size: 11.5px;
   font-weight: 600;
@@ -1286,6 +1390,19 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 3px;
+}
+
+.budget-controls {
+  gap: 8px;
+}
+
+.budget-controls .budget-select {
+  width: 116px;
+  flex-shrink: 0;
+}
+
+.budget-controls .price-range-box {
+  margin-left: 0;
 }
 
 /* Custom Price Range Inputs */
@@ -1350,15 +1467,16 @@
   width: auto;
   min-width: 142px;
   height: 28px;
-  padding: 0 8px;
+  padding-left: 8px;
   border-radius: 6px;
   font-size: 12px;
   font-weight: 600;
-  background: var(--bg-surface-2);
+  background-color: var(--bg-surface-2);
 }
 
-.region-dropdown.is-filtered {
-  background: var(--accent-soft);
+.region-dropdown.is-filtered,
+.budget-select.is-filtered {
+  background-color: var(--accent-soft);
   border-color: var(--accent);
   color: var(--accent);
 }
@@ -1366,10 +1484,10 @@
 .mini-select {
   width: auto;
   height: 26px;
-  padding: 0 7px;
+  padding-left: 7px;
   font-size: 11.5px;
   border-radius: 6px;
-  background: var(--bg-surface);
+  background-color: var(--bg-surface);
 }
 
 .q-dot {
@@ -1481,13 +1599,13 @@
   width: auto;
   height: 32px;
   max-width: 176px;
-  padding: 0 8px;
+  padding-left: 8px;
   font-size: var(--text-xs);
   flex-shrink: 0;
 }
 
 .dock-select.is-filtered {
-  background: var(--accent-soft);
+  background-color: var(--accent-soft);
   border-color: var(--accent-border);
   color: var(--accent);
   font-weight: 600;
@@ -2949,20 +3067,35 @@
    Mobile & Tablet Refinements
    ========================================================================== */
 
-@media (max-width: 1160px) {
-  .spec-matrix-grid,
-  .market-board-grid {
-    grid-template-columns: 1fr;
+@media (max-width: 1439px) {
+  .spec-matrix-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .spec-cell:nth-child(odd) {
+  .spec-cell:not(:nth-child(3n)) {
     border-right: 0;
   }
-  .spec-cell:nth-last-child(2) {
+  .spec-cell:nth-child(odd) {
+    border-right: 1px solid var(--border-subtle);
+  }
+  .spec-cell:nth-last-child(3) {
     border-bottom: 1px solid var(--border-subtle);
   }
 }
 
+@media (max-width: 1160px) {
+  .market-board-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 1060px) {
+  .spec-cell {
+    padding-inline: 10px;
+    gap: 6px;
+  }
+  .spec-cell .f-pill {
+    padding-inline: 6px;
+  }
   .kpi-grid,
   .guide-presets {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3076,5 +3209,351 @@
   }
   .canvas-toolbar {
     padding: 8px 10px;
+  }
+}
+
+/* ==========================================================================
+   Dynamic Telemetry Motion, Live Ticker Ribbon, Card Spotlight & Micro-Physics
+   ========================================================================== */
+
+.sync-icon {
+  display: inline-block;
+  line-height: 1;
+}
+
+.sync-icon.is-spinning {
+  animation: spin-sync 0.85s linear infinite;
+}
+
+/* ---------- Live Market Event Marquee Ribbon (现货选机首屏实时跑马灯) ---------- */
+.live-ticker-ribbon {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 10px 0 6px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-default);
+  background: color-mix(in srgb, var(--bg-surface) 88%, var(--bg-surface-2));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+
+.live-ticker-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--home-border);
+  background: var(--home-bg);
+  color: var(--home-fg);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.live-ticker-viewport {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+}
+
+.live-ticker-track {
+  display: flex;
+  align-items: center;
+  width: max-content;
+  gap: 8px;
+  animation: marquee-scroll var(--marquee-dur, 38s) linear infinite;
+  will-change: transform;
+}
+
+.live-ticker-ribbon:hover .live-ticker-track,
+.live-ticker-ribbon:focus-within .live-ticker-track {
+  animation-play-state: paused;
+}
+
+.live-ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--ink-secondary);
+  font-size: 11.5px;
+  white-space: nowrap;
+  transition: transform 160ms var(--ease-spring), border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.live-ticker-item:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--ink-primary);
+  box-shadow: var(--shadow-xs);
+}
+
+.ticker-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1;
+}
+
+.ticker-tag.is-restock { background: var(--grad-home); }
+.ticker-tag.is-down { background: var(--grad-primary); }
+.ticker-tag.is-up { background: var(--warn-dot); }
+.ticker-tag.is-soldout { background: var(--danger-dot); }
+
+.live-ticker-tail {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms var(--ease-spring);
+}
+
+.live-ticker-tail:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  transform: translateX(1.5px);
+}
+
+/* ---------- Interactive Spotlight & Tactile Hover Elevation ---------- */
+.plan-card,
+.provider-card,
+.market-board-card,
+.kpi-tile,
+.guide-preset-card {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 210ms var(--ease-spring),
+    box-shadow 210ms var(--ease-spring),
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.plan-card::after,
+.provider-card::after,
+.market-board-card::after,
+.kpi-tile::after,
+.guide-preset-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(280px circle at var(--mx, 50%) var(--my, 0%), var(--spotlight-color), transparent 72%);
+  transition: opacity 220ms ease;
+}
+
+.plan-card:hover,
+.provider-card:hover,
+.market-board-card:hover,
+.kpi-tile:hover,
+.guide-preset-card:hover {
+  transform: translateY(-2.5px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
+}
+
+.plan-card:hover::after,
+.provider-card:hover::after,
+.market-board-card:hover::after,
+.kpi-tile:hover::after,
+.guide-preset-card:hover::after {
+  opacity: 1;
+}
+
+.guide-card {
+  transition: transform 200ms var(--ease-spring), box-shadow 200ms var(--ease-spring), border-color 160ms ease;
+}
+
+.guide-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---------- Table Row Hover Rail, CTA Light Sheen & Restock Shimmer ---------- */
+.terminal-table tbody tr td {
+  transition: background-color 130ms ease, box-shadow 150ms ease;
+}
+
+.terminal-table tbody tr:hover td.col-plan {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.terminal-table tbody tr.is-home-row:hover td.col-plan {
+  box-shadow: inset 4px 0 0 var(--home-bar);
+}
+
+.btn-buy-cta {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-buy-cta::after {
+  content: "";
+  position: absolute;
+  top: -10%;
+  bottom: -10%;
+  width: 42%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.34), transparent);
+  transform: translateX(-160%) skewX(-20deg);
+  pointer-events: none;
+}
+
+.terminal-table tbody tr:hover .btn-buy-cta::after,
+.plan-card:hover .btn-buy-cta::after,
+.btn-buy-cta:hover::after {
+  animation: cta-sheen 1.15s var(--ease-out);
+}
+
+.tag-badge.is-restock {
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 1px 6px rgba(16, 185, 129, 0.32);
+}
+
+.tag-badge.is-restock::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 60%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.42), transparent);
+  animation: cta-sheen 3.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.pill-low-stock {
+  border-color: var(--ok-border);
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.14), 0 2px 8px rgba(16, 185, 129, 0.16);
+}
+
+.btn-star.is-active,
+.row-actions .btn.is-active {
+  animation: icon-spring-pop 240ms var(--ease-spring);
+}
+
+/* ---------- Staggered Cascades & Panel Unfurl Transitions ---------- */
+.shop-picker:not([hidden]),
+.spec-matrix-grid.is-unfurling {
+  animation: panel-unfurl 200ms var(--ease-spring) both;
+}
+
+.terminal-canvas.is-refreshing .terminal-table tbody tr,
+[data-view-panel].is-view-entering .terminal-table tbody tr,
+[data-view-panel].is-view-entering .tape-row {
+  animation: row-cascade-in 260ms var(--ease-spring) both;
+  animation-delay: calc(var(--stagger-i, 0) * 20ms);
+}
+
+.terminal-canvas.is-refreshing .plan-card,
+[data-view-panel].is-view-entering .plan-card,
+[data-view-panel].is-view-entering .provider-card,
+[data-view-panel].is-view-entering .kpi-tile,
+[data-view-panel].is-view-entering .market-board-card,
+[data-view-panel].is-view-entering .guide-preset-card,
+[data-view-panel].is-view-entering .guide-card,
+.dossier-live-row {
+  animation: card-cascade-in 280ms var(--ease-spring) both;
+  animation-delay: calc(var(--stagger-i, 0) * 26ms);
+}
+
+.region-bar-fill,
+.health-bar > span,
+.velocity-seg {
+  transform-origin: left center;
+  animation: bar-grow-x 680ms var(--ease-out) both;
+}
+
+/* ---------- Live Radar Scanner Dial & 24h Event Velocity Strip (全网大盘) ---------- */
+.radar-head-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.radar-scanner-dial {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.16) 0%, rgba(37, 99, 235, 0.08) 70%, transparent 100%);
+  border: 1px solid var(--home-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.18);
+}
+
+.radar-dial-sweep {
+  transform-origin: 14px 14px;
+  animation: radar-dial-spin 3.2s linear infinite;
+}
+
+.velocity-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-subtle);
+}
+
+.velocity-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+
+.velocity-bar {
+  height: 6px;
+  width: 100%;
+  border-radius: var(--r-pill);
+  background: var(--bg-subtle);
+  overflow: hidden;
+  display: flex;
+  gap: 2px;
+}
+
+.velocity-seg {
+  height: 100%;
+  border-radius: var(--r-pill);
+}
+
+.velocity-seg.is-restock { background: var(--ok-dot); }
+.velocity-seg.is-price { background: var(--accent); }
+.velocity-seg.is-soldout { background: var(--danger-dot); }
+
+@media (max-width: 640px) {
+  .live-ticker-tail {
+    display: none;
   }
 }

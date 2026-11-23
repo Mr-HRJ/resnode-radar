@@ -47,20 +47,20 @@ export const RISK_EXPLANATIONS = {
 };
 
 /**
- * Mainstream community flagship & reputable scale weights.
- * Combined with real-time monitored inventory scale so popular, well-known,
- * and well-stocked shops surface prominently by default without hiding smaller shops.
+ * Editorial provider order, not measured popularity. Catalog size is not demand.
+ * The four owner-selected priority brands remain visible even when collection fails.
  */
 export const POPULAR_PROVIDER_WEIGHTS = Object.freeze({
-  bwh: 460,
-  dmit: 455,
+  bwh: 480,
+  dmit: 475,
+  gomami: 470,
+  vmiss: 465,
   vps: 440,
   misaka: 435,
   lisahost: 430,
   greencloud: 425,
   lightlayer: 415,
   spartan: 410,
-  vmiss: 405,
   rfc: 400,
   zgovps: 395,
   evoxt: 390,
@@ -82,7 +82,6 @@ export const POPULAR_PROVIDER_WEIGHTS = Object.freeze({
   vircs: 305,
   ipraft: 300,
   pqs: 295,
-  gomami: 290,
   nube: 285,
   cstonecloud: 280,
   polocloud: 275,
@@ -100,7 +99,7 @@ export function providerBaseWeight(providerId) {
 }
 
 export function isHotProvider(providerId) {
-  return providerBaseWeight(providerId) >= 260;
+  return ["bwh", "dmit", "gomami", "vmiss"].includes(String(providerId || "").toLowerCase());
 }
 
 export const DEFAULT_FILTERS = Object.freeze({
@@ -129,7 +128,7 @@ export const DEFAULT_FILTERS = Object.freeze({
 });
 
 export const SORT_OPTIONS = [
-  { value: "recommended", label: "🔥 热门大厂与现货优选" },
+  { value: "recommended", label: "常用商家 · 现货优先" },
   { value: "cny-asc", label: "💰 月均参考价：低 → 高" },
   { value: "cny-desc", label: "💎 月均参考价：高 → 低" },
   { value: "stock-desc", label: "📦 精确库存：多 → 少" },
@@ -261,7 +260,6 @@ export function normalizeProduct(raw, index, exchangeRates, eventIndex = new Map
     _key: key,
     _providerId: providerId,
     _providerName: providerObj?.name || plain(raw?.provider) || "未知商家",
-    _providerHot: isHotProvider(providerId),
     _providerWeight: providerBaseWeight(providerId),
     _dossier: REVIEW_DOSSIERS[providerObj?.id] || null,
     _classify: classify,
@@ -422,7 +420,7 @@ export function matchesFilters(product, filters = DEFAULT_FILTERS, savedSet = ne
 }
 
 /**
- * Ranks all 121 providers by Mainstream Popularity + Live Monitored Inventory Scale.
+ * Keep the editorial order stable regardless of catalog size or collection failures.
  */
 export function rankProvidersByPopularity(allPlans = [], facetCounts = null) {
   const scaleMap = new Map();
@@ -438,18 +436,14 @@ export function rankProvidersByPopularity(allPlans = [], facetCounts = null) {
     .map((prov) => {
       const sc = scaleMap.get(prov.id) || { avail: 0, total: 0 };
       const base = providerBaseWeight(prov.id);
-      // Popularity weight + live available inventory scale (active shops beat 0-stock shops)
-      const hasStockBoost = sc.avail > 0 ? 180 : sc.total > 0 ? 40 : 0;
-      const scaleScore = Math.min(sc.avail, 160) * 1.4 + Math.min(sc.total, 200) * 0.35;
-      const score = base + hasStockBoost + scaleScore;
       const count = facetCounts ? facetCounts.get(prov.id) || 0 : sc.avail;
       return {
         provider: prov,
         avail: sc.avail,
         total: sc.total,
         count,
-        isHot: base >= 260,
-        score
+        isHot: isHotProvider(prov.id),
+        score: base
       };
     })
     .sort((a, b) => b.score - a.score || b.count - a.count || a.provider.name.localeCompare(b.provider.name, "zh-CN"));
@@ -487,18 +481,7 @@ export function sortProducts(list, sortKey = "recommended") {
     return arr;
   }
 
-  // Popularity + Scale + Brand-Diversity Wave Interleaving for "recommended":
-  // 1) Compute live scale per provider in current matched list
-  const provAvail = new Map();
-  for (const p of arr) {
-    if (p.status === "available") {
-      provAvail.set(p._providerId, (provAvail.get(p._providerId) || 0) + 1);
-    }
-  }
-  const provScore = (p) =>
-    (p._providerWeight || 0) + Math.min(provAvail.get(p._providerId) || 0, 140) * 1.3;
-
-  // 2) Pre-sort within each provider by best quality & price
+  // Rank each provider's plans by evidence and price before interleaving brands.
   const innerRankCompare = (a, b) => {
     const ca = a._pricing.cnyMonthly ?? Infinity;
     const cb = b._pricing.cnyMonthly ?? Infinity;
@@ -517,23 +500,21 @@ export function sortProducts(list, sortKey = "recommended") {
 
   arr.sort(innerRankCompare);
 
-  // Assign diversity wave (3 flagship plans per provider per wave so top rows showcase top brands!)
+  // One plan per provider per wave keeps large catalogs from filling the first screen.
   const seenPerProvider = new Map();
   const waveOf = new Map();
   for (const p of arr) {
     const k = `${statusWeight(p)}:${p._providerId}`;
     const n = seenPerProvider.get(k) || 0;
     seenPerProvider.set(k, n + 1);
-    // Non-flagship domestic/NAT-heavy bulk vendors get tighter wave cap so they never flood page 1
-    const perWave = (p._providerWeight || 0) >= 260 ? 3 : 1;
-    waveOf.set(p, Math.floor(n / perWave));
+    waveOf.set(p, n);
   }
 
   arr.sort((a, b) => {
     return (
       statusWeight(a) - statusWeight(b) ||
       waveOf.get(a) - waveOf.get(b) ||
-      provScore(b) - provScore(a) ||
+      (b._providerWeight || 0) - (a._providerWeight || 0) ||
       innerRankCompare(a, b)
     );
   });
@@ -644,11 +625,11 @@ export function listActiveFilterBadges(filters) {
   if (filters.minPrice || filters.maxPrice) {
     badges.push({
       key: "priceRange",
-      label: `预算: ¥${filters.minPrice || "0"}–${filters.maxPrice || "不限"}/月`
+      label: `预算: ￥${filters.minPrice || "0"}–${filters.maxPrice || "不限"}/月`
     });
   } else if (filters.budget !== "all") {
     const m = BUDGET_OPTIONS.find((b) => b.value === filters.budget);
-    badges.push({ key: "budget", label: `预算: ${m ? m.label : `≤¥${filters.budget}`}` });
+    badges.push({ key: "budget", label: `预算: ${m ? m.label : `≤￥${filters.budget}`}` });
   }
   if (filters.cycle !== "all") {
     const m = CYCLE_OPTIONS.find((c) => c.value === filters.cycle);

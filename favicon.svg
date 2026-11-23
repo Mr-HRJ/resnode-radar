@@ -5,15 +5,38 @@
       <stop offset="100%" stop-color="#4F46E5"/>
     </linearGradient>
     <linearGradient id="sweep" x1="32" y1="32" x2="50" y2="14" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.05"/>
-      <stop offset="100%" stop-color="#34D399" stop-opacity="0.55"/>
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#34D399" stop-opacity="0.68"/>
     </linearGradient>
+    <style>
+      @media (prefers-reduced-motion: no-preference) {
+        .radar-beam {
+          transform-origin: 32px 32px;
+          animation: radar-spin 3.8s linear infinite;
+        }
+        .radar-blip {
+          transform-origin: 46px 18px;
+          animation: blip-pulse 3.8s ease-in-out infinite;
+        }
+      }
+      @keyframes radar-spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      @keyframes blip-pulse {
+        0%, 100% { opacity: 1; transform: scale(1.12); }
+        45% { opacity: 0.38; transform: scale(0.84); }
+        85% { opacity: 0.92; transform: scale(1.06); }
+      }
+    </style>
   </defs>
   <rect width="64" height="64" rx="15" fill="url(#bg)"/>
   <circle cx="32" cy="32" r="21" fill="none" stroke="#93C5FD" stroke-opacity="0.28" stroke-width="2"/>
   <circle cx="32" cy="32" r="12" fill="none" stroke="#93C5FD" stroke-opacity="0.45" stroke-width="2"/>
-  <path d="M32 32 L32 11 A21 21 0 0 1 48 18 Z" fill="url(#sweep)"/>
-  <path d="M32 32 L47 17" stroke="#6EE7B7" stroke-width="3" stroke-linecap="round"/>
+  <g class="radar-beam">
+    <path d="M32 32 L32 11 A21 21 0 0 1 48 18 Z" fill="url(#sweep)"/>
+    <path d="M32 32 L47 17" stroke="#6EE7B7" stroke-width="3" stroke-linecap="round"/>
+  </g>
   <circle cx="32" cy="32" r="4" fill="#FFFFFF"/>
-  <circle cx="46" cy="18" r="4" fill="#10B981" stroke="#FFFFFF" stroke-width="1.5"/>
+  <circle class="radar-blip" cx="46" cy="18" r="4" fill="#10B981" stroke="#FFFFFF" stroke-width="1.5"/>
 </svg>

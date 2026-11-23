@@ -6,6 +6,7 @@ import {
   formatDateTime,
   formatDayKey,
   formatEventDelta,
+  formatPriceLabel,
   macroRegionsFor,
   normalizeSearch,
   plain,
@@ -131,9 +132,22 @@ export function renderRadarView(state, now = Date.now()) {
 
     <!-- 全网现货横截面概览（100% 真实快照实时聚合） -->
     <section class="market-board-grid" aria-label="全网实时现货结构">
-      <div class="market-board-card">
+      <div class="market-board-card" style="--stagger-i:0">
         <div class="market-board-head">
-          <strong>全网在售现货大盘</strong>
+          <span class="radar-head-badge">
+            <span class="radar-scanner-dial" aria-hidden="true">
+              <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
+                <circle cx="14" cy="14" r="10.5" stroke="currentColor" stroke-opacity="0.24" stroke-width="1.4" style="color:var(--home-fg)"/>
+                <circle cx="14" cy="14" r="5.5" stroke="currentColor" stroke-opacity="0.34" stroke-width="1.2" style="color:var(--home-fg)"/>
+                <g class="radar-dial-sweep">
+                  <path d="M14 14 L14 3.5 A10.5 10.5 0 0 1 22.8 8.2 Z" fill="var(--ok-dot)" fill-opacity="0.28"/>
+                  <line x1="14" y1="14" x2="21.5" y2="6.5" stroke="var(--ok-dot)" stroke-width="1.6" stroke-linecap="round"/>
+                </g>
+                <circle cx="14" cy="14" r="2" fill="var(--ok-dot)"/>
+              </svg>
+            </span>
+            <strong>全网在售现货大盘</strong>
+          </span>
           <span class="mono" style="font-size:11px;color:var(--ink-muted)">点击直达对应选机视图</span>
         </div>
         <div class="market-stat-row">
@@ -154,9 +168,24 @@ export function renderRadarView(state, now = Date.now()) {
             <strong class="market-mini-val num" style="color:var(--ok-fg)">${exactAvail}</strong>
           </button>
         </div>
+        ${
+          totalAll > 0
+            ? `<div class="velocity-strip">
+                <div class="velocity-head">
+                  <span>近 7 天真实观测异动结构</span>
+                  <span class="mono num">补货 ${restockAll} · 变价 ${priceAll} · 售罄 ${soldoutAll}</span>
+                </div>
+                <div class="velocity-bar" aria-hidden="true">
+                  ${restockAll ? `<span class="velocity-seg is-restock" style="width:${((restockAll / totalAll) * 100).toFixed(1)}%"></span>` : ""}
+                  ${priceAll ? `<span class="velocity-seg is-price" style="width:${((priceAll / totalAll) * 100).toFixed(1)}%"></span>` : ""}
+                  ${soldoutAll ? `<span class="velocity-seg is-soldout" style="width:${((soldoutAll / totalAll) * 100).toFixed(1)}%"></span>` : ""}
+                </div>
+              </div>`
+            : ""
+        }
       </div>
 
-      <div class="market-board-card">
+      <div class="market-board-card" style="--stagger-i:1">
         <div class="market-board-head">
           <strong>热门地区在售现货分布 Top 6</strong>
           <span class="mono" style="font-size:11px;color:var(--ink-muted)">点击按地区选机</span>
@@ -178,22 +207,22 @@ export function renderRadarView(state, now = Date.now()) {
     </section>
 
     <div class="kpi-grid" role="group" aria-label="按异动类型快捷筛选">
-      <button type="button" class="kpi-tile ${r.type === "all" ? "is-active" : ""}" data-action="set-radar-type" data-radar-type="all">
+      <button type="button" class="kpi-tile ${r.type === "all" ? "is-active" : ""}" style="--stagger-i:2" data-action="set-radar-type" data-radar-type="all">
         <span class="kpi-label">7 天全部真实异动</span>
         <span class="kpi-val num">${totalAll}</span>
         <span class="kpi-sub num">近 24h 新增 ${restock24 + soldout24 + price24} 条</span>
       </button>
-      <button type="button" class="kpi-tile ${r.type === "restock" ? "is-active" : ""}" data-action="set-radar-type" data-radar-type="restock">
+      <button type="button" class="kpi-tile ${r.type === "restock" ? "is-active" : ""}" style="--stagger-i:3" data-action="set-radar-type" data-radar-type="restock">
         <span class="kpi-label" style="color:var(--ok-fg)">补货上架（Restock）</span>
         <span class="kpi-val num" style="color:var(--ok-fg)">${restockAll}</span>
         <span class="kpi-sub num">近 24h 补货 ${restock24} 次</span>
       </button>
-      <button type="button" class="kpi-tile ${r.type === "soldout" ? "is-active" : ""}" data-action="set-radar-type" data-radar-type="soldout">
+      <button type="button" class="kpi-tile ${r.type === "soldout" ? "is-active" : ""}" style="--stagger-i:4" data-action="set-radar-type" data-radar-type="soldout">
         <span class="kpi-label" style="color:var(--danger-fg)">售罄下架（Soldout）</span>
         <span class="kpi-val num" style="color:var(--danger-fg)">${soldoutAll}</span>
         <span class="kpi-sub num">近 24h 售罄 ${soldout24} 次</span>
       </button>
-      <button type="button" class="kpi-tile ${r.type === "price" ? "is-active" : ""}" data-action="set-radar-type" data-radar-type="price">
+      <button type="button" class="kpi-tile ${r.type === "price" ? "is-active" : ""}" style="--stagger-i:5" data-action="set-radar-type" data-radar-type="price">
         <span class="kpi-label" style="color:var(--accent)">同周期变价（Price）</span>
         <span class="kpi-val num">${priceAll}</span>
         <span class="kpi-sub num">近 24h 变价 ${price24} 次</span>
@@ -248,7 +277,7 @@ export function renderRadarView(state, now = Date.now()) {
                 </div>
                 <div class="tape-list">
                   ${items
-                    .map((ev) => {
+                    .map((ev, idx) => {
                       const livePlan = planById.get(ev.productId);
                       const delta = formatEventDelta(ev);
                       const orderHref = safeUrl(ev.orderUrl || livePlan?.orderUrl);
@@ -280,14 +309,14 @@ export function renderRadarView(state, now = Date.now()) {
 
                       const priceHtml =
                         ev.type === "price" && ev.previousPrice
-                          ? `<span class="price-old">${escapeHtml(plain(ev.previousPrice))}</span><strong>${escapeHtml(plain(ev.price))}</strong>`
-                          : `<strong>${escapeHtml(plain(ev.price) || "-")}</strong>${
+                          ? `<span class="price-old" title="${escapeHtml(plain(ev.previousPrice))}">${escapeHtml(formatPriceLabel({ ...ev, price: ev.previousPrice, priceValue: ev.previousPriceValue }))}</span><strong title="${escapeHtml(plain(ev.price))}">${escapeHtml(formatPriceLabel(ev))}</strong>`
+                          : `<strong title="${escapeHtml(plain(ev.price))}">${escapeHtml(formatPriceLabel(ev))}</strong>${
                               ev.type === "restock" && Number.isInteger(ev.stockCount)
                                 ? `<div style="font-size:10.5px;color:var(--ok-fg)">观测库存 ${ev.stockCount}</div>`
                                 : ""
                             }`;
 
-                      return `<div class="tape-row ${rowTone}">
+                      return `<div class="tape-row ${rowTone}" style="--stagger-i:${Math.min(idx, 14)}">
                         <time class="tape-time" datetime="${escapeHtml(ev.at)}" title="${escapeHtml(formatDateTime(ev.at))}">${escapeHtml(formatClockTime(ev.at))}</time>
                         <div>${typeBadge}</div>
                         <div class="tape-main">

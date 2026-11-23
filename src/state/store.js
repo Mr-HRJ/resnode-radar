@@ -205,6 +205,7 @@ export function createStore(initialUrl) {
     savedDrawerOpen: false,
     mobileRailOpen: false,
     shopsExpanded: false,
+    shopQuery: "",
     specsExpanded: true,
     paletteOpen: false,
     paletteQuery: "",
@@ -370,6 +371,11 @@ export function createStore(initialUrl) {
     },
     toggleShopsExpanded() {
       state.shopsExpanded = !state.shopsExpanded;
+      if (!state.shopsExpanded) state.shopQuery = "";
+      notify();
+    },
+    setShopQuery(query) {
+      state.shopQuery = query;
       notify();
     },
     toggleSpecsExpanded() {

@@ -55,7 +55,7 @@ export async function mountReviewDossier(endpoint = "../data/products.json") {
         <div class="dossier-live-list">
           ${matched
             .slice(0, 6)
-            .map((p) => {
+            .map((p, idx) => {
               const pr = describePricing(p, payload.exchangeRates);
               const href = safeUrl(p.orderUrl);
               const pill =
@@ -67,13 +67,13 @@ export async function mountReviewDossier(endpoint = "../data/products.json") {
                     ? `<span class="pill pill-danger">售罄</span>`
                     : `<span class="pill pill-neutral">${escapeHtml(plain(p.statusLabel) || p.status)}</span>`;
 
-              return `<div class="dossier-live-row">
+              return `<div class="dossier-live-row" style="--stagger-i:${idx}">
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
                   <strong style="overflow-wrap:anywhere">${escapeHtml(plain(p.name))}</strong>
                   ${pill}
                 </div>
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;color:var(--ink-muted)">
-                  <span class="mono">${escapeHtml(pr.originalLabel)}</span>
+                  <span class="mono" title="${escapeHtml(pr.originalLabel)}">${escapeHtml(pr.displayLabel)}</span>
                   <span class="mono" style="color:${pr.cnyTone === "ok" ? "var(--ok-fg)" : "var(--warn-fg)"}">${escapeHtml(pr.cnyLabel)}</span>
                 </div>
                 ${

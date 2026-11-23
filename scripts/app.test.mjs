@@ -357,7 +357,7 @@ test("track isolation, zero-result recovery, command palette, compare matrix, in
   env.click("[data-action='apply-relaxation']");
   assert.ok(!env.document.querySelector("[data-zero-results]"));
 
-  // 2b. Brand identity, zero-count shops hidden even when expanded, hardware spec pills, custom price range, and column sort
+  // 2b. Uncollected priority brands stay visible; other zero-count shops remain hidden.
   assert.match(env.text("[data-app-header]"), /VPS雷达/);
   assert.match(env.text("[data-app-header]"), /vpsld/);
   assert.match(env.text(".market-spotlight"), /全网大盘/);
@@ -368,7 +368,7 @@ test("track isolation, zero-result recovery, command palette, compare matrix, in
   assert.match(env.text("[data-action='toggle-shops-expand']"), /收起店铺/);
   assert.match(env.text("[data-shops-row]"), /ZoroCloud/);
   assert.doesNotMatch(env.text("[data-shops-row]"), /Taipei101/);
-  assert.doesNotMatch(env.text("[data-shops-row]"), /DMIT/);
+  assert.match(env.text("[data-shops-row] [data-provider='dmit']"), /DMIT\s+待核验/);
   env.click("[data-action='toggle-shops-expand']");
   env.click("[data-filter-dock] [data-spec-key='cpu'][data-spec-val='2']");
   assert.match(env.getHref(), /cpu=2/);
@@ -439,6 +439,163 @@ test("track isolation, zero-result recovery, command palette, compare matrix, in
   assert.equal(env.document.querySelector("[data-view-panel='terminal']").hidden, false);
   assert.match(env.getHref(), /track=home/);
   assert.match(env.getHref(), /noNat=1/);
+});
+
+test("shop picker searches aliases without filtering products and preserves the selected shortcut", async (t) => {
+  const env = installDomEnvironment(t);
+  const payload = structuredClone(samplePayload);
+  const extraProviders = ["misaka", "lisahost", "greencloud", "spartan", "zgovps", "racknerd"];
+  payload.products.push(...extraProviders.map((providerId) => ({ ...samplePayload.products[1], id: `${providerId}-plan`, providerId })));
+  t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify(payload)));
+  const app = mountApp();
+  t.after(() => app.dispose());
+  await new Promise(setImmediate);
+  const beforeRows = env.document.querySelectorAll(".terminal-table tbody tr").length;
+  const beforeShortcuts = env.document.querySelectorAll("[data-shops-row] [data-provider]").map((el) => el.getAttribute("data-provider"));
+  assert.equal(env.document.querySelector("[data-shop-picker]").hidden, true);
+  assert.equal(env.document.querySelector("[data-shops-row] [data-provider='racknerd']"), null);
+
+  env.click("[data-action='toggle-shops-expand']");
+  assert.equal(env.document.querySelector("[data-shop-picker]").hidden, false);
+  assert.equal(env.document.activeElement, env.document.querySelector("[data-shop-search]"));
+  assert.deepEqual(env.document.querySelectorAll("[data-shops-row] [data-provider]").map((el) => el.getAttribute("data-provider")), beforeShortcuts);
+  env.input("[data-shop-search]", "狗妈咪");
+  assert.equal(env.document.activeElement, env.document.querySelector("[data-shop-search]"));
+  assert.equal(env.document.querySelectorAll(".shop-choice").length, 1);
+  assert.match(env.text(".shop-choice"), /Gomami\s+待核验/);
+  assert.equal(env.document.querySelectorAll(".terminal-table tbody tr").length, beforeRows);
+  assert.equal(app.store.getState().filters.q, "");
+  assert.doesNotMatch(env.getHref(), /q=/);
+
+  env.input("[data-shop-search]", '<img src=x onerror="alert(1)">');
+  assert.equal(env.document.querySelector("[data-shop-picker] img"), null);
+  assert.match(env.text(".shop-picker-empty"), /没有找到匹配的商家/);
+  env.click("[data-action='clear-shop-search']");
+  assert.equal(env.document.querySelector(".shop-picker-empty"), null);
+  env.input("[data-shop-search]", "RACKNERD");
+  env.click("[data-shop-picker] [data-provider='racknerd']");
+  assert.equal(app.store.getState().filters.provider, "racknerd");
+  assert.equal(env.document.querySelector("[data-shop-picker]").hidden, true);
+  assert.equal(env.document.querySelector("[data-shops-row] [data-provider='racknerd']").getAttribute("aria-pressed"), "true");
+  assert.equal(env.document.querySelectorAll(".terminal-table tbody tr").length, 1);
+
+  env.click("[data-action='toggle-shops-expand']");
+  assert.equal(app.store.getState().shopQuery, "");
+  assert.equal(env.document.querySelector("[data-shop-picker] [data-provider='racknerd']").getAttribute("aria-pressed"), "true");
+  env.pressKey("Escape");
+  assert.equal(env.document.querySelector("[data-shop-picker]").hidden, true);
+  assert.equal(env.document.activeElement, env.document.querySelector("[data-action='toggle-shops-expand']"));
+});
+
+test("billing formats stay consistent across lists, cards, details, saved items, comparison and events", async (t) => {
+  const env = installDomEnvironment(t);
+  const payload = structuredClone(samplePayload);
+  Object.assign(payload.products[0], { price: "USD 72 / Annually", priceValue: 72 });
+  Object.assign(payload.products[1], { price: "156.00元/季付", priceValue: 156 });
+  Object.assign(payload.events[0], { price: "USD 72 / Annually", priceValue: 72 });
+  Object.assign(payload.events[1], { price: "156.00元/季付", priceValue: 156, previousPrice: "196.00元/季付", previousPriceValue: 196 });
+  t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify(payload)));
+  const app = mountApp();
+  t.after(() => app.dispose());
+  await new Promise(setImmediate);
+
+  assert.equal(env.text("[data-product-id='home-att'] .price-primary"), "$72/年");
+  assert.equal(env.text("[data-product-id='dc-native'] .price-primary"), "￥156/季度");
+  assert.match(env.text("[data-product-id='home-att'] .price-sub"), /￥42\.0\/月/);
+  assert.equal(env.text(".live-capsule-item[data-product-id='home-att'] .ev-price"), "$72/年");
+  env.click(".terminal-table [data-product-id='home-att'] [data-action='toggle-save']");
+  env.click("[data-action='open-saved']");
+  assert.match(env.text("[data-saved-backdrop]"), /\$72\/年/);
+  env.pressKey("Escape");
+
+  env.click(".terminal-table [data-product-id='home-att'] [data-action='toggle-compare']");
+  env.click(".terminal-table [data-product-id='dc-native'] [data-action='toggle-compare']");
+  env.click("[data-action='open-compare']");
+  assert.match(env.text("[data-compare-modal]"), /\$72\/年/);
+  assert.match(env.text("[data-compare-modal]"), /￥156\/季度/);
+  env.pressKey("Escape");
+
+  env.click(".terminal-table [data-product-id='home-att']");
+  assert.equal(env.text(".insp-price-orig"), "$72/年");
+  assert.match(env.text("[data-inspector-backdrop]"), /官方报价原文\s+USD 72 \/ Annually/);
+  env.pressKey("Escape");
+  env.pressKey("k", { metaKey: true });
+  env.input("[data-palette-input]", "AT&T");
+  assert.match(env.text("[data-action='palette-plan'][data-product-id='home-att'] .palette-item-sub"), /\$72\/年/);
+  env.pressKey("Escape");
+
+  env.click("[data-layout='grid']");
+  assert.equal(env.text("[data-product-id='home-att'] .price-primary"), "$72/年");
+  assert.equal(env.text("[data-product-id='dc-native'] .price-primary"), "￥156/季度");
+  env.click("[data-nav-view='radar']");
+  assert.match(env.text(".tape-list"), /\$72\/年/);
+  assert.match(env.text(".tape-list"), /￥156\/季度/);
+  assert.equal(env.text(".price-old"), "￥196/季度");
+});
+
+test("budget presets and custom amounts replace each other without leaving hidden filters", async (t) => {
+  const env = installDomEnvironment(t);
+  t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify(samplePayload)));
+  const app = mountApp();
+  t.after(() => app.dispose());
+  await new Promise(setImmediate);
+
+  env.input("[data-filter-dock] [data-price-min]", "100");
+  env.input("[data-filter-dock] [data-price-max]", "200");
+  assert.match(env.text(".terminal-table"), /加州 AT&T/);
+  assert.doesNotMatch(env.text(".terminal-table"), /JP-CN2-Starter/);
+  assert.ok(env.document.querySelector("[data-filter-select='budget'] option[value='custom'][selected]"));
+
+  env.change("[data-filter-select='budget']", "20-50");
+  assert.equal(app.store.getState().filters.minPrice, "");
+  assert.equal(app.store.getState().filters.maxPrice, "");
+  assert.match(env.text(".terminal-table"), /JP-CN2-Starter/);
+  assert.doesNotMatch(env.text(".terminal-table"), /加州 AT&T/);
+  assert.doesNotMatch(env.getHref(), /minP=|maxP=/);
+
+  env.input("[data-filter-dock] [data-price-min]", "100");
+  assert.equal(app.store.getState().filters.budget, "all");
+  assert.match(env.text(".terminal-table"), /加州 AT&T/);
+  env.change("[data-filter-select='budget']", "all");
+  assert.equal(env.document.querySelectorAll(".terminal-table tbody tr").length, 2);
+  assert.equal(env.document.querySelector("[data-filter-select='budget'] option[value='custom']"), null);
+});
+
+test("priority brands show pending stock honestly and never label every plan hot", async (t) => {
+  const env = installDomEnvironment(t);
+  const payload = structuredClone(samplePayload);
+  payload.products.push(
+    ...Array.from({ length: 6 }, (_, i) => ({ ...samplePayload.products[1], id: `bwh-${i}`, providerId: "bwh", provider: "搬瓦工(BWH)" })),
+    { ...samplePayload.products[2], id: "dmit-diag", providerId: "dmit", provider: "DMIT" }
+  );
+  t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify(payload)));
+  const app = mountApp();
+  t.after(() => app.dispose());
+  await new Promise(setImmediate);
+
+  const shopIds = env.document.querySelectorAll("[data-shops-row] [data-provider]").map((el) => el.getAttribute("data-provider"));
+  assert.deepEqual(shopIds.slice(1, 5), ["bwh", "dmit", "gomami", "vmiss"]);
+  assert.equal(env.document.querySelector(".tag-badge.is-hot"), null);
+  assert.ok(env.document.querySelector(".terminal-table .tag-badge.is-restock"));
+  assert.match(env.text("[data-mobile-filter-sheet] option[value='dmit']"), /待核验/);
+
+  env.click("[data-filter-dock] [data-provider='bwh']");
+  assert.equal(env.document.querySelectorAll(".terminal-table tbody tr").length, 6);
+  assert.equal(env.document.querySelector(".tag-badge.is-hot"), null);
+  env.click("[data-layout='grid']");
+  assert.equal(env.document.querySelectorAll(".plan-grid .plan-card").length, 6);
+  assert.equal(env.document.querySelector(".tag-badge.is-hot"), null);
+
+  env.click("[data-filter-dock] [data-provider='dmit']");
+  assert.match(env.text("[data-zero-results]"), /库存待核验/);
+  assert.match(env.text("[data-zero-results]"), /官方页面访问受限/);
+  assert.doesNotMatch(env.text("[data-zero-results]"), /条件存在互斥/);
+  assert.equal(env.document.querySelector("[data-zero-results] a").getAttribute("href"), "https://www.dmit.io/");
+  env.click("[data-zero-results] [data-action='reset-filters']");
+  assert.equal(env.document.querySelector("[data-zero-results]"), null);
+
+  env.click("[data-nav-view='providers']");
+  assert.deepEqual(env.document.querySelectorAll(".provider-name").slice(0, 4).map((el) => el.textContent), ["搬瓦工(BWH)", "DMIT", "Gomami(狗妈咪)", "VMISS"]);
 });
 
 test("standalone review dossier page hydrates live provider telemetry under unified design system", async (t) => {
@@ -519,4 +676,48 @@ test("provider diagnostics escape fetched URLs and KPI totals match their filter
   const issue = Number(env.text("[data-health='issue'] .kpi-val"));
   env.click("[data-health='issue']");
   assert.equal(env.document.querySelectorAll(".provider-card").length, issue);
+});
+
+test("live ticker ribbon, sync bar, and non-flicker transition classes respect filters and state updates", async (t) => {
+  const env = installDomEnvironment(t);
+  let resolveFetch;
+  t.mock.method(globalThis, "fetch", () => new Promise((r) => { resolveFetch = r; }));
+
+  const app = mountApp();
+  t.after(() => app.dispose());
+
+  // Sync bar sweeps indeterminately while initial snapshot is loading
+  assert.equal(env.document.querySelector("[data-sync-progress]").classList.contains("is-syncing"), true);
+
+  resolveFetch(new Response(JSON.stringify(samplePayload)));
+  await new Promise(setImmediate);
+
+  assert.equal(env.document.querySelector("[data-sync-progress]").classList.contains("is-syncing"), false);
+  assert.ok(env.document.querySelector("[data-live-ribbon]"));
+  assert.match(env.text("[data-live-ribbon]"), /加州 AT&T 双ISP 家宽/);
+  assert.match(env.text("[data-live-ribbon]"), /JP-CN2-Starter/);
+
+  // Filtering scopes the live ribbon and marks canvas refresh without re-triggering view entrance
+  env.click("[data-filter-dock] [data-track='home']");
+  assert.equal(env.document.querySelector("[data-view-panel='terminal']").classList.contains("is-view-entering"), false);
+  assert.equal(env.document.querySelector("[data-terminal-canvas]").classList.contains("is-refreshing"), true);
+  assert.match(env.text("[data-live-ribbon]"), /加州 AT&T 双ISP 家宽/);
+  assert.doesNotMatch(env.text("[data-live-ribbon]"), /JP-CN2-Starter/);
+
+  // Clicking a marquee item opens Inspector with entrance animation once; mutating inside drawer does not re-slide
+  env.click("[data-live-ribbon] [data-action='inspect-ticker-event']");
+  const inspector = env.document.querySelector("[data-inspector-backdrop]");
+  assert.equal(inspector.hidden, false);
+  assert.equal(inspector.classList.contains("is-entering"), true);
+
+  env.click("[data-inspector-backdrop] [data-action='toggle-save']");
+  assert.equal(inspector.hidden, false);
+  assert.equal(inspector.classList.contains("is-entering"), false);
+  env.pressKey("Escape");
+
+  // Radar view renders live scanner dial and real velocity bar
+  env.click("[data-nav-view='radar']");
+  assert.equal(env.document.querySelector("[data-view-panel='radar']").classList.contains("is-view-entering"), true);
+  assert.ok(env.document.querySelector(".radar-scanner-dial"));
+  assert.ok(env.document.querySelector(".velocity-strip"));
 });

@@ -5,6 +5,7 @@ import {
   listActiveFilterBadges,
   matchesFilters,
   rankProvidersByPopularity,
+  resolveProvider,
   sortProducts
 } from "../domain/catalog.js";
 import {
@@ -19,8 +20,11 @@ import {
   ROUTE_OPTIONS,
   TRAFFIC_OPTIONS,
   escapeHtml,
+  formatClockTime,
   formatEventDelta,
+  formatPriceLabel,
   fxFreshness,
+  normalizeSearch,
   plain,
   safeUrl
 } from "../domain/format.js";
@@ -57,9 +61,10 @@ function fPillClass(isActive, isDefaultOption = false, extra = "") {
 function renderStockEvidenceCell(plan) {
   if (plan.status === "available") {
     if (plan._isExactStock) {
+      const lowClass = plan.stockCount <= 5 ? " pill-low-stock" : "";
       return `<div class="stock-stack">
-        <span class="pill pill-ok num"><span class="radar-ping-dot" style="width:6px;height:6px" aria-hidden="true"></span>余 ${plan.stockCount}</span>
-        <span class="stock-sub" style="color:var(--ok-fg);font-weight:600">精确现货</span>
+        <span class="pill pill-ok${lowClass} num"><span class="radar-ping-dot" style="width:6px;height:6px" aria-hidden="true"></span>余 ${plan.stockCount}</span>
+        <span class="stock-sub" style="color:var(--ok-fg);font-weight:600">${plan.stockCount <= 5 ? "紧俏现货" : "精确现货"}</span>
       </div>`;
     }
     if (plan._isSnapshot) {
@@ -91,9 +96,6 @@ function renderInlineLeadTag(plan, now = Date.now()) {
   if (ev && ev.type === "restock" && now - (Date.parse(ev.at) || 0) <= 72 * 3600 * 1000) {
     return `<span class="tag-badge is-restock" title="近 72h 观测到补货上架">补货</span>`;
   }
-  if (plan._providerHot) {
-    return `<span class="tag-badge is-hot" title="高关注度热门主机商">热门</span>`;
-  }
   return "";
 }
 
@@ -112,7 +114,7 @@ function renderEventSpark(plan, now = Date.now()) {
     }
   }
   if (plan.status === "available" && Number.isFinite(plan._pricing.cnyMonthly) && plan._pricing.cnyMonthly <= 20) {
-    badges.push(`<span class="pill pill-deal" style="height:19px;padding:0 5px" title="折合人民币月均 ≤ ¥20">特惠</span>`);
+    badges.push(`<span class="pill pill-deal" style="height:19px;padding:0 5px" title="折合人民币月均 ≤ ￥20">特惠</span>`);
   }
   return badges.join("");
 }
@@ -231,12 +233,12 @@ function renderPriceStack(plan, align = "right") {
         : "price-sub is-muted";
   const cnyDisplay = p.cnyTone === "ok" && !p.cnyLabel.startsWith("折合") ? `折合 ${p.cnyLabel.replace(/^≈\s*/, "")}` : p.cnyLabel;
   return `<div class="${align === "right" ? "price-stack" : "plan-card-price"}">
-    <span class="price-primary ${isPromo ? "is-promo price-promo-pulse" : ""} num">${escapeHtml(p.originalLabel)}</span>
+    <span class="price-primary ${isPromo ? "is-promo price-promo-pulse" : ""} num" title="${escapeHtml(p.originalLabel)}">${escapeHtml(p.displayLabel)}</span>
     <span class="${subClass} num" title="${escapeHtml(p.formula || p.honestReason || "")}">${escapeHtml(cnyDisplay)}</span>
   </div>`;
 }
 
-function renderTableRow(plan, state, now) {
+function renderTableRow(plan, state, now, idx = 0) {
   const isSaved = state.savedKeys.has(plan._key);
   const isCompared = state.compareKeys.includes(plan._key);
   const isInspected = state.inspectId === plan.id;
@@ -246,7 +248,7 @@ function renderTableRow(plan, state, now) {
   const leadTag = renderInlineLeadTag(plan, now);
 
   return `
-    <tr class="${isInspected ? "is-inspected" : ""} ${isSoldout ? "is-soldout" : ""} ${plan._classify.isResidential ? "is-home-row" : ""}" data-action="inspect-plan" data-product-id="${escapeHtml(plan.id)}">
+    <tr class="${isInspected ? "is-inspected" : ""} ${isSoldout ? "is-soldout" : ""} ${plan._classify.isResidential ? "is-home-row" : ""}" style="--stagger-i:${Math.min(idx, 14)}" data-action="inspect-plan" data-product-id="${escapeHtml(plan.id)}">
       <td class="col-plan">
         <div class="plan-cell">
           <div class="plan-title-row">
@@ -306,7 +308,7 @@ function renderTableRow(plan, state, now) {
   `;
 }
 
-function renderPlanCard(plan, state, now) {
+function renderPlanCard(plan, state, now, idx = 0) {
   const isSaved = state.savedKeys.has(plan._key);
   const isCompared = state.compareKeys.includes(plan._key);
   const isInspected = state.inspectId === plan.id;
@@ -316,7 +318,7 @@ function renderPlanCard(plan, state, now) {
   const leadTag = renderInlineLeadTag(plan, now);
 
   return `
-    <article class="plan-card ${plan._classify.isResidential ? "is-home" : ""} ${isInspected ? "is-inspected" : ""} ${isSoldout ? "is-soldout" : ""}" data-action="inspect-plan" data-product-id="${escapeHtml(plan.id)}">
+    <article class="plan-card ${plan._classify.isResidential ? "is-home" : ""} ${isInspected ? "is-inspected" : ""} ${isSoldout ? "is-soldout" : ""}" style="--stagger-i:${Math.min(idx, 14)}" data-action="inspect-plan" data-product-id="${escapeHtml(plan.id)}">
       <div class="plan-card-top">
         <div class="plan-card-vendor">
           ${leadTag}
@@ -355,6 +357,17 @@ function renderPlanCard(plan, state, now) {
   `;
 }
 
+function renderShopChoice({ provider, count, total }, selectedId, compact = false) {
+  const active = selectedId === provider.id;
+  return `<button type="button"
+    class="${compact ? fPillClass(active, false, "shop-shortcut") : `shop-choice${active ? " is-active" : ""}`}"
+    data-action="set-provider" data-provider="${escapeHtml(provider.id)}" aria-pressed="${active}"
+    title="${escapeHtml(provider.name)} · ${total === 0 ? "尚无可核验套餐，库存待确认" : `${count} 款匹配套餐`}">
+    <span class="shop-choice-name">${escapeHtml(shortProviderLabel(provider.name))}</span>
+    <span class="shop-choice-count ${total === 0 ? "is-pending" : "num"}">${total === 0 ? "待核验" : count}</span>
+  </button>`;
+}
+
 function renderTopFacetMatrixCard(state, facets, matchedCount, visibleCount, now) {
   const f = state.filters;
   const fx = state.payload ? fxFreshness(state.payload.exchangeRates, now) : { valid: true };
@@ -362,15 +375,21 @@ function renderTopFacetMatrixCard(state, facets, matchedCount, visibleCount, now
   const rankedShops = rankProvidersByPopularity(state.plans, facets.providerCounts);
   const COLLAPSED_SHOP_LIMIT = 8;
 
-  // Strictly hide 0-count shops from the filter bar! Only show shops with count > 0 (plus the active selected shop if any).
-  const nonZeroShops = rankedShops.filter((s) => s.count > 0);
-  let displayedShops = state.shopsExpanded ? nonZeroShops : nonZeroShops.slice(0, COLLAPSED_SHOP_LIMIT);
+  // Missing collection data must not make priority brands disappear or imply sold out.
+  const eligibleShops = rankedShops.filter((s) => s.count > 0 || (s.isHot && s.total === 0) || s.provider.id === f.provider);
+  let displayedShops = eligibleShops.slice(0, COLLAPSED_SHOP_LIMIT);
   if (f.provider !== "all" && !displayedShops.some((s) => s.provider.id === f.provider)) {
     const selectedItem = rankedShops.find((s) => s.provider.id === f.provider);
     if (selectedItem) displayedShops = [...displayedShops, selectedItem];
   }
 
-  const totalNonZeroCount = nonZeroShops.length;
+  const shopTokens = normalizeSearch(state.shopQuery || "").split(/\s+/).filter(Boolean);
+  const matchingShops = eligibleShops.filter(({ provider }) => {
+    const text = normalizeSearch([provider.id, provider.name, ...(provider.aliases || []), shortProviderLabel(provider.name)].join(" "));
+    return shopTokens.every((token) => text.includes(token));
+  });
+  const totalShopCount = eligibleShops.length;
+  const hasCustomBudget = Boolean(f.minPrice || f.maxPrice);
   const hasSpecFilters =
     f.cpu !== "all" ||
     f.memory !== "all" ||
@@ -383,36 +402,39 @@ function renderTopFacetMatrixCard(state, facets, matchedCount, visibleCount, now
 
   return `
     <section class="filter-dock" aria-label="多维直选配置与筛选工作台" data-filter-dock>
-      <!-- Row 1: 热门商家（仅展示 count > 0 的在售品牌，彻底过滤 0 库存空店） -->
+      <!-- Priority brands with honest collection status, followed by matching shops. -->
       <div class="facet-matrix-row">
-        <div class="facet-row-label">热门商家</div>
+        <div class="facet-row-label" title="人工编排的常用商家顺序；数字为匹配套餐数，不代表热度">常用商家</div>
         <div class="facet-row-options" data-shops-row>
           <button type="button" class="${fPillClass(f.provider === "all", true)}" data-action="set-provider" data-provider="all">
             <span>全部品牌</span>
           </button>
-          ${displayedShops
-            .map(({ provider, count, isHot }) => {
-              const active = f.provider === provider.id;
-              return `<button
-                type="button"
-                class="${fPillClass(active, false, isHot ? "is-hot-shop" : "")}"
-                data-action="set-provider"
-                data-provider="${escapeHtml(provider.id)}"
-                title="${escapeHtml(provider.name)}"
-              >
-                ${isHot ? `<span class="shop-hot-mark" aria-hidden="true"></span>` : ""}
-                <span>${escapeHtml(shortProviderLabel(provider.name))}</span>
-                <span class="f-cnt num">${count}</span>
-              </button>`;
-            })
-            .join("")}
+          ${displayedShops.map((shop) => renderShopChoice(shop, f.provider, true)).join("")}
         </div>
         <div class="facet-row-extra">
-          <button type="button" class="expand-btn" data-action="toggle-shops-expand" aria-expanded="${state.shopsExpanded}">
-            <span>${state.shopsExpanded ? "收起店铺 ▴" : `展开在售 (${totalNonZeroCount}) ▾`}</span>
+          <button type="button" class="expand-btn" data-action="toggle-shops-expand" aria-expanded="${state.shopsExpanded}" aria-controls="shop-picker">
+            <span>${state.shopsExpanded ? "收起店铺 ▴" : `更多商家 (${totalShopCount}) ▾`}</span>
           </button>
         </div>
       </div>
+
+      <section class="shop-picker" id="shop-picker" data-shop-picker aria-label="商家选择面板" ${state.shopsExpanded ? "" : "hidden"}>
+        ${state.shopsExpanded ? `
+          <div class="shop-picker-head">
+            <div class="shop-picker-heading">
+              <strong>全部商家</strong>
+              <span aria-live="polite">${matchingShops.length} 家 · 数字为匹配套餐数</span>
+            </div>
+            <input type="search" class="input-field shop-picker-search" data-shop-search value="${escapeHtml(state.shopQuery)}" placeholder="搜索商家名称或别名" aria-label="查找商家" />
+          </div>
+          ${matchingShops.length ? `<div class="shop-picker-grid" role="group" aria-label="匹配商家">
+            ${matchingShops.map((shop) => renderShopChoice(shop, f.provider)).join("")}
+          </div>` : `<div class="shop-picker-empty">
+            <span>没有找到匹配的商家</span>
+            <button type="button" class="btn btn-xs btn-ghost" data-action="clear-shop-search">清空搜索</button>
+          </div>`}
+        ` : ""}
+      </section>
 
       <!-- Row 2: 地区下拉 + 节点用途定位 + 原生/优化属性 -->
       <div class="facet-matrix-row is-centered">
@@ -476,8 +498,42 @@ function renderTopFacetMatrixCard(state, facets, matchedCount, visibleCount, now
       ${
         state.specsExpanded
           ? `
-            <!-- 严格两列对齐的硬件规格与预算矩阵（彻底告别错位竖线与满屏蓝块） -->
+            <!-- Responsive hardware and budget groups. -->
             <div class="spec-matrix-grid" data-specs-panel>
+              <div class="spec-cell" role="group" aria-label="月均人民币预算区间">
+                <span class="spec-cell-label">月均预算</span>
+                <div class="spec-cell-opts budget-controls">
+                  <select class="select-field mini-select budget-select ${f.budget !== "all" || hasCustomBudget ? "is-filtered" : ""}" data-filter-select="budget" aria-label="月均预算档位">
+                    ${hasCustomBudget ? `<option value="custom" selected disabled>自定义金额</option>` : ""}
+                    ${BUDGET_OPTIONS.map((b) => `<option value="${b.value}" ${f.budget === b.value && !hasCustomBudget ? "selected" : ""}>${b.value === "all" ? "不限" : b.label}</option>`).join("")}
+                  </select>
+                  <div class="price-range-box ${f.minPrice || f.maxPrice ? "is-active" : ""}" title="${!fx.valid ? "ECB 汇率超 7 天，外币套餐已停算 CNY" : "输入自定义人民币月均最低与最高价"}">
+                    <span class="range-currency">￥</span>
+                    <input type="number" min="0" step="1" class="price-range-input" data-price-min value="${escapeHtml(f.minPrice)}" placeholder="最低" aria-label="最低月均人民币" />
+                    <span class="range-sep">-</span>
+                    <input type="number" min="0" step="1" class="price-range-input" data-price-max value="${escapeHtml(f.maxPrice)}" placeholder="最高" aria-label="最高月均人民币" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="spec-cell" role="group" aria-label="月流量配额">
+                <span class="spec-cell-label">月度流量</span>
+                <div class="spec-cell-opts">
+                  ${TRAFFIC_OPTIONS.map(
+                    (o) => `<button type="button" class="${fPillClass(f.traffic === o.value, o.value === "all")}" data-action="set-spec" data-spec-key="traffic" data-spec-val="${o.value}">${o.label.replace(/^♾\s*/, "")}</button>`
+                  ).join("")}
+                </div>
+              </div>
+
+              <div class="spec-cell" role="group" aria-label="端口带宽">
+                <span class="spec-cell-label">端口带宽</span>
+                <div class="spec-cell-opts">
+                  ${BANDWIDTH_OPTIONS.map(
+                    (o) => `<button type="button" class="${fPillClass(f.bandwidth === o.value, o.value === "all")}" data-action="set-spec" data-spec-key="bandwidth" data-spec-val="${o.value}">${o.label}</button>`
+                  ).join("")}
+                </div>
+              </div>
+
               <div class="spec-cell" role="group" aria-label="CPU核数">
                 <span class="spec-cell-label">CPU 核数</span>
                 <div class="spec-cell-opts">
@@ -502,43 +558,6 @@ function renderTopFacetMatrixCard(state, facets, matchedCount, visibleCount, now
                   ${DISK_OPTIONS.map(
                     (o) => `<button type="button" class="${fPillClass(f.disk === o.value, o.value === "all")}" data-action="set-spec" data-spec-key="disk" data-spec-val="${o.value}">${o.label}</button>`
                   ).join("")}
-                </div>
-              </div>
-
-              <div class="spec-cell" role="group" aria-label="端口带宽">
-                <span class="spec-cell-label">端口带宽</span>
-                <div class="spec-cell-opts">
-                  ${BANDWIDTH_OPTIONS.map(
-                    (o) => `<button type="button" class="${fPillClass(f.bandwidth === o.value, o.value === "all")}" data-action="set-spec" data-spec-key="bandwidth" data-spec-val="${o.value}">${o.label}</button>`
-                  ).join("")}
-                </div>
-              </div>
-
-              <div class="spec-cell" role="group" aria-label="月流量配额">
-                <span class="spec-cell-label">月度流量</span>
-                <div class="spec-cell-opts">
-                  ${TRAFFIC_OPTIONS.map(
-                    (o) => `<button type="button" class="${fPillClass(f.traffic === o.value, o.value === "all")}" data-action="set-spec" data-spec-key="traffic" data-spec-val="${o.value}">${o.label.replace(/^♾\s*/, "")}</button>`
-                  ).join("")}
-                </div>
-              </div>
-
-              <div class="spec-cell" role="group" aria-label="月均人民币预算区间">
-                <span class="spec-cell-label">月均预算</span>
-                <div class="spec-cell-opts">
-                  ${BUDGET_OPTIONS.map((b) => {
-                    const isAll = b.value === "all";
-                    const active = f.budget === b.value && !f.minPrice && !f.maxPrice;
-                    return `<button type="button" class="${fPillClass(active, isAll)}" data-action="set-budget" data-budget="${b.value}">
-                      <span class="num">${isAll ? "不限" : b.label}</span>
-                    </button>`;
-                  }).join("")}
-                  <div class="price-range-box ${f.minPrice || f.maxPrice ? "is-active" : ""}" title="${!fx.valid ? "ECB 汇率超 7 天，外币套餐已停算 CNY" : "输入自定义人民币月均最低与最高价"}">
-                    <span class="range-currency">¥</span>
-                    <input type="number" min="0" step="1" class="price-range-input" data-price-min value="${escapeHtml(f.minPrice)}" placeholder="最低" aria-label="最低月均人民币" />
-                    <span class="range-sep">-</span>
-                    <input type="number" min="0" step="1" class="price-range-input" data-price-max value="${escapeHtml(f.maxPrice)}" placeholder="最高" aria-label="最高月均人民币" />
-                  </div>
                 </div>
               </div>
             </div>
@@ -617,7 +636,7 @@ function renderMobileFilterSheet(state, facets, matchedCount, now) {
   const f = state.filters;
   const fx = state.payload ? fxFreshness(state.payload.exchangeRates, now) : { valid: true };
   const rankedShops = rankProvidersByPopularity(state.plans, facets.providerCounts);
-  const mobileShops = rankedShops.filter((s) => s.count > 0 || s.provider.id === f.provider);
+  const mobileShops = rankedShops.filter((s) => s.count > 0 || (s.isHot && s.total === 0) || s.provider.id === f.provider);
 
   return `
     <aside class="mobile-filter-sheet ${state.mobileRailOpen ? "is-mobile-open" : ""}" aria-label="移动端全维筛选抽屉" data-mobile-filter-sheet>
@@ -627,13 +646,13 @@ function renderMobileFilterSheet(state, facets, matchedCount, now) {
       </div>
 
       <div class="rail-section">
-        <div class="rail-heading"><span>热门在售店铺与地区</span></div>
+        <div class="rail-heading"><span>常用商家与地区</span></div>
         <select class="select-field" data-filter-select="provider" aria-label="按店铺筛选">
-          <option value="all" ${f.provider === "all" ? "selected" : ""}>全部在售品牌（按热度与规模排序）</option>
+          <option value="all" ${f.provider === "all" ? "selected" : ""}>全部品牌（常用商家优先）</option>
           ${mobileShops
             .map(
-              ({ provider, count, isHot }) =>
-                `<option value="${escapeHtml(provider.id)}" ${f.provider === provider.id ? "selected" : ""}>${isHot ? "★ " : ""}${escapeHtml(provider.name)} (${count})</option>`
+              ({ provider, count, total, isHot }) =>
+                `<option value="${escapeHtml(provider.id)}" ${f.provider === provider.id ? "selected" : ""}>${isHot ? "★ " : ""}${escapeHtml(provider.name)} (${total === 0 ? "待核验" : count})</option>`
             )
             .join("")}
         </select>
@@ -663,28 +682,28 @@ function renderMobileFilterSheet(state, facets, matchedCount, now) {
       </div>
 
       <div class="rail-section">
-        <div class="rail-heading"><span>CPU · 内存 · 硬盘</span></div>
-        <div class="facet-wrap">${CPU_OPTIONS.map((o) => `<button type="button" class="${fPillClass(f.cpu === o.value, o.value === "all")}" data-action="set-spec" data-spec-key="cpu" data-spec-val="${o.value}">${o.value === "all" ? "CPU不限" : o.label}</button>`).join("")}</div>
-        <div class="facet-wrap">${MEMORY_OPTIONS.map((o) => `<button type="button" class="${fPillClass(f.memory === o.value, o.value === "all")}" data-action="set-spec" data-spec-key="memory" data-spec-val="${o.value}">${o.value === "all" ? "内存不限" : o.label}</button>`).join("")}</div>
-        <div class="facet-wrap">${DISK_OPTIONS.map((o) => `<button type="button" class="${fPillClass(f.disk === o.value, o.value === "all")}" data-action="set-spec" data-spec-key="disk" data-spec-val="${o.value}">${o.value === "all" ? "硬盘不限" : o.label}</button>`).join("")}</div>
-      </div>
-
-      <div class="rail-section">
         <div class="rail-heading">
-          <span>带宽 · 流量 · 月均预算范围</span>
+          <span>月均预算 · 流量 · 带宽</span>
           ${!fx.valid ? `<span style="color:var(--warn-fg);font-size:10px">外币停算</span>` : ""}
         </div>
-        <div class="facet-wrap">${BANDWIDTH_OPTIONS.map((o) => `<button type="button" class="${fPillClass(f.bandwidth === o.value, o.value === "all")}" data-action="set-spec" data-spec-key="bandwidth" data-spec-val="${o.value}">${o.value === "all" ? "带宽不限" : o.label}</button>`).join("")}</div>
-        <div class="facet-wrap">${TRAFFIC_OPTIONS.map((o) => `<button type="button" class="${fPillClass(f.traffic === o.value, o.value === "all")}" data-action="set-spec" data-spec-key="traffic" data-spec-val="${o.value}">${o.value === "all" ? "流量不限" : o.label.replace(/^♾\s*/, "")}</button>`).join("")}</div>
         <div class="facet-wrap">
           ${BUDGET_OPTIONS.map((b) => `<button type="button" class="${fPillClass(f.budget === b.value && !f.minPrice && !f.maxPrice, b.value === "all")}" data-action="set-budget" data-budget="${b.value}">${b.label}</button>`).join("")}
         </div>
         <div class="price-range-box" style="align-self:flex-start">
-          <span class="range-currency">自定义 ¥</span>
+          <span class="range-currency">自定义 ￥</span>
           <input type="number" min="0" step="1" class="price-range-input" data-price-min value="${escapeHtml(f.minPrice)}" placeholder="最低" aria-label="最低月均人民币" />
           <span class="range-sep">-</span>
           <input type="number" min="0" step="1" class="price-range-input" data-price-max value="${escapeHtml(f.maxPrice)}" placeholder="最高" aria-label="最高月均人民币" />
         </div>
+        <div class="facet-wrap">${TRAFFIC_OPTIONS.map((o) => `<button type="button" class="${fPillClass(f.traffic === o.value, o.value === "all")}" data-action="set-spec" data-spec-key="traffic" data-spec-val="${o.value}">${o.value === "all" ? "流量不限" : o.label.replace(/^♾\s*/, "")}</button>`).join("")}</div>
+        <div class="facet-wrap">${BANDWIDTH_OPTIONS.map((o) => `<button type="button" class="${fPillClass(f.bandwidth === o.value, o.value === "all")}" data-action="set-spec" data-spec-key="bandwidth" data-spec-val="${o.value}">${o.value === "all" ? "带宽不限" : o.label}</button>`).join("")}</div>
+      </div>
+
+      <div class="rail-section">
+        <div class="rail-heading"><span>CPU · 内存 · 硬盘</span></div>
+        <div class="facet-wrap">${CPU_OPTIONS.map((o) => `<button type="button" class="${fPillClass(f.cpu === o.value, o.value === "all")}" data-action="set-spec" data-spec-key="cpu" data-spec-val="${o.value}">${o.value === "all" ? "CPU不限" : o.label}</button>`).join("")}</div>
+        <div class="facet-wrap">${MEMORY_OPTIONS.map((o) => `<button type="button" class="${fPillClass(f.memory === o.value, o.value === "all")}" data-action="set-spec" data-spec-key="memory" data-spec-val="${o.value}">${o.value === "all" ? "内存不限" : o.label}</button>`).join("")}</div>
+        <div class="facet-wrap">${DISK_OPTIONS.map((o) => `<button type="button" class="${fPillClass(f.disk === o.value, o.value === "all")}" data-action="set-spec" data-spec-key="disk" data-spec-val="${o.value}">${o.value === "all" ? "硬盘不限" : o.label}</button>`).join("")}</div>
       </div>
 
       <div class="rail-section">
@@ -756,7 +775,22 @@ function renderErrorPanel(errorDetail) {
   `;
 }
 
-function renderZeroResults(plans, filters, savedKeys) {
+function renderZeroResults(state) {
+  const { plans, filters, savedKeys, diagnostics } = state;
+  const provider = resolveProvider({ providerId: filters.provider });
+  if (provider && !plans.some((p) => p._providerId === provider.id)) {
+    const blocked = diagnostics.some((p) => p._providerId === provider.id && p.status === "blocked");
+    return `<section class="empty-state-card" data-zero-results>
+      <span class="pill pill-warn">库存待核验</span>
+      <h2 class="empty-state-title">暂未取得 ${escapeHtml(provider.name)} 的可核验套餐</h2>
+      <p class="empty-state-desc">${blocked ? "官方页面访问受限，暂时无法确认库存。" : "当前快照尚无该商家的套餐数据。"}这不代表商家售罄，请前往官网确认。</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a class="btn btn-primary" href="${escapeHtml(safeUrl(provider.website))}" target="_blank" rel="noopener noreferrer">前往官网核验 ↗</a>
+        <a class="btn" href="?view=providers&provQ=${encodeURIComponent(provider.name)}">查看商家监控状态</a>
+        <button type="button" class="btn" data-action="reset-filters">查看其他商家</button>
+      </div>
+    </section>`;
+  }
   const diag = diagnoseZeroResults(plans, filters, savedKeys);
   return `
     <section class="empty-state-card" data-zero-results>
@@ -794,6 +828,68 @@ function renderZeroResults(plans, filters, savedKeys) {
         <button type="button" class="btn btn-primary" data-action="reset-filters">重置全部筛选条件</button>
       </div>
     </section>
+  `;
+}
+
+function renderLiveTickerRibbon(state, matched, activeCount) {
+  if (!state.events?.length || matched.length === 0) return "";
+  const matchedIds = new Set(matched.map((p) => p.id));
+  const candidates = state.events.filter((ev) => {
+    if (!ev.productId) return false;
+    if (activeCount > 0) return matchedIds.has(ev.productId);
+    return matchedIds.has(ev.productId) || ev.type === "soldout";
+  });
+  if (candidates.length === 0) return "";
+
+  const sorted = [...candidates]
+    .sort((a, b) => {
+      const rank = (e) => (e.type === "restock" ? 0 : e.type === "price" ? 1 : 2);
+      return rank(a) - rank(b) || (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0);
+    })
+    .slice(0, 12);
+
+  const renderChip = (ev, clone = false) => {
+    const delta = formatEventDelta(ev);
+    const tag =
+      ev.type === "restock"
+        ? `<span class="ticker-tag is-restock">补货</span>`
+        : ev.type === "soldout"
+          ? `<span class="ticker-tag is-soldout">售罄</span>`
+          : delta?.direction === "down"
+            ? `<span class="ticker-tag is-down num">↓ ${escapeHtml(delta.label)}</span>`
+            : `<span class="ticker-tag is-up num">↑ ${escapeHtml(delta?.label || "变价")}</span>`;
+    const stockTxt = ev.type === "restock" && Number.isInteger(ev.stockCount) ? ` · 余${ev.stockCount}` : "";
+    return `<button type="button" class="live-ticker-item" data-action="inspect-ticker-event" data-ticker-product-id="${escapeHtml(ev.productId)}" ${clone ? 'tabindex="-1" aria-hidden="true"' : ""}>
+      <span class="mono" style="color:var(--ink-faint);font-size:10.5px">${escapeHtml(formatClockTime(ev.at))}</span>
+      ${tag}
+      <strong style="color:var(--ink-primary)">${escapeHtml(shortProviderLabel(ev.provider))}</strong>
+      <span>${escapeHtml(plain(ev.name))}${escapeHtml(stockTxt)}</span>
+      <span class="mono num" style="color:var(--price-main);font-weight:700">${escapeHtml(formatPriceLabel(ev))}</span>
+    </button>`;
+  };
+
+  // Ensure enough items in one cycle so wide desktops scroll seamlessly without gaps
+  const repeatCount = sorted.length < 4 ? Math.ceil(4 / sorted.length) : 1;
+  const cycleItems = Array.from({ length: repeatCount }, () => sorted).flat();
+  const durSec = Math.max(22, Math.round(cycleItems.length * 4.2));
+
+  return `
+    <div class="live-ticker-ribbon" aria-label="实时库存与价格异动跑马灯" data-live-ribbon>
+      <span class="live-ticker-head">
+        <span class="radar-ping-dot" style="width:6.5px;height:6.5px" aria-hidden="true"></span>
+        <span>${activeCount > 0 ? "当前筛选异动" : "实时异动流"}</span>
+      </span>
+      <div class="live-ticker-viewport">
+        <div class="live-ticker-track" style="--marquee-dur:${durSec}s">
+          ${cycleItems.map((ev) => renderChip(ev, false)).join("")}
+          ${cycleItems.map((ev) => renderChip(ev, true)).join("")}
+        </div>
+      </div>
+      <button type="button" class="live-ticker-tail" data-nav-view="radar">
+        <span>全部异动</span>
+        <span aria-hidden="true">→</span>
+      </button>
+    </div>
   `;
 }
 
@@ -835,9 +931,9 @@ export function renderTerminalView(state, now = Date.now()) {
 
   let bodyHtml = "";
   if (matched.length === 0) {
-    bodyHtml = renderZeroResults(state.plans, state.filters, state.savedKeys);
+    bodyHtml = renderZeroResults(state);
   } else if (state.layout === "grid") {
-    bodyHtml = `<div class="plan-grid" data-plan-grid>${visible.map((p) => renderPlanCard(p, state, now)).join("")}</div>`;
+    bodyHtml = `<div class="plan-grid" data-plan-grid>${visible.map((p, idx) => renderPlanCard(p, state, now, idx)).join("")}</div>`;
   } else {
     bodyHtml = `
       <div class="table-shell">
@@ -862,12 +958,12 @@ export function renderTerminalView(state, now = Date.now()) {
             </tr>
           </thead>
           <tbody>
-            ${visible.map((p) => renderTableRow(p, state, now)).join("")}
+            ${visible.map((p, idx) => renderTableRow(p, state, now, idx)).join("")}
           </tbody>
         </table>
       </div>
       <div class="mobile-cards-list" aria-label="移动端套餐卡片列表">
-        ${visible.map((p) => renderPlanCard(p, state, now)).join("")}
+        ${visible.map((p, idx) => renderPlanCard(p, state, now, idx)).join("")}
       </div>
     `;
   }
@@ -875,7 +971,7 @@ export function renderTerminalView(state, now = Date.now()) {
   const pagerHtml =
     matched.length > visible.length
       ? `<div class="pager-bar">
-          <span>当前展示 1–${visible.length} / 共 ${matched.length} 款方案（热门大厂与高可用规模默认靠前）</span>
+          <span>当前展示 1–${visible.length} / 共 ${matched.length} 款方案${state.filters.sort === "recommended" ? "（常用商家优先，各商家套餐交替展示）" : ""}</span>
           <div style="display:flex;gap:8px">
             <button type="button" class="btn btn-sm btn-soft" data-action="load-more">加载更多 (+60)</button>
             <button type="button" class="btn btn-sm btn-ghost" data-action="load-all">展开全部 (${matched.length})</button>
@@ -890,10 +986,11 @@ export function renderTerminalView(state, now = Date.now()) {
 
   return `
     <div class="terminal-shell">
+      ${renderLiveTickerRibbon(state, matched, activeCount)}
       ${mobileQuickBar}
       ${renderTopFacetMatrixCard(state, facets, matched.length, visible.length, now)}
       ${renderMobileFilterSheet(state, facets, matched.length, now)}
-      <div class="terminal-canvas">
+      <div class="terminal-canvas" data-terminal-canvas>
         ${bodyHtml}
         ${pagerHtml}
       </div>

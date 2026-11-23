@@ -37,11 +37,11 @@ export const OPT_OPTIONS = [
 
 export const BUDGET_OPTIONS = [
   { value: "all", label: "不限预算", min: null, max: null },
-  { value: "0-20", label: "≤ ¥20", min: 0, max: 20 },
-  { value: "20-50", label: "¥20–50", min: 20, max: 50 },
-  { value: "50-100", label: "¥50–100", min: 50, max: 100 },
-  { value: "100-200", label: "¥100–200", min: 100, max: 200 },
-  { value: "200+", label: "¥200+", min: 200, max: null }
+  { value: "0-20", label: "≤ ￥20", min: 0, max: 20 },
+  { value: "20-50", label: "￥20–50", min: 20, max: 50 },
+  { value: "50-100", label: "￥50–100", min: 50, max: 100 },
+  { value: "100-200", label: "￥100–200", min: 100, max: 200 },
+  { value: "200+", label: "￥200+", min: 200, max: null }
 ];
 
 export const CPU_OPTIONS = [
@@ -170,8 +170,22 @@ export function formatDayKey(value) {
 
 export function formatCny(amount) {
   if (!Number.isFinite(amount)) return "-";
-  if (amount >= 100) return `¥${Math.round(amount)}`;
-  return `¥${amount.toFixed(1)}`;
+  if (amount >= 100) return `￥${Math.round(amount)}`;
+  return `￥${amount.toFixed(1)}`;
+}
+
+const currencySymbols = {
+  USD: "$", CNY: "￥", EUR: "€", GBP: "£", JPY: "JP¥", HKD: "HK$",
+  CAD: "CA$", AUD: "A$", TWD: "NT$", SGD: "S$", KRW: "₩", VND: "₫"
+};
+const quoteAmountFormat = new Intl.NumberFormat("en-US", { useGrouping: false, maximumFractionDigits: 20 });
+
+export function formatPriceLabel(product, quote = priceQuote(product || {})) {
+  const original = plain(product?.price) || "未公开报价";
+  const symbol = currencySymbols[quote.currency];
+  if (!symbol || quote.amount === null || quote.period.startsWith("周期")) return original;
+  const period = quote.period === "季" ? "季度" : quote.period;
+  return `${symbol}${quoteAmountFormat.format(quote.amount)}/${period}${quote.baseOnly ? "起" : ""}`;
 }
 
 export const STALE_AFTER_MINUTES = 30;
@@ -220,6 +234,7 @@ export function fxFreshness(snapshot, now = Date.now()) {
 export function describePricing(product, exchangeRates, now = Date.now()) {
   const quote = priceQuote(product || {});
   const originalLabel = plain(product?.price) || "未公开报价";
+  const displayLabel = formatPriceLabel(product, quote);
   const fx = fxFreshness(exchangeRates, now);
   const cnyMonthly = monthlyCny(product || {}, exchangeRates, now);
 
@@ -227,6 +242,7 @@ export function describePricing(product, exchangeRates, now = Date.now()) {
     return {
       quote,
       originalLabel,
+      displayLabel,
       cnyMonthly: null,
       cnyLabel: "未公开数值报价",
       cnyTone: "muted",
@@ -238,6 +254,7 @@ export function describePricing(product, exchangeRates, now = Date.now()) {
     return {
       quote,
       originalLabel,
+      displayLabel,
       cnyMonthly: null,
       cnyLabel: "起步价 · 选配计费",
       cnyTone: "warn",
@@ -249,6 +266,7 @@ export function describePricing(product, exchangeRates, now = Date.now()) {
     return {
       quote,
       originalLabel,
+      displayLabel,
       cnyMonthly: null,
       cnyLabel: `${quote.period} · 不折算`,
       cnyTone: "warn",
@@ -260,6 +278,7 @@ export function describePricing(product, exchangeRates, now = Date.now()) {
     return {
       quote,
       originalLabel,
+      displayLabel,
       cnyMonthly: null,
       cnyLabel: "币种待核对 · 不折算",
       cnyTone: "warn",
@@ -272,12 +291,13 @@ export function describePricing(product, exchangeRates, now = Date.now()) {
     return {
       quote,
       originalLabel,
+      displayLabel,
       cnyMonthly,
       cnyLabel: quote.months > 1 ? `≈ ${formatCny(cnyMonthly)}/月 (${cycleSuffix})` : `${formatCny(cnyMonthly)}/月`,
       cnyTone: "ok",
       formula:
         quote.months > 1
-          ? `CNY ${quote.amount.toFixed(2)} ÷ ${quote.months} 个月 = ¥${cnyMonthly.toFixed(2)}/月`
+          ? `CNY ${quote.amount.toFixed(2)} ÷ ${quote.months} 个月 = ￥${cnyMonthly.toFixed(2)}/月`
           : `CNY ${quote.amount.toFixed(2)} / 月（原币种直付，无汇兑损益）`,
       honestReason: null
     };
@@ -291,6 +311,7 @@ export function describePricing(product, exchangeRates, now = Date.now()) {
     return {
       quote,
       originalLabel,
+      displayLabel,
       cnyMonthly: null,
       cnyLabel: reason,
       cnyTone: "warn",
@@ -305,10 +326,11 @@ export function describePricing(product, exchangeRates, now = Date.now()) {
   return {
     quote,
     originalLabel,
+    displayLabel,
     cnyMonthly,
     cnyLabel: `≈ ${formatCny(cnyMonthly)}/月`,
     cnyTone: "ok",
-    formula: `${quote.currency} ${quote.amount.toFixed(2)} ÷ ${quote.months} 月 × ${Number(rate).toFixed(4)} (ECB ${fx.date}) ≈ ¥${cnyMonthly.toFixed(2)}/月`,
+    formula: `${quote.currency} ${quote.amount.toFixed(2)} ÷ ${quote.months} 月 × ${Number(rate).toFixed(4)} (ECB ${fx.date}) ≈ ￥${cnyMonthly.toFixed(2)}/月`,
     honestReason: null
   };
 }

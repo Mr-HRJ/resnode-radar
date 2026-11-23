@@ -57,7 +57,13 @@
   height: 26px;
   border-radius: 7px;
   display: block;
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.22);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.28);
+  transition: transform 240ms var(--ease-spring), box-shadow 240ms var(--ease-spring);
+}
+
+.brand-link:hover .brand-logo {
+  transform: scale(1.08) rotate(-4deg);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.42);
 }
 
 .brand-name {
@@ -216,8 +222,36 @@
 
 /* ---------- 2. Live Telemetry & Centered Market Overview Strip ---------- */
 .telemetry-strip {
+  position: relative;
   background: var(--bg-surface-2);
   border-bottom: 1px solid var(--border-subtle);
+}
+
+.header-sync-bar {
+  position: relative;
+  width: 100%;
+  height: 2px;
+  background: color-mix(in srgb, var(--border-subtle) 65%, transparent);
+  overflow: hidden;
+}
+
+.header-sync-fill {
+  display: block;
+  height: 100%;
+  width: 100%;
+  transform-origin: left center;
+  transform: scaleX(var(--sync-progress, 0.12));
+  background: linear-gradient(90deg, var(--accent) 0%, #06b6d4 52%, var(--ok-dot) 100%);
+  opacity: 0.78;
+  transition: transform 950ms linear, opacity 200ms ease;
+}
+
+.header-sync-fill.is-syncing {
+  width: 38%;
+  transform: translateX(-100%);
+  opacity: 1;
+  transition: none;
+  animation: scanline-indeterminate 1.25s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 .telemetry-inner {
@@ -274,6 +308,10 @@
   padding: var(--sp-3) var(--sp-4) 88px;
 }
 
+[data-view-panel].is-view-entering {
+  animation: view-fade-up 260ms var(--ease-spring) both;
+}
+
 /* Full-Width Terminal Layout (Zero nested left scrollbar) */
 .terminal-shell {
   display: flex;
@@ -309,8 +347,14 @@
   inset: 0;
   z-index: var(--z-drawer);
   background: var(--bg-backdrop);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   display: flex;
   justify-content: flex-end;
+}
+
+.drawer-backdrop.is-entering {
+  animation: backdrop-fade-in 180ms ease-out both;
 }
 
 .drawer-panel {
@@ -322,6 +366,10 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.drawer-backdrop.is-entering .drawer-panel {
+  animation: drawer-slide-in 280ms var(--ease-spring) both;
 }
 
 .drawer-head {
@@ -352,7 +400,9 @@
   transform: translateX(-50%);
   z-index: var(--z-dock);
   width: min(860px, calc(100vw - 24px));
-  background: var(--bg-surface);
+  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border-strong);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-lg);
@@ -363,15 +413,25 @@
   gap: var(--sp-3);
 }
 
+.compare-dock.is-entering {
+  animation: dock-float-in 260ms var(--ease-spring) both;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
   z-index: var(--z-modal);
   background: var(--bg-backdrop);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--sp-4);
+}
+
+.modal-backdrop.is-entering {
+  animation: backdrop-fade-in 180ms ease-out both;
 }
 
 .modal-shell {
@@ -384,6 +444,10 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.modal-backdrop.is-entering .modal-shell {
+  animation: modal-pop-in 250ms var(--ease-spring) both;
 }
 
 .modal-head {
@@ -408,10 +472,16 @@
   inset: 0;
   z-index: var(--z-palette);
   background: var(--bg-backdrop);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: flex-start;
   justify-content: center;
   padding: min(11vh, 96px) var(--sp-4) var(--sp-4);
+}
+
+.palette-backdrop.is-entering {
+  animation: backdrop-fade-in 160ms ease-out both;
 }
 
 .palette-shell {
@@ -424,6 +494,10 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.palette-backdrop.is-entering .palette-shell {
+  animation: modal-pop-in 220ms var(--ease-spring) both;
 }
 
 /* ---------- 8. Toast Notification Stack ---------- */
@@ -451,6 +525,7 @@
   align-items: center;
   gap: 8px;
   max-width: 340px;
+  animation: toast-slide-in 240ms var(--ease-spring) both;
 }
 
 /* ---------- 9. Site Footer ---------- */

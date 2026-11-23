@@ -1,10 +1,10 @@
 import { DEFAULT_FILTERS } from "./domain/catalog.js";
-import { escapeHtml } from "./domain/format.js";
+import { escapeHtml, monitorFreshness } from "./domain/format.js";
 import { REFRESH_INTERVAL_MS, fetchSnapshot } from "./services/snapshot.js";
 import { applyTheme, createStore } from "./state/store.js";
 import { renderCompareDock, renderCompareModal } from "./components/compare.js";
 import { renderGuideView } from "./components/guide.js";
-import { renderCommandPalette, formatLiveClockText, renderHeader, renderStatusBanner } from "./components/header.js";
+import { computeSyncProgressRatio, renderCommandPalette, formatLiveClockText, renderHeader, renderStatusBanner } from "./components/header.js";
 import { renderInspectorDrawer } from "./components/inspector.js";
 import { renderProvidersView } from "./components/providers.js";
 import { renderRadarView } from "./components/radar.js";
@@ -43,6 +43,83 @@ export function mountApp(options = {}) {
   let pendingRefresh = null;
   let refreshController = null;
   let disposed = false;
+
+  // Motion & non-flicker transition tracking
+  let prevView = null;
+  let prevLoadState = null;
+  let prevFilterSig = "";
+  let prevSpecsExpanded = store.getState().specsExpanded;
+  let prevInspectorOpen = false;
+  let prevSavedOpen = false;
+  let prevCompareOpen = false;
+  let prevPaletteOpen = false;
+  let prevDockVisible = false;
+  const prevNumericMap = new Map();
+  const activeNumberTweens = new Set();
+
+  function cancelNumberTweens() {
+    const cancelRaf = globalThis.window?.cancelAnimationFrame;
+    if (typeof cancelRaf === "function") {
+      for (const id of activeNumberTweens) cancelRaf(id);
+    }
+    activeNumberTweens.clear();
+  }
+
+  function animateTelemetryCounters(justLoaded) {
+    cancelNumberTweens();
+    const raf = globalThis.window?.requestAnimationFrame;
+    const reducedMotion = Boolean(globalThis.window?.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches);
+    const targets = [
+      ["stat-avail", doc.querySelector("[data-stat-available]")],
+      ["stat-home", doc.querySelector("[data-stat-home]")],
+      ["stat-exact", doc.querySelector("[data-stat-exact]")],
+      ["stat-blocked", doc.querySelector("[data-stat-blocked]")],
+      ["res-summary", doc.querySelector(".result-summary strong")],
+      ...Array.from(doc.querySelectorAll(".market-mini-val") || []).map((el, i) => [`market-mini-${i}`, el]),
+      ...Array.from(doc.querySelectorAll(".kpi-val") || []).map((el, i) => [`kpi-${store.getState().view}-${i}`, el])
+    ];
+
+    for (const [key, node] of targets) {
+      if (!node) continue;
+      const raw = (node.textContent || "").trim();
+      const m = raw.match(/^([+-]?)(\d+)(.*)$/);
+      if (!m) continue;
+      const [, prefix, digits, suffix] = m;
+      const targetVal = Number(digits);
+      if (!Number.isFinite(targetVal)) continue;
+
+      const prevVal = prevNumericMap.get(key);
+      prevNumericMap.set(key, targetVal);
+
+      const shouldAnimate = justLoaded ? targetVal > 0 : prevVal !== undefined && prevVal !== targetVal;
+      if (!shouldAnimate) continue;
+
+      node.classList?.add?.("is-num-tick");
+      if (typeof raf === "function" && !reducedMotion) {
+        const startVal = justLoaded ? 0 : prevVal;
+        const duration = 340;
+        let startTs = null;
+        let rafId = 0;
+        const step = (ts) => {
+          activeNumberTweens.delete(rafId);
+          if (disposed) return;
+          if (startTs === null) startTs = ts;
+          const progress = Math.min(1, (ts - startTs) / duration);
+          const eased = 1 - Math.pow(1 - progress, 4);
+          const cur = Math.round(startVal + (targetVal - startVal) * eased);
+          node.textContent = `${prefix}${cur}${suffix}`;
+          if (progress < 1) {
+            rafId = raf(step);
+            activeNumberTweens.add(rafId);
+          } else {
+            node.textContent = raw;
+          }
+        };
+        rafId = raf(step);
+        activeNumberTweens.add(rafId);
+      }
+    }
+  }
 
   function showToast(message) {
     if (!elToast) return;
@@ -85,7 +162,7 @@ export function mountApp(options = {}) {
         return { selector: `${scope}[${attr}]`, start: null, end: null };
       }
     }
-    for (const attr of ["data-radar-search", "data-provider-search", "data-palette-input"]) {
+    for (const attr of ["data-radar-search", "data-provider-search", "data-palette-input", "data-shop-search"]) {
       if (active.hasAttribute?.(attr)) {
         return {
           selector: `[${attr}]`,
@@ -115,6 +192,13 @@ export function mountApp(options = {}) {
   function render(state) {
     const inputSnap = captureActiveInput();
     const now = Date.now();
+    const viewChanged = prevView !== null && prevView !== state.view;
+    const justBecameReady = prevLoadState !== "ready" && state.loadState === "ready";
+    const enterView = prevView === null || viewChanged || justBecameReady;
+    const filterSig = `${state.layout}|${JSON.stringify(state.filters)}`;
+    const filtersChangedInTerminal =
+      !enterView && state.view === "terminal" && state.loadState === "ready" && prevFilterSig !== "" && prevFilterSig !== filterSig;
+    const specsJustOpened = !prevSpecsExpanded && state.specsExpanded;
 
     if (elHeader) elHeader.innerHTML = renderHeader(state, now);
 
@@ -126,49 +210,79 @@ export function mountApp(options = {}) {
 
     if (elTerminal) {
       elTerminal.hidden = state.view !== "terminal";
-      if (state.view === "terminal") elTerminal.innerHTML = renderTerminalView(state, now);
+      elTerminal.classList?.toggle?.("is-view-entering", state.view === "terminal" && enterView);
+      if (state.view === "terminal") {
+        elTerminal.innerHTML = renderTerminalView(state, now);
+        if (filtersChangedInTerminal) {
+          elTerminal.querySelector?.("[data-terminal-canvas]")?.classList?.add?.("is-refreshing");
+        }
+        if (specsJustOpened) {
+          elTerminal.querySelector?.("[data-specs-panel]")?.classList?.add?.("is-unfurling");
+        }
+      }
     }
     if (elRadar) {
       elRadar.hidden = state.view !== "radar";
+      elRadar.classList?.toggle?.("is-view-entering", state.view === "radar" && enterView);
       if (state.view === "radar") elRadar.innerHTML = renderRadarView(state, now);
     }
     if (elProviders) {
       elProviders.hidden = state.view !== "providers";
+      elProviders.classList?.toggle?.("is-view-entering", state.view === "providers" && enterView);
       if (state.view === "providers") elProviders.innerHTML = renderProvidersView(state);
     }
     if (elGuide) {
       elGuide.hidden = state.view !== "guide";
+      elGuide.classList?.toggle?.("is-view-entering", state.view === "guide" && enterView);
       if (state.view === "guide") elGuide.innerHTML = renderGuideView();
     }
 
+    const isDockVisible = Boolean(state.compareKeys.length > 0 && !state.compareOpen);
     if (elDock) {
       const dockHtml = renderCompareDock(state);
       elDock.innerHTML = dockHtml;
-      elDock.hidden = !dockHtml || state.compareOpen;
+      const showDock = Boolean(dockHtml) && !state.compareOpen;
+      elDock.hidden = !showDock;
+      elDock.classList?.toggle?.("is-entering", showDock && !prevDockVisible);
+      prevDockVisible = showDock;
+    } else {
+      prevDockVisible = isDockVisible;
     }
 
     if (elCompareModal) {
       const modalHtml = renderCompareModal(state);
+      const showModal = Boolean(modalHtml);
       elCompareModal.innerHTML = modalHtml;
-      elCompareModal.hidden = !modalHtml;
+      elCompareModal.hidden = !showModal;
+      elCompareModal.classList?.toggle?.("is-entering", showModal && !prevCompareOpen);
+      prevCompareOpen = showModal;
     }
 
     if (elInspector) {
       const inspHtml = renderInspectorDrawer(state, now);
+      const showInsp = Boolean(inspHtml);
       elInspector.innerHTML = inspHtml;
-      elInspector.hidden = !inspHtml;
+      elInspector.hidden = !showInsp;
+      elInspector.classList?.toggle?.("is-entering", showInsp && !prevInspectorOpen);
+      prevInspectorOpen = showInsp;
     }
 
     if (elSaved) {
       const savedHtml = renderSavedDrawer(state);
+      const showSaved = Boolean(savedHtml);
       elSaved.innerHTML = savedHtml;
-      elSaved.hidden = !savedHtml;
+      elSaved.hidden = !showSaved;
+      elSaved.classList?.toggle?.("is-entering", showSaved && !prevSavedOpen);
+      prevSavedOpen = showSaved;
     }
 
     if (elPalette) {
       const palHtml = renderCommandPalette(state);
+      const showPal = Boolean(palHtml);
       elPalette.innerHTML = palHtml;
-      elPalette.hidden = !palHtml;
+      elPalette.hidden = !showPal;
+      elPalette.classList?.toggle?.("is-entering", showPal && !prevPaletteOpen);
+      prevPaletteOpen = showPal;
     }
 
     if (elSheetBackdrop) {
@@ -183,6 +297,12 @@ export function mountApp(options = {}) {
       state.mobileRailOpen;
     document.body?.classList?.toggle("scroll-locked", anyModal);
 
+    prevView = state.view;
+    prevLoadState = state.loadState;
+    prevFilterSig = filterSig;
+    prevSpecsExpanded = state.specsExpanded;
+
+    animateTelemetryCounters(justBecameReady);
     restoreActiveInput(inputSnap);
     restoreFocusIfClear(state);
   }
@@ -359,10 +479,19 @@ export function mountApp(options = {}) {
         const p = actNode.getAttribute("data-provider") || "all";
         const cur = store.getState().filters.provider;
         store.patchFilters({ provider: p !== "all" && cur === p ? "all" : p });
+        if (store.getState().shopsExpanded) {
+          store.toggleShopsExpanded();
+          doc.querySelector("[data-action='toggle-shops-expand']")?.focus?.();
+        }
         break;
       }
       case "toggle-shops-expand":
         store.toggleShopsExpanded();
+        doc.querySelector(store.getState().shopsExpanded ? "[data-shop-search]" : "[data-action='toggle-shops-expand']")?.focus?.();
+        break;
+      case "clear-shop-search":
+        store.setShopQuery("");
+        doc.querySelector("[data-shop-search]")?.focus?.();
         break;
       case "toggle-specs-expand":
         store.toggleSpecsExpanded();
@@ -477,6 +606,14 @@ export function mountApp(options = {}) {
         }
         break;
       }
+      case "inspect-ticker-event": {
+        const id = actNode.getAttribute("data-ticker-product-id");
+        if (id) {
+          rememberFocus();
+          store.setInspectId(id);
+        }
+        break;
+      }
       case "inspect-from-compare": {
         const id = actNode.getAttribute("data-product-id");
         store.setCompareOpen(false);
@@ -582,7 +719,10 @@ export function mountApp(options = {}) {
 
     const selectKey = target.getAttribute("data-filter-select");
     if (selectKey) {
-      store.patchFilters({ [selectKey]: target.value });
+      store.patchFilters({
+        [selectKey]: target.value,
+        ...(selectKey === "budget" ? { minPrice: "", maxPrice: "" } : {})
+      });
       return;
     }
 
@@ -622,6 +762,10 @@ export function mountApp(options = {}) {
     }
     if (target.hasAttribute("data-provider-search")) {
       store.patchProviders({ q: target.value });
+      return;
+    }
+    if (target.hasAttribute("data-shop-search")) {
+      store.setShopQuery(target.value);
       return;
     }
     if (target.hasAttribute("data-palette-input")) {
@@ -669,6 +813,10 @@ export function mountApp(options = {}) {
       else if (s.inspectId) store.setInspectId(null);
       else if (s.savedDrawerOpen) store.setSavedDrawerOpen(false);
       else if (s.mobileRailOpen) store.setMobileRailOpen(false);
+      else if (s.shopsExpanded && s.view === "terminal") {
+        store.toggleShopsExpanded();
+        doc.querySelector("[data-action='toggle-shops-expand']")?.focus?.();
+      }
     }
   }
 
@@ -681,11 +829,34 @@ export function mountApp(options = {}) {
     }
   }
 
+  // Cursor-tracking radial spotlight on interactive cards (browser-only, zero idle cost)
+  let spotlightRaf = 0;
+  let pendingPointerEvent = null;
+  function onPointerMove(event) {
+    const raf = globalThis.window?.requestAnimationFrame;
+    if (typeof raf !== "function") return;
+    pendingPointerEvent = event;
+    if (spotlightRaf) return;
+    spotlightRaf = raf(() => {
+      spotlightRaf = 0;
+      const ev = pendingPointerEvent;
+      pendingPointerEvent = null;
+      const card = ev?.target?.closest?.(".plan-card, .provider-card, .market-board-card, .kpi-tile, .guide-preset-card");
+      if (!card || typeof card.getBoundingClientRect !== "function") return;
+      const rect = card.getBoundingClientRect();
+      card.style?.setProperty?.("--mx", `${Math.round(ev.clientX - rect.left)}px`);
+      card.style?.setProperty?.("--my", `${Math.round(ev.clientY - rect.top)}px`);
+    });
+  }
+
   doc.addEventListener("click", onClick);
   doc.addEventListener("change", onChange);
   doc.addEventListener("input", onInput);
   doc.addEventListener("keydown", onKeydown);
   doc.addEventListener("visibilitychange", onVisibilityChange);
+  if (typeof globalThis.window?.requestAnimationFrame === "function") {
+    doc.addEventListener("pointermove", onPointerMove, { passive: true });
+  }
 
   const pollTimer = setInterval(() => {
     if (doc.visibilityState === "visible") {
@@ -693,15 +864,31 @@ export function mountApp(options = {}) {
     }
   }, REFRESH_INTERVAL_MS);
 
-  // Lightweight 1s live clock + 3s live event capsule ticker (zero full-DOM re-render)
+  // Lightweight 1s live clock + sync progress bar + 15s freshness age + 3s live event capsule ticker
   let capsuleTick = 0;
   let capsuleStep = 0;
   const liveTickerTimer = setInterval(() => {
     if (doc.visibilityState !== "visible") return;
+    const nowMs = Date.now();
     const clockNode = doc.querySelector("[data-live-clock]");
-    if (clockNode) clockNode.textContent = formatLiveClockText(new Date());
+    if (clockNode) clockNode.textContent = formatLiveClockText(new Date(nowMs));
+
+    const curState = store.getState();
+    const syncNode = doc.querySelector("[data-sync-progress]");
+    if (syncNode && !curState.refreshing && curState.loadState === "ready") {
+      const ratio = computeSyncProgressRatio(curState, REFRESH_INTERVAL_MS, nowMs).toFixed(3);
+      syncNode.style?.setProperty?.("--sync-progress", ratio);
+    }
 
     capsuleTick += 1;
+    if (capsuleTick % 15 === 0 && curState.loadState === "ready" && curState.payload?.generatedAt) {
+      const teleNode = doc.querySelector("[data-telemetry-label]");
+      if (teleNode) {
+        const freshness = monitorFreshness(curState.payload.generatedAt, nowMs);
+        teleNode.textContent = freshness.stale ? `快照偏旧 · ${freshness.label}` : `实时快照 · ${freshness.label}`;
+      }
+    }
+
     if (capsuleTick % 3 === 0) {
       const capsule = doc.querySelector("[data-live-capsule]");
       if (capsule && !capsule.matches?.(":hover")) {
@@ -725,6 +912,10 @@ export function mountApp(options = {}) {
     dispose() {
       disposed = true;
       refreshController?.abort();
+      cancelNumberTweens();
+      if (spotlightRaf && typeof globalThis.window?.cancelAnimationFrame === "function") {
+        globalThis.window.cancelAnimationFrame(spotlightRaf);
+      }
       unsubscribe();
       clearInterval(pollTimer);
       clearInterval(liveTickerTimer);
@@ -734,6 +925,9 @@ export function mountApp(options = {}) {
       doc.removeEventListener("input", onInput);
       doc.removeEventListener("keydown", onKeydown);
       doc.removeEventListener("visibilitychange", onVisibilityChange);
+      if (typeof globalThis.window?.requestAnimationFrame === "function") {
+        doc.removeEventListener("pointermove", onPointerMove);
+      }
       doc.body?.classList?.remove("scroll-locked");
     }
   };

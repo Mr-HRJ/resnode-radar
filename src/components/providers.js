@@ -74,12 +74,9 @@ export function renderProvidersView(state) {
       return true;
     })
     .sort((a, b) => {
-      const score = (x) =>
-        (x.dossier ? 600 : 0) +
-        providerBaseWeight(x.provider.id) +
-        (x.health.available > 0 ? 180 : 0) +
-        Math.min(x.health.available, 160) * 1.4;
-      return score(b) - score(a) || a.provider.name.localeCompare(b.provider.name, "zh-CN");
+      return providerBaseWeight(b.provider.id) - providerBaseWeight(a.provider.id) ||
+        Number(b.health.available > 0) - Number(a.health.available > 0) ||
+        a.provider.name.localeCompare(b.provider.name, "zh-CN");
     });
 
   return `
@@ -91,22 +88,22 @@ export function renderProvidersView(state) {
     </div>
 
     <div class="kpi-grid">
-      <button type="button" class="kpi-tile ${pf.health === "all" ? "is-active" : ""}" data-action="set-prov-health" data-health="all">
+      <button type="button" class="kpi-tile ${pf.health === "all" ? "is-active" : ""}" style="--stagger-i:0" data-action="set-prov-health" data-health="all">
         <span class="kpi-label">收录与监控商家</span>
         <span class="kpi-val num">${providers.length} 家</span>
         <span class="kpi-sub">100% 绑定官方源 · 含 ${collectingCount} 家收集中</span>
       </button>
-      <button type="button" class="kpi-tile ${pf.health === "available" ? "is-active" : ""}" data-action="set-prov-health" data-health="available">
+      <button type="button" class="kpi-tile ${pf.health === "available" ? "is-active" : ""}" style="--stagger-i:1" data-action="set-prov-health" data-health="available">
         <span class="kpi-label" style="color:var(--ok-fg)">有可购库存商家</span>
         <span class="kpi-val num" style="color:var(--ok-fg)">${availableCount}</span>
         <span class="kpi-sub">含精确库存与官方下单入口</span>
       </button>
-      <button type="button" class="kpi-tile ${pf.health === "issue" ? "is-active" : ""}" data-action="set-prov-health" data-health="issue">
+      <button type="button" class="kpi-tile ${pf.health === "issue" ? "is-active" : ""}" style="--stagger-i:2" data-action="set-prov-health" data-health="issue">
         <span class="kpi-label" style="color:var(--danger-fg)">受阻 / 部分异常 / 触顶</span>
         <span class="kpi-val num" style="color:var(--danger-fg)">${issueCount}</span>
         <span class="kpi-sub">点击展开原始尝试证据</span>
       </button>
-      <button type="button" class="kpi-tile ${pf.health === "dossier" ? "is-active" : ""}" data-action="set-prov-health" data-health="dossier">
+      <button type="button" class="kpi-tile ${pf.health === "dossier" ? "is-active" : ""}" style="--stagger-i:3" data-action="set-prov-health" data-health="dossier">
         <span class="kpi-label" style="color:var(--warn-fg)">含深度实测档案</span>
         <span class="kpi-val num">${dossierCount}</span>
         <span class="kpi-sub">统一设计体系评测页</span>
@@ -144,7 +141,7 @@ export function renderProvidersView(state) {
           </section>`
         : `<div class="provider-grid">
             ${filtered
-              .map(({ provider, health, dossier }) => {
+              .map(({ provider, health, dossier }, idx) => {
                 const stateBadge =
                   health.state === "healthy"
                     ? `<span class="pill pill-ok">正常采集</span>`
@@ -164,12 +161,12 @@ export function renderProvidersView(state) {
                 const migrationHref = safeUrl(provider.officialEvidence);
                 const aliases = (provider.aliases || []).filter((a) => a !== provider.name);
 
-                return `<article class="provider-card ${cardClass}">
+                return `<article class="provider-card ${cardClass}" style="--stagger-i:${Math.min(idx, 14)}">
                   <div class="provider-head">
                     <div class="provider-ident">
                       <span class="provider-avatar">${escapeHtml(providerInitial(provider.name))}</span>
                       <div class="provider-name-wrap">
-                        <h3 class="provider-name" title="${escapeHtml(provider.name)}">${isHotProvider(provider.id) ? "🔥 " : ""}${escapeHtml(provider.name)}</h3>
+                        <h3 class="provider-name" title="${escapeHtml(provider.name)}${isHotProvider(provider.id) ? " · 重点商家" : ""}">${escapeHtml(provider.name)}</h3>
                         <div class="provider-aliases">${aliases.length ? `别名：${escapeHtml(aliases.join(" / "))}` : `ID: ${escapeHtml(provider.id)}`}</div>
                       </div>
                     </div>

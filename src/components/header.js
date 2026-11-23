@@ -5,6 +5,7 @@ import {
   formatClockTime,
   formatDateTime,
   formatEventDelta,
+  formatPriceLabel,
   fxFreshness,
   monitorFreshness,
   normalizeSearch,
@@ -65,6 +66,12 @@ function computeHeadlineStats(state, now = Date.now()) {
 export function formatLiveClockText(now = new Date()) {
   const pad = (n) => String(n).padStart(2, "0");
   return `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
+
+export function computeSyncProgressRatio(state, intervalMs = 5 * 60 * 1000, now = Date.now()) {
+  if (!state.lastFetchAt || state.loadState !== "ready") return 0.08;
+  const elapsed = Math.max(0, now - state.lastFetchAt);
+  return Math.min(1, Math.max(0.04, elapsed / intervalMs));
 }
 
 export function renderHeader(state, now = Date.now()) {
@@ -152,7 +159,7 @@ export function renderHeader(state, now = Date.now()) {
         <span class="mono ev-time" style="color:var(--ink-muted);font-size:10.5px">${escapeHtml(timeStr)}</span>
         ${badge}
         <strong class="ev-name">${escapeHtml(plain(ev.provider))} · ${escapeHtml(plain(ev.name))}${escapeHtml(stockHint)}</strong>
-        <span class="mono ev-price" style="color:var(--price-main);font-weight:700">${escapeHtml(plain(ev.price || ""))}</span>
+        <span class="mono ev-price" style="color:var(--price-main);font-weight:700">${escapeHtml(formatPriceLabel(ev))}</span>
       </button>`;
     })
     .join("");
@@ -160,6 +167,8 @@ export function renderHeader(state, now = Date.now()) {
   const compareCount = state.compareKeys.length;
   const themeLabel = state.theme === "dark" ? "☀ 亮色" : "☾ 暗色";
   const activeQuery = plain(state.filters.q);
+  const isSyncBusy = state.refreshing || state.loadState === "loading";
+  const syncRatio = computeSyncProgressRatio(state, 5 * 60 * 1000, now).toFixed(3);
 
   return `
     <div class="cmd-bar">
@@ -225,7 +234,8 @@ export function renderHeader(state, now = Date.now()) {
             <span class="num" data-live-clock>${formatLiveClockText(new Date(now))}</span>
           </span>
           <button type="button" class="btn btn-xs btn-ghost" data-action="refresh-snapshot" ${state.refreshing ? "disabled" : ""} title="重新读取已发布的最新快照（不触发后端抓取）">
-            ${state.refreshing ? "读取中…" : "↻ 刷新"}
+            <span class="sync-icon ${isSyncBusy ? "is-spinning" : ""}" aria-hidden="true">↻</span>
+            <span>${state.refreshing ? "读取中…" : "刷新"}</span>
           </button>
           <span class="${fxPillClass} tele-fx-chip" data-fx-pill title="参考人民币折算基于欧洲央行（ECB）每日参考汇率">${escapeHtml(fxText)}</span>
         </div>
@@ -269,6 +279,9 @@ export function renderHeader(state, now = Date.now()) {
             <span>受阻源</span><strong data-stat-blocked>${stats.blocked}</strong>
           </button>
         </div>
+      </div>
+      <div class="header-sync-bar" aria-hidden="true">
+        <span class="header-sync-fill ${isSyncBusy ? "is-syncing" : ""}" data-sync-progress style="--sync-progress:${syncRatio}"></span>
       </div>
     </div>
   `;
@@ -380,7 +393,7 @@ export function renderCommandPalette(state) {
         ${
           matchedPlans.length
             ? `<div>
-                <div class="palette-group-label">${q ? "匹配方案（点击直接核验详情）" : "精确库存热门现货"}</div>
+                <div class="palette-group-label">${q ? "匹配方案（点击直接核验详情）" : "精确库存现货"}</div>
                 ${matchedPlans
                   .map(
                     (p) => `<button type="button" class="palette-item" data-action="palette-plan" data-product-id="${escapeHtml(p.id)}">
@@ -388,7 +401,7 @@ export function renderCommandPalette(state) {
                         <span class="pill ${p._classify.isResidential ? "pill-home" : "pill-vps"}" style="margin-right:6px">${p._classify.isResidential ? "家宽" : "机房"}</span>
                         ${escapeHtml(plain(p.name))}
                       </span>
-                      <span class="palette-item-sub mono">${escapeHtml(p._providerName)} · ${escapeHtml(p._pricing.originalLabel)}</span>
+                      <span class="palette-item-sub mono">${escapeHtml(p._providerName)} · ${escapeHtml(p._pricing.displayLabel)}</span>
                     </button>`
                   )
                   .join("")}

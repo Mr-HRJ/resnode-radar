@@ -7,6 +7,7 @@ import {
   DEFAULT_FILTERS,
   classifyProduct,
   diagnoseZeroResults,
+  isHotProvider,
   matchesFilters,
   matchesHardwareSpecs,
   normalizeProduct,
@@ -316,6 +317,28 @@ test("numeric hardware/network spec filters, budget range, and flagship populari
 
   const rankedShops = rankProvidersByPopularity([cheapNat, bwhPlan]);
   assert.equal(rankedShops[0].provider.id, "bwh");
+});
+
+test("priority brands outrank bulk catalogs without inheriting product popularity", () => {
+  const priority = ["bwh", "dmit", "gomami", "vmiss"];
+  const makePlan = (providerId, i, status = "available") => normalizeProduct({
+    id: `${providerId}-${i}`, providerId, category: "vps", name: "Test VPS",
+    price: "CNY 10/月", priceValue: 10, currency: "CNY", status
+  }, i);
+  const plans = [
+    ...Array.from({ length: 220 }, (_, i) => makePlan("misaka", i)),
+    ...priority.flatMap((id) => [makePlan(id, 1), makePlan(id, 2)]),
+    makePlan("bwh", 3, "unavailable")
+  ];
+  assert.deepEqual(rankProvidersByPopularity(plans).slice(0, 4).map((p) => p.provider.id), priority);
+  assert.deepEqual(rankProvidersByPopularity([]).slice(0, 4).map((p) => p.provider.id), priority);
+  const sorted = sortProducts(plans);
+  assert.deepEqual(sorted.slice(0, 5).map((p) => p._providerId), [...priority, "misaka"]);
+  assert.equal(sorted.at(-1).status, "unavailable");
+  assert.equal(new Set(sorted).size, plans.length);
+  assert.ok(priority.every(isHotProvider));
+  assert.equal(isHotProvider("misaka"), false);
+  assert.equal(isHotProvider("neburst"), false);
 });
 
 test("hardware filter boundaries match their displayed capacities and units", () => {
