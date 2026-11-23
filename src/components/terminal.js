@@ -402,9 +402,9 @@ function renderTopFacetMatrixCard(state, facets, matchedCount, visibleCount, now
 
   return `
     <section class="filter-dock" aria-label="多维直选配置与筛选工作台" data-filter-dock>
-      <!-- Priority brands with honest collection status, followed by matching shops. -->
+      <!-- Shops with current catalog data come first; unavailable sources remain selectable. -->
       <div class="facet-matrix-row">
-        <div class="facet-row-label" title="人工编排的常用商家顺序；数字为匹配套餐数，不代表热度">常用商家</div>
+        <div class="facet-row-label" title="有采集结果的商家优先，暂无结果的商家排在最后；数字为匹配套餐数">常用商家</div>
         <div class="facet-row-options" data-shops-row>
           <button type="button" class="${fPillClass(f.provider === "all", true)}" data-action="set-provider" data-provider="all">
             <span>全部品牌</span>

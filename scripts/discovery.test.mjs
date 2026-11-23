@@ -332,6 +332,13 @@ test("priority brands outrank bulk catalogs without inheriting product popularit
   ];
   assert.deepEqual(rankProvidersByPopularity(plans).slice(0, 4).map((p) => p.provider.id), priority);
   assert.deepEqual(rankProvidersByPopularity([]).slice(0, 4).map((p) => p.provider.id), priority);
+  const failed = makePlan("bwh", 4, "unknown");
+  failed.raw = { historical: true };
+  const soldOut = makePlan("vmiss", 5, "unavailable");
+  const ranked = rankProvidersByPopularity([failed, soldOut, makePlan("misaka", 6)], new Map([["misaka", 1]]));
+  assert.deepEqual(ranked.slice(0, 3).map((p) => p.provider.id), ["vmiss", "misaka", "bwh"]);
+  assert.equal(ranked[0].count, 0); // A filtered-out or sold-out shop is still successfully collected.
+  assert.equal(ranked[2].hasCurrentPlans, false);
   const sorted = sortProducts(plans);
   assert.deepEqual(sorted.slice(0, 5).map((p) => p._providerId), [...priority, "misaka"]);
   assert.equal(sorted.at(-1).status, "unavailable");

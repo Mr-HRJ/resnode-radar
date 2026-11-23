@@ -74,7 +74,8 @@ export function renderProvidersView(state) {
       return true;
     })
     .sort((a, b) => {
-      return providerBaseWeight(b.provider.id) - providerBaseWeight(a.provider.id) ||
+      return Number(b.health.currentPlanCount > 0) - Number(a.health.currentPlanCount > 0) ||
+        providerBaseWeight(b.provider.id) - providerBaseWeight(a.provider.id) ||
         Number(b.health.available > 0) - Number(a.health.available > 0) ||
         a.provider.name.localeCompare(b.provider.name, "zh-CN");
     });

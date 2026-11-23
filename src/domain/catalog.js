@@ -419,34 +419,39 @@ export function matchesFilters(product, filters = DEFAULT_FILTERS, savedSet = ne
   return true;
 }
 
-/**
- * Keep the editorial order stable regardless of catalog size or collection failures.
- */
+function isCurrentCatalogPlan(record) {
+  return record && !record.diagnostic && !["blocked", "error"].includes(record.status) &&
+    !record.raw?.historical && record.verification?.state !== "historical";
+}
+
+// Current catalog data takes precedence over editorial priority and active filters.
 export function rankProvidersByPopularity(allPlans = [], facetCounts = null) {
   const scaleMap = new Map();
   for (const p of allPlans) {
     if (!p || p.diagnostic) continue;
-    const cur = scaleMap.get(p._providerId) || { avail: 0, total: 0 };
+    const cur = scaleMap.get(p._providerId) || { avail: 0, total: 0, current: 0 };
     cur.total += 1;
+    if (isCurrentCatalogPlan(p)) cur.current += 1;
     if (p.status === "available") cur.avail += 1;
     scaleMap.set(p._providerId, cur);
   }
 
   return [...providers]
     .map((prov) => {
-      const sc = scaleMap.get(prov.id) || { avail: 0, total: 0 };
+      const sc = scaleMap.get(prov.id) || { avail: 0, total: 0, current: 0 };
       const base = providerBaseWeight(prov.id);
       const count = facetCounts ? facetCounts.get(prov.id) || 0 : sc.avail;
       return {
         provider: prov,
         avail: sc.avail,
         total: sc.total,
+        hasCurrentPlans: sc.current > 0,
         count,
         isHot: isHotProvider(prov.id),
         score: base
       };
     })
-    .sort((a, b) => b.score - a.score || b.count - a.count || a.provider.name.localeCompare(b.provider.name, "zh-CN"));
+    .sort((a, b) => Number(b.hasCurrentPlans) - Number(a.hasCurrentPlans) || b.score - a.score || b.count - a.count || a.provider.name.localeCompare(b.provider.name, "zh-CN"));
 }
 
 export function sortProducts(list, sortKey = "recommended") {
@@ -776,6 +781,7 @@ export function providerHealth(provider, allRecords = []) {
     state,
     total: matched.length,
     planCount: plans.length,
+    currentPlanCount: plans.filter(isCurrentCatalogPlan).length,
     known,
     available,
     unavailable,

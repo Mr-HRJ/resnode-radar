@@ -444,7 +444,7 @@ test("track isolation, zero-result recovery, command palette, compare matrix, in
 test("shop picker searches aliases without filtering products and preserves the selected shortcut", async (t) => {
   const env = installDomEnvironment(t);
   const payload = structuredClone(samplePayload);
-  const extraProviders = ["misaka", "lisahost", "greencloud", "spartan", "zgovps", "racknerd"];
+  const extraProviders = ["vps", "evoxt", "misaka", "lisahost", "greencloud", "spartan", "zgovps", "racknerd"];
   payload.products.push(...extraProviders.map((providerId) => ({ ...samplePayload.products[1], id: `${providerId}-plan`, providerId })));
   t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify(payload)));
   const app = mountApp();
@@ -574,7 +574,13 @@ test("priority brands show pending stock honestly and never label every plan hot
   await new Promise(setImmediate);
 
   const shopIds = env.document.querySelectorAll("[data-shops-row] [data-provider]").map((el) => el.getAttribute("data-provider"));
-  assert.deepEqual(shopIds.slice(1, 5), ["bwh", "dmit", "gomami", "vmiss"]);
+  assert.deepEqual(shopIds.slice(1, 5), ["bwh", "zorocloud", "usvps24", "dmit"]);
+  env.click("[data-action='toggle-shops-expand']");
+  const pickerIds = env.document.querySelectorAll(".shop-choice").map((el) => el.getAttribute("data-provider"));
+  const mobileIds = env.document.querySelectorAll("[data-mobile-filter-sheet] [data-filter-select='provider'] option").map((el) => el.getAttribute("value"));
+  assert.deepEqual(pickerIds.slice(0, 4), ["bwh", "zorocloud", "usvps24", "dmit"]);
+  assert.deepEqual(mobileIds.slice(1, 5), pickerIds.slice(0, 4));
+  assert.ok(pickerIds.indexOf("vmiss") > pickerIds.indexOf("zorocloud"));
   assert.equal(env.document.querySelector(".tag-badge.is-hot"), null);
   assert.ok(env.document.querySelector(".terminal-table .tag-badge.is-restock"));
   assert.match(env.text("[data-mobile-filter-sheet] option[value='dmit']"), /待核验/);
@@ -595,7 +601,7 @@ test("priority brands show pending stock honestly and never label every plan hot
   assert.equal(env.document.querySelector("[data-zero-results]"), null);
 
   env.click("[data-nav-view='providers']");
-  assert.deepEqual(env.document.querySelectorAll(".provider-name").slice(0, 4).map((el) => el.textContent), ["搬瓦工(BWH)", "DMIT", "Gomami(狗妈咪)", "VMISS"]);
+  assert.deepEqual(env.document.querySelectorAll(".provider-name").slice(0, 4).map((el) => el.textContent), ["搬瓦工(BWH)", "ZoroCloud", "USVPS24(干杯Cloud)", "DMIT"]);
 });
 
 test("standalone review dossier page hydrates live provider telemetry under unified design system", async (t) => {
