@@ -66,7 +66,7 @@ test("opt-in WHMCS catalog queries preserve route identity, exclusions and disco
   assert.equal(canonicalCatalogPageKey(links[0].url), canonicalCatalogPageKey('https://vendor.example/store/sjc-premium'));
 });
 test("newly recovered public catalog countries are recognized from the plan or group label", () => {
-  for (const [label, country] of [['France', '法国'], ['Bulgaria', '保加利亚'], ['新西兰', '新西兰'], ['巴西', '巴西'], ['马来西亚', '马来西亚'], ['越南', '越南']]) {
+  for (const [label, country] of [['Washington, DC', '美国'], ['Washington DC', '美国'], ['France', '法国'], ['Bulgaria', '保加利亚'], ['新西兰', '新西兰'], ['巴西', '巴西'], ['马来西亚', '马来西亚'], ['越南', '越南']]) {
     assert.equal(parse(card().replace('Tokyo KVM', `${label} KVM`))[0].region, country);
   }
 });
