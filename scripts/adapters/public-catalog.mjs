@@ -4,6 +4,7 @@ import { parseAdditionalCatalog } from "./additional-catalogs.mjs";
 import { parseDynamicCatalog } from "./dynamic-catalogs.mjs";
 import { parseGreenCloudCatalog } from "./greencloud-catalog.mjs";
 import { parseSixCloudsCatalog } from "./sixclouds-catalog.mjs";
+import { parseVmissCatalog } from "./vmiss-catalog.mjs";
 import { parseSpaConsole, SPA_CONSOLE_FORMATS } from "./spa-consoles.mjs";
 import { parseVpsSiteCatalog, VPS_SITE_CATALOG_FORMATS } from "./vps-site-catalogs.mjs";
 import { parseHostbillOnestep, parseShandunCatalog, parseMoonvmCatalog, parseHaloCloudCatalog } from "./billing-portal-catalogs.mjs";
@@ -69,6 +70,7 @@ export async function monitorPublicCatalog(source, helpers) {
         : source.catalogFormat === "moonvm" ? parseMoonvmCatalog(source, result, helpers)
         : source.catalogFormat === "halocloud" ? parseHaloCloudCatalog(source, result, helpers)
         : source.catalogFormat === "sixclouds" ? parseSixCloudsCatalog(source, result, helpers)
+        : source.catalogFormat === "vmiss" ? parseVmissCatalog(source, result, helpers)
         : source.catalogFormat === "usvps24" ? parseUsvps24(source, result, helpers)
         : source.catalogFormat === "nodemach" ? parseNodeMach(source, result, helpers)
           : source.catalogFormat === "jdidc" ? parseJdidcApi(source, result, helpers)

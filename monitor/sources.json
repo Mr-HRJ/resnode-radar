@@ -1169,9 +1169,11 @@
     "provider": "VMISS",
     "category": "unclassified",
     "adapter": "public_catalog",
-    "url": "https://app.vmiss.com/",
-    "requestIntervalMs": 2000,
-    "maxPages": 12
+    "url": "https://app.vmiss.com/store/jp-osaka-iij",
+    "catalogFormat": "vmiss",
+    "requestIntervalMs": 8000,
+    "maxPages": 20,
+    "excludePaths": ["dedicated-server", "/store/others"]
   },
   {
     "id": "catalog-skyline",
