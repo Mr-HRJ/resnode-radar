@@ -64,3 +64,14 @@ test("undated page changes are ordered by discovery without inventing publicatio
   const items = db.announcementPayload(later).items;
   assert.equal(items[0].key, "new"); assert.equal(items[0].publishedAt, null);
 });
+
+test("jobs beyond the per-source batch keep their place and run before previously unmatched links", (t) => {
+  const db = new CollectionState(":memory:"); t.after(() => db.close());
+  for (let id = 1; id <= 31; id++) db.enqueue(`https://www.dmit.io/cart.php?pid=${id}`, source.id, at);
+  const batch = new Set(db.pendingJobs(source.id).map((j) => j.url));
+  const waiting = db.db.prepare("SELECT url FROM jobs").all().find((j) => !batch.has(j.url)).url;
+  db.saveSource(source, [row("999")], later, later);
+  assert.equal(db.pendingJobs(source.id)[0].url, waiting);
+  assert.equal(db.pendingJobs(source.id)[0].updated_at, at);
+  assert.equal(db.pendingJobs(source.id)[0].result, null);
+});

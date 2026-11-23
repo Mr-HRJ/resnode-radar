@@ -115,8 +115,10 @@ export class CollectionState {
         });
       }
       // Refresh earlier matches too: a verified announcement must follow later sellouts or failures.
+      const scheduled = new Set(this.pendingJobs(source.id).map((job) => job.url));
       for (const job of this.db.prepare("SELECT * FROM jobs WHERE source_id=?").all(source.id)) {
         const match = current.find((r) => product(r) && r.orderUrl && normalizeOrder(r.orderUrl) === normalizeOrder(job.url) && !r.raw?.historical);
+        if (!match && !scheduled.has(job.url) && job.state !== "verified") continue;
         const state = match && known(match) ? "verified" : failure ? "blocked" : "unmatched";
         const result = { state, checkedAt: skipped ? parse(job.result)?.checkedAt ?? null : attemptedAt, productId: match?.id ?? null, status: state === "verified" ? match.status : "unknown",
           message: state === "verified" ? match.statusLabel : failure?.error || "尚未匹配可核验的公开 SKU" };
