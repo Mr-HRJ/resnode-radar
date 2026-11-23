@@ -148,7 +148,7 @@ export class CollectionState {
           return parse(job?.result) || (job ? { state: "pending", message: "等待目录及 SKU 核验" } : { state: "unmatched", message: "历史线索未加入优先核验队列" });
         })()
       })) };
-    }).sort((a, b) => (Date.parse(b.publishedAt) || 0) - (Date.parse(a.publishedAt) || 0));
+    }).sort((a, b) => (Date.parse(b.publishedAt || b.firstSeenAt) || 0) - (Date.parse(a.publishedAt || a.firstSeenAt) || 0));
     return { items, sources: this.db.prepare("SELECT id,state FROM feeds ORDER BY id").all().map(({ id, state }) => {
       const { name, url, kind, trust, status, checkedAt, lastSuccessAt, error, items } = parse(state);
       return { id, name, url, kind, trust, status, checkedAt, lastSuccessAt, error, items };

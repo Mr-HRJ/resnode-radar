@@ -9,7 +9,7 @@ export function renderAnnouncements(feed) {
     <summary class="insp-card-title">公告与优惠线索 · ${items.length} 条 <span class="pill ${ok === feed.sources.length ? "pill-ok" : "pill-warn"}">${ok}/${feed.sources.length} 来源正常 · 展开</span></summary>
     <p class="workspace-sub">每 20 分钟检查。公告不代表当前有货；点击套餐查看采集核验结果。首次导入标为历史公告。</p>
     <details><summary>订阅来源与最近检查</summary><ul>${feed.sources.map((s) => `<li>${escapeHtml(s.name)} · ${escapeHtml(formatDateTime(s.checkedAt))} · ${s.status === "ok" ? "正常" : escapeHtml(s.error || "读取失败，保留历史公告")}</li>`).join("")}</ul></details>
-    ${items.length ? `<ol>${items.slice(0, 30).map((item) => {
+    ${items.length ? `<ol>${items.slice(0, 100).map((item) => {
       const href = safeUrl(item.url);
       return `<li style="margin:14px 0"><strong>${href ? `<a href="${escapeHtml(href)}" target="_blank" rel="nofollow noopener noreferrer">${escapeHtml(item.title)} ↗</a>` : escapeHtml(item.title)}</strong>
         <div class="workspace-sub">${escapeHtml(item.source)} · ${item.trust === "official" ? "官方公开来源" : "第三方线索"} · ${item.publishedAt ? `发布 ${escapeHtml(formatDateTime(item.publishedAt))}` : `发布时间未提供 · 首次发现 ${escapeHtml(formatDateTime(item.firstSeenAt))}`}${item.baseline ? " · 首次导入" : ""}</div>

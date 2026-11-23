@@ -55,3 +55,12 @@ test("announcements are idempotent, edits retain identity, and baseline items st
   assert.equal(same.changed, false); assert.equal(edit.changed, true); assert.equal(edit.record.id, first.record.id);
   assert.equal(edit.record.baseline, true); assert.equal(db.announcementPayload(later).items.length, 1);
 });
+
+test("undated page changes are ordered by discovery without inventing publication times", (t) => {
+  const db = new CollectionState(":memory:"); t.after(() => db.close());
+  const feed = { id: "feed", name: "Official", trust: "official" };
+  db.ingestAnnouncement(feed, { key: "old", hash: "a", publishedAt: at, candidates: [] }, at);
+  db.ingestAnnouncement(feed, { key: "new", hash: "b", publishedAt: null, candidates: [] }, later);
+  const items = db.announcementPayload(later).items;
+  assert.equal(items[0].key, "new"); assert.equal(items[0].publishedAt, null);
+});

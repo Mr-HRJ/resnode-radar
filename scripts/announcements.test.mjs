@@ -56,6 +56,8 @@ test("old baseline announcements do not enqueue obsolete offers; edited/new anno
 test("announcement rendering escapes hostile titles and removes unsafe source links", () => {
   const html = renderAnnouncements({ sources: [{ name: "test", status: "ok", checkedAt: at }], items: [{ title: '<img src=x onerror="alert(1)">', url: "javascript:alert(1)", source: "test", firstSeenAt: at, candidates: [] }] });
   assert.ok(!html.includes('<img')); assert.ok(!html.includes('href="javascript:'));
+  const allItems = Array.from({ length: 48 }, (_, i) => ({ title: `Announcement ${i}`, url: "https://news.example/" + i, firstSeenAt: at, candidates: [] }));
+  assert.match(renderAnnouncements({ sources: [{ name: "test", status: "ok", checkedAt: at }], items: allItems }), /Announcement 47/);
 });
 
 test("a valid empty RSS is healthy and does not erase previous announcements", async (t) => {
