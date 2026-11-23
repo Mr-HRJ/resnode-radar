@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { parse } from "node-html-parser";
 
 const pricePattern = /(?:US\$|CA\$|C\$|HK\$|A\$|[¥￥$€£]|\b(?:USD|CNY|CAD|EUR|GBP|HKD|RMB)\b)\s*[0-9][0-9,.]*|[0-9][0-9,.]*\s*(?:元|USD\b|CNY\b|CAD\b|EUR\b|GBP\b|HKD\b)/i;
-const specsPattern = /\b(?:vCPU|vCore|CPU|RAM|DDR[345]|KVM|VDS|VPS|NVMe|SSD|HDD)\b|\d\s*(?:GB|MB|TB|G)[\s/]|内存|記憶體|云服务器|雲伺服器|虚拟服务器/i;
+const specsPattern = /\b(?:vCPU|vCore|CPU|RAM|Storage|DDR[345]|KVM|VDS|VPS|NVMe|SSD|HDD)\b|\d\s*(?:GB|MB|TB|G)[\s/]|内存|記憶體|云服务器|雲伺服器|虚拟服务器/i;
 const excludedPattern = /独立服务器|獨立伺服器|独服|獨服|裸金属|bare\s*metal|dedicated\s*server|域名注册|域名註冊|domain\s*registration|reseller\s*hosting|shared\s*hosting|cpanel\s*hosting|SSL\s*certificates/i;
 const nonProductNamePattern = /^(?:Additional Services|Simple pricing|Popular Plans|Configuration|VPS Plans & Pricing)$/i;
 const hardwarePattern = /\d+\s*(?:vCPU|vCore|CPU|Cores?\b|核)|(?:CPU|内存|RAM|Memory)\s*[:：]?\s*\d+|\d+\s*(?:GB|MB|G)\s*(?:RAM|DDR|内存)|\d+\s*(?:GB|MB)\s+(?:Memory|内存)/i;
@@ -43,6 +43,8 @@ function isCatalogLink(url, label) {
   // WHMCS add-ons belong to an existing service and require a customer login.
   // They are not VPS catalog groups, even though they also use the gid key.
   if (/^(?:addons|renewals)$/i.test(u.searchParams.get("gid") || "")) return false;
+  // Restock subscriptions require a customer login and are not product catalogs.
+  if (u.searchParams.get("m") === "product_restock_notifier") return false;
   if (/\/(?:checkout|order\/(?:config|checkout))(?:\/|$)/i.test(u.pathname) || /^(?:confproduct|checkout|view)$/i.test(u.searchParams.get("a") || "")) return false;
   if (["language", "language_iso", "currency"].some((key) => u.searchParams.has(key))) return false;
   if (excludedPattern.test(`${route} ${label}`) || /(?:blog|news|knowledgebase|announcements|login|register|signup|terms|privacy|affiliate|logout|cart\.php\?a=add)/i.test(url) || u.searchParams.get("a") === "add" || u.searchParams.has("pid")) return false;

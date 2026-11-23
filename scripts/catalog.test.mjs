@@ -17,6 +17,17 @@ test("catalog parser preserves plan title, current price and exact stock", () =>
   const [p] = parse(card());
   assert.equal(p.name, "Tokyo KVM"); assert.equal(p.priceValue, 12); assert.equal(p.status, "available"); assert.equal(p.stockCount, 3); assert.equal(p.region, "日本"); assert.match(p.hardware, /4 GB RAM/);
 });
+test("DigitalFyre-style SKU cards retain labeled storage and a specific order entry", () => {
+  const html = '<div class="package"><h3 class="package-title">NANO N1</h3><div class="price">$3.00</div><div class="price-cycle">Monthly</div><ul><li>CPU Cores: 1</li><li>Ram: 512 MB</li><li>Storage: 10 GB</li><li>IPv4: 1</li><li>IPv6: /64</li><li>Bandwidth: 1 TB</li></ul><a href="/store/vps/nano-n1">Order Now</a></div>';
+  const [row] = parse(html, { currency: "USD" });
+  assert.equal(row.name, "NANO N1");
+  assert.equal(row.hardware, "CPU Cores: 1 / Ram: 512 MB / Storage: 10 GB");
+  assert.equal(row.priceValue, 3);
+  assert.equal(priceQuote(row).monthly, 3);
+  assert.equal(row.status, "available");
+  assert.equal(row.stockCount, null);
+  assert.equal(row.orderUrl, "https://vendor.example/store/vps/nano-n1");
+});
 test("FAQ prose with example prices and hardware is not a product", () => {
   const faq = '<section><h2>Questions worth answering.</h2><div class="seo-faq"><details><summary>What does the entry plan cost?</summary><p>It starts at $19. ISP-XS includes 2 vCPU and 2 GB RAM.</p></details></div></section>';
   assert.deepEqual(parse(faq), []);
@@ -118,6 +129,11 @@ test("discovery stays on official hosts, excludes checkout and language mirrors,
 test("discovery excludes customer add-ons and configured non-catalog paths", () => {
   const html = '<a href="/cart.php?gid=addons">Product Addons</a><a href="/cart.php?gid=renewals">Renewals</a><a href="/store/ssl">SSL</a><a href="/cart.php?gid=12">VPS</a><a href="/order/config/index/vps/?pricing_id=7">Configure VPS</a><a href="/products/vps/checkout">Buy</a>';
   assert.deepEqual(discoverCatalogLinks(html, source.url, { ...source, excludePaths: ['/store/ssl'] }).map((x) => x.url), ['https://vendor.example/cart.php?gid=12']);
+});
+
+test("discovery excludes restock notification actions under WHMCS store paths", () => {
+  const html = '<a href="/store/index.php?m=product_restock_notifier&_action=notify&_pid=34">补货通知</a><a href="/index.php?m=product_restock_notifier&_action=notify&_pid=35">Notify me</a><a href="/store/nttispipvps">VPS</a>';
+  assert.deepEqual(discoverCatalogLinks(html, source.url, source).map((x) => x.url), ['https://vendor.example/store/nttispipvps']);
 });
 
 test("HostBill quickcart identity deduplicates the same offer across marketing pages without inventing stock", () => {

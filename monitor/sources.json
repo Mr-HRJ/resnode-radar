@@ -526,16 +526,13 @@
     "provider": "DigitalFyre",
     "category": "unclassified",
     "adapter": "public_catalog",
-    "url": "https://www.digitalfyre.com/vps/",
+    "url": "https://console.digitalfyre.com/store/vps/",
+    "currency": "USD",
     "requestIntervalMs": 2000,
-    "maxPages": 2,
-    "catalogUrls": [
-      "https://console.digitalfyre.com/order/vps"
-    ],
+    "maxPages": 1,
     "transport": "http2",
     "discover": false,
-    "sharedOrderEntry": true,
-    "nameSelector": ".package-top .type"
+    "coverageNote": "官方公开 VPS 目录及各 SKU 订购链接；不包含其他托管产品。"
   },
   {
     "id": "catalog-datawave",
@@ -1427,9 +1424,12 @@
     "provider": "六六云(666Clouds)",
     "category": "unclassified",
     "adapter": "public_catalog",
-    "url": "https://666clouds.com/",
+    "url": "https://www.666clouds.com/shop",
     "requestIntervalMs": 2000,
-    "maxPages": 12
+    "maxPages": 1,
+    "discover": false,
+    "catalogFormat": "sixclouds",
+    "coverageNote": "官方公开商店的全部 native SKU，按 productId 与 planSubId 区分配置、价格和库存。"
   },
   {
     "id": "catalog-blossomhost",
