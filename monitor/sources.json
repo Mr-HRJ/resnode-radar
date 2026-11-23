@@ -728,6 +728,9 @@
     "category": "vps",
     "adapter": "public_catalog",
     "url": "https://www.netcup.com/en/server/vps",
+    "priceSelector": "[data-test='product-group-card-price']",
+    "cycleSelector": "span.border-t",
+    "priceNoteSelector": "[data-test='product-group-card-vat-note']",
     "catalogUrls": [
       "https://www.netcup.com/en/server/arm-server"
     ],

@@ -9,16 +9,17 @@ const hardwarePattern = /\d+\s*(?:vCPU|vCore|CPU|Cores?\b|核)|(?:CPU|内存|RAM
 const orderPattern = /订购|訂購|购买|購買|立即开通|部署|選購|Order|Buy|Purchase|Deploy|Configure|Get started/i;
 const cardSelector = ".package, .product, .product-card, .card-product, .fh-product-card, .pricing-card, .pricing-box, .pricing-plan, .plan, .plan-card, .price-box, #products .card, [data-product-id], [itemtype*='Product']";
 const clean = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
+const orderRouteHash = /^#\/(?:buy|order|configure)\/[a-z0-9_-]+\/?$/i;
 
-export function cleanPublicUrl(href, base) {
-  if (!href || href.startsWith("#")) return null;
+export function cleanPublicUrl(href, base, { preserveOrderRoute = false } = {}) {
+  if (!href || (href.startsWith("#") && !(preserveOrderRoute && orderRouteHash.test(href)))) return null;
   try {
     const url = new URL(href, base);
     if (!["https:", "http:"].includes(url.protocol) || url.username || url.password || !url.hostname.includes(".") || /^[\d.]+$/.test(url.hostname) || /(?:^|\.)(?:localhost|local|internal)$/.test(url.hostname)) return null;
     for (const key of [...url.searchParams.keys()]) {
       if (/^(?:aff.*|ref.*|utm_.*|vcd|coupon|promocode)$/i.test(key)) url.searchParams.delete(key);
     }
-    url.hash = "";
+    if (!(preserveOrderRoute && orderRouteHash.test(url.hash))) url.hash = "";
     return url.href;
   } catch { return null; }
 }
@@ -117,7 +118,7 @@ function regionFrom(value) {
 }
 
 function orderLinks(node, base) {
-  return node.querySelectorAll("a[href]").map((a) => ({ node: a, url: cleanPublicUrl(a.getAttribute("href"), base), label: clean(a.text) })).filter((a) => a.url && (orderPattern.test(a.label) || /(?:cart\.php.*(?:pid=|a=add)|\/(?:store|products)\/[^/]+\/[^/]+)/i.test(a.url)));
+  return node.querySelectorAll("a[href]").map((a) => ({ node: a, url: cleanPublicUrl(a.getAttribute("href"), base, { preserveOrderRoute: true }), label: clean(a.text) })).filter((a) => a.url && (orderPattern.test(a.label) || /(?:cart\.php.*(?:pid=|a=add)|\/(?:store|products)\/[^/]+\/[^/]+)/i.test(a.url)));
 }
 
 function candidates(root, base) {
@@ -157,7 +158,7 @@ function candidates(root, base) {
 export function parseCatalogPage(source, result, helpers) {
   const { baseRecord } = helpers;
   const root = parse(result.html);
-  root.querySelectorAll("script, style, noscript, template, del, s, .old-price, .price-old, .price-discount, .section-product-card").forEach((n) => n.remove());
+  root.querySelectorAll("script, style, noscript, template, del, s, .old-price, .price-old, .price-discount, .section-product-card, .faq, .faqs, .seo-faq, #faq, #faqs, [itemtype$='/FAQPage'], [itemtype$='/Question']").forEach((n) => n.remove());
   const pageTitle = clean(root.querySelector("h1")?.text || root.querySelector("title")?.text);
   const base = result.finalUrl || source.url;
   if ((source.excludePaths ?? []).some((path) => base.toLowerCase().includes(path.toLowerCase()))) return [];
@@ -179,7 +180,8 @@ export function parseCatalogPage(source, result, helpers) {
     const numeric = priceMatch[0].match(/[0-9][0-9,.]*/)?.[0] ?? "";
     const amount = Number(/^\d+,\d{1,2}$/.test(numeric) ? numeric.replace(",", ".") : numeric.replace(/,/g, ""));
     if (!Number.isFinite(amount) || amount <= 0) continue;
-    const cycleNode = clean(node.querySelector(".price-cycle, .cycle, .billing-cycle, .price-period, .text-small.text-muted")?.text);
+    const cycleNode = clean(node.querySelector(source.cycleSelector || ".price-cycle, .cycle, .billing-cycle, .price-period, .text-small.text-muted")?.text);
+    const priceNote = source.priceNoteSelector ? clean(node.querySelector(source.priceNoteSelector)?.text) : "";
     const nearPrice = value.slice(value.indexOf(priceMatch[0]), value.indexOf(priceMatch[0]) + priceMatch[0].length + 55);
     const period = cycleNode || (nearPrice.match(/(?:\/\s*(?:mo(?:nth)?|yr|year|月|年|季|小时|hour)|per\s+(?:month|year|hour)|monthly|quarterly|annually|yearly|每月|每年|每季|月付|月缴|月繳|年付|年缴|季付)/i)?.[0] ?? "");
     const orders = orderLinks(node, documentBase);
@@ -187,7 +189,7 @@ export function parseCatalogPage(source, result, helpers) {
     const soldOut = /Sold Out|Out of Stock|售罄|已售完|缺货|無庫存|无库存/i.test(value);
     const stock = value.match(/(?:库存|庫存)\s*[:：]?\s*(\d+)|(\d+)\s*(?:可用|Available\b|in stock\b)/i);
     const count = soldOut ? 0 : stock ? Number(stock[1] ?? stock[2]) : null;
-    const specificOrder = !source.sharedOrderEntry && order && /(?:pid=|product_id=|plan_id=|\/(?:store|products|cart)\/[^/]+\/[^/?#]+|\/order\/[^/?#]+|\/configure\/[^/?#]+)/i.test(order.url);
+    const specificOrder = !source.sharedOrderEntry && order && /(?:pid=|product_id=|plan_id=|\/(?:store|products|cart)\/[^/]+\/[^/?#]+|\/order\/[^/?#]+|\/configure\/[^/?#]+)/i.test(order.url.split("#")[0]);
     if (configurable && !specificOrder) continue;
     const status = soldOut || count === 0 ? "unavailable" : (count > 0 || specificOrder) ? "available" : "unknown";
     const features = node.querySelectorAll("li, .package-features div, .product-features div").map((n) => clean(n.text)).filter((x) => specsPattern.test(x) || /流量|带宽|頻寬|\b(?:transfer|traffic|bandwidth|IPv[46]|Gbps|Mbps)\b/i.test(x));
@@ -199,14 +201,16 @@ export function parseCatalogPage(source, result, helpers) {
     const category = /住宅|家宽|家寬|residential|双\s*ISP|dual[- ]?isp|\b(?:HKT|HKBN|HGC)-HOME\b/i.test(`${name} ${value}`) ? "home" : "vps";
     const quickcart = order && new URL(order.url);
     const quickcartIdentity = quickcart?.searchParams.get("module") === "quickcart" && /^\d+$/.test(quickcart.searchParams.get("id") || "");
-    const identity = specificOrder || quickcartIdentity ? order.url : `${base}|${name}`;
+    // Hash routers identify the offer, but a marketing link alone proves no stock.
+    const routedOrder = quickcart && orderRouteHash.test(quickcart.hash);
+    const identity = specificOrder || quickcartIdentity || routedOrder ? order.url : `${base}|${name}`;
     records.push(baseRecord(source, result, {
       id: `${source.id}:plan:${createHash("sha256").update(identity).digest("hex").slice(0,16)}`,
       sourceUrl: base, name, category,
       region: regionFrom(`${name} ${source.pageLabel || ""}`) || regionFrom(value) || regionFrom(pageTitle),
       route: routes || null,
       hardware: hardware || null, bandwidth: bandwidth || null,
-      note: "官方产品页信息；购买前请确认当前库存与计费周期",
+      note: `官方产品页信息；${priceNote ? `${priceNote}；` : ""}购买前请确认当前库存与计费周期`,
       price: `${configurable ? "起价 " : ""}${priceMatch[0]}${period ? ` ${period}` : ""}`, priceValue: amount, currency: source.currency || null,
       status, statusLabel: status === "available" ? (count !== null ? `库存 ${count}` : "可订购入口") : status === "unavailable" ? "不可订购" : "库存未公开",
       stockCount: count, orderUrl: order?.url || (count > 0 ? base : null),

@@ -20,7 +20,7 @@ function publicUrl(value) {
   try {
     const url = new URL(value);
     if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) return null;
-    url.hash = "";
+    if (!/^#\/(?:buy|order|configure)\/[a-z0-9_-]+\/?$/i.test(url.hash)) url.hash = "";
     url.searchParams.sort();
     return url.href;
   } catch {
@@ -88,7 +88,7 @@ function samePlan(before, after) {
 function comparableQuote(record) {
   const quote = priceQuote(record);
   const label = String(record.price ?? "");
-  const explicit = [...label.matchAll(/\b(USD|CNY|EUR|GBP|CAD|AUD|HKD|JPY|TWD|SGD|KRW)\b/gi)].map((match) => match[1].toUpperCase());
+  const explicit = [...label.matchAll(/(?<![a-z])(USD|CNY|EUR|GBP|CAD|AUD|HKD|JPY|TWD|SGD|KRW|VND)(?![a-z])/gi)].map((match) => match[1].toUpperCase());
   const symbols = [[/€/, "EUR"], [/£/, "GBP"], [/HK\$/, "HKD"], [/(?:CA|C)\$/, "CAD"], [/(?<![A-Z])A\$/, "AUD"], [/NT\$/, "TWD"], [/RMB|元/i, "CNY"]];
   if (!/^[A-Z]{3}$/.test(quote.currency ?? "") || explicit.some((currency) => currency !== quote.currency) ||
       symbols.some(([pattern, currency]) => pattern.test(label) && currency !== quote.currency) ||

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseSpaConsole, parseLazyCat, SPA_CONSOLE_FORMATS } from "./adapters/spa-consoles.mjs";
+import { priceQuote } from "../pricing.js";
 
 const helpers = { baseRecord: (_source, _result, record) => record };
 const source = (format, url) => ({ id: `catalog-${format}`, providerId: format, provider: format, catalogFormat: format, url });
@@ -102,11 +103,24 @@ test("breacloud emits one record per product x pool and honours region-full flag
   assert.equal(fra.statusLabel, "地区已满");
   assert.equal(usage.orderUrl, "https://brea.cloud/products?region=16&product=intel-1c1g");
   assert.match(usage.note, /HKD 0.019444\/小时/);
+  assert.equal(usage.price, 'HKD 0.019444/小时');
+  assert.equal(usage.priceValue, 0.019444);
+  assert.equal(priceQuote(usage).period, '小时');
+  assert.equal(priceQuote(usage).monthly, null);
+  assert.match(usage.note, /HKD 14.00\/月/);
   const [left] = run("breacloud", BREA, { code: "OK", data: { products: [breaProduct({ stock_left: 0, pve_pools: [breaProduct().pve_pools[0]] })] } });
   assert.equal(left.status, "unavailable");
   assert.equal(left.stockCount, 0);
   assert.throws(() => run("breacloud", BREA, { code: "OK", data: { products: [breaProduct({ pricing: [{ cycle: "monthly", price: "16.5" }] })] } }), /price schema/);
   assert.throws(() => run("breacloud", BREA, { code: "ERR" }), /schema changed/);
+});
+test("BreaCloud usage plans without a valid hourly quote cannot substitute a monthly estimate", () => {
+  for (const hourly_price of [null, undefined, -1, '19444', 1.5]) {
+    const [plan] = run('breacloud', BREA, { code: 'OK', data: { products: [breaProduct({ billing_mode: 'usage', hourly_price })] } });
+    assert.equal(plan.priceValue, null);
+    assert.equal(plan.price, null);
+    assert.equal(plan.status, 'unknown');
+  }
 });
 
 // ------------------------------------------------------------------ KFCHost

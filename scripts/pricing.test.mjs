@@ -15,6 +15,12 @@ test("reference CNY monthly price respects annual payment and unknown/configurab
     { price: "TWD 24/month", priceValue: 24 }, { price: "$24/month", priceValue: -24 }
   ]) assert.equal(monthlyCny(product, rates, now), null);
 });
+test("currency codes adjoining amounts and VND quotes remain explicit without invented rates", () => {
+  assert.equal(priceQuote({ price: '2.4USD / month', priceValue: 2.4 }).currency, 'USD');
+  assert.equal(priceQuote({ price: 'VND150000 / month', priceValue: 150000 }).currency, 'VND');
+  assert.equal(monthlyCny({ price: '150000VND / month', priceValue: 150000 }, rates, now), null);
+  assert.equal(priceQuote({ price: '150000VND / month', priceValue: 150000, currency: 'USD' }).currency, null);
+});
 
 test("BERO HOST keeps its VAT-inclusive 30-day quote without a monthly equivalent", () => {
   const product = { price: "EUR 20.9 / 30 days (incl. VAT)", priceValue: 20.9, currency: "EUR", raw: { billingCycle: "30 Tage", billingDays: 30 } };

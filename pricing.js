@@ -1,5 +1,5 @@
 // Preserve the original quote. Exchange-rate estimates never replace the bill.
-const currencies = ["USD", "CNY", "EUR", "GBP", "JPY", "HKD", "CAD", "AUD", "TWD", "SGD", "KRW"];
+const currencies = ["USD", "CNY", "EUR", "GBP", "JPY", "HKD", "CAD", "AUD", "TWD", "SGD", "KRW", "VND"];
 const periods = [
   [/小时|hour/i, null, "小时"], [/一次性|onetime|one[- ]time/i, null, "一次性"],
   [/每日|每天|\/\s*天|\/\s*day|daily/i, null, "天"],
@@ -28,7 +28,7 @@ function billingPeriod(value, billingDays) {
 }
 export function priceQuote(product) {
   const label = String(product.price ?? "");
-  const codes = [...label.matchAll(/\b(USD|CNY|EUR|GBP|CAD|AUD|HKD|JPY|TWD|SGD|KRW)\b/gi)].map((match) => match[1].toUpperCase());
+  const codes = [...label.matchAll(/(?<![a-z])(USD|CNY|EUR|GBP|CAD|AUD|HKD|JPY|TWD|SGD|KRW|VND)(?![a-z])/gi)].map((match) => match[1].toUpperCase());
   const field = typeof product.currency === "string" ? product.currency.toUpperCase() : null;
   let currency = field || codes[0] || (/NT\$/.test(label) ? "TWD" : /HK\$/.test(label) ? "HKD" : /(?:CA|C)\$/.test(label) ? "CAD" : /A\$/.test(label) ? "AUD" : /€/.test(label) ? "EUR" : /£/.test(label) ? "GBP" : /[¥￥]|元|RMB/.test(label) ? "CNY" : /\$/.test(label) ? "USD" : null);
   const symbols = [[/NT\$/, "TWD"], [/HK\$/, "HKD"], [/(?:CA|C)\$/, "CAD"], [/(?<![A-Z])A\$/, "AUD"], [/US\$/, "USD"], [/€/, "EUR"], [/£/, "GBP"], [/\bRMB\b|人民币|人民幣|(?<![美日欧歐加澳港新韩韓台臺])元/i, "CNY"]];

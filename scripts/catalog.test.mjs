@@ -17,6 +17,34 @@ test("catalog parser preserves plan title, current price and exact stock", () =>
   const [p] = parse(card());
   assert.equal(p.name, "Tokyo KVM"); assert.equal(p.priceValue, 12); assert.equal(p.status, "available"); assert.equal(p.stockCount, 3); assert.equal(p.region, "日本"); assert.match(p.hardware, /4 GB RAM/);
 });
+test("FAQ prose with example prices and hardware is not a product", () => {
+  const faq = '<section><h2>Questions worth answering.</h2><div class="seo-faq"><details><summary>What does the entry plan cost?</summary><p>It starts at $19. ISP-XS includes 2 vCPU and 2 GB RAM.</p></details></div></section>';
+  assert.deepEqual(parse(faq), []);
+  assert.equal(parse(card() + faq).length, 1);
+});
+test("hash-routed purchase links survive without turning navigation anchors into plans or inventing stock", () => {
+  const html = card('No inventory published', '/#/buy/isp-xs');
+  const [plan] = parse(html);
+  assert.equal(plan.orderUrl, 'https://vendor.example/#/buy/isp-xs');
+  assert.equal(plan.status, 'unknown');
+  assert.equal(plan.stockCount, null);
+  const otherPage = parseCatalogPage(source, htmlResult(html, { finalUrl: 'https://vendor.example/region/vps' }), { baseRecord })[0];
+  assert.equal(plan.id, otherPage.id);
+  assert.notEqual(plan.id, parse(html.replace('isp-xs', 'isp-s'))[0].id);
+  assert.equal(parse(card('No inventory published', '#/buy/isp-xs'))[0].orderUrl, `${source.url}#/buy/isp-xs`);
+  assert.equal(parse(card('No inventory published', '#pricing'))[0].orderUrl, null);
+  assert.equal(cleanPublicUrl('/#/buy/isp-xs', source.url), 'https://vendor.example/');
+  assert.deepEqual(discoverCatalogLinks('<a href="/#/buy/isp-xs">Order VPS</a>', source.url, source), []);
+});
+test("configured pricing selectors preserve terms before the price and the published VAT note", () => {
+  const html = card('No inventory published', null).replace('<span class="price-discount">$100.00</span><span class="price">$12.00</span><span class="price-cycle">Monthly</span>', '<span class="contract">12 months contract period, from monthly</span><span data-test="price">€8.26</span><span>€9.50</span><span class="vat">(incl. 19% VAT)</span>');
+  const [plan] = parse(html, { priceSelector: '[data-test="price"]', cycleSelector: '.contract', priceNoteSelector: '.vat', currency: 'EUR' });
+  assert.equal(plan.priceValue, 8.26);
+  assert.equal(plan.raw.billingCycle, '12 months contract period, from monthly');
+  assert.equal(priceQuote(plan).months, 1);
+  assert.equal(priceQuote(plan).baseOnly, true);
+  assert.match(plan.note, /19% VAT/);
+});
 test("Chinese zero inventory wins over an order button and sold-out cards survive missing links", () => {
   assert.equal(parse(card('0 可用'))[0].status, "unavailable");
   const [sold] = parse(card('Sold Out', null)); assert.equal(sold.status, "unavailable"); assert.equal(sold.stockCount, 0);

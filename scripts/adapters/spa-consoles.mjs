@@ -212,15 +212,16 @@ export function parseBreaCloud(source, result, { baseRecord }) {
       const pricing = Array.isArray(pool?.pricing) && pool.pricing.length ? pool.pricing : product.pricing;
       for (const price of pricing) if (!breaCycles[price?.cycle] || !Number.isSafeInteger(price.price)) throw new Error("BreaCloud public price schema changed");
       const primary = pricing.find((price) => price.cycle === "monthly") ?? pricing[0] ?? null;
-      const amount = primary ? money(primary.price / 1e6) : null;
+      const estimate = primary ? money(primary.price / 1e6) : null;
+      const hourly = Number.isSafeInteger(product.hourly_price) && product.hourly_price >= 0 ? product.hourly_price / 1e6 : null;
+      const amount = usage ? hourly : estimate;
       const stockLeft = Number.isInteger(product.stock_left) ? product.stock_left : null;
       const status = stockLeft !== null && stockLeft <= 0 ? "unavailable"
         : pool?.available === false ? "unavailable"
-          : !pool || pool.online === false || !primary ? "unknown" : "available";
+          : !pool || pool.online === false || amount === null ? "unknown" : "available";
       const orderUrl = !pool ? `${origin}/products${usage ? "" : "?mode=periodic"}`
         : usage ? `${origin}/products?region=${pool.pool_id}&product=${encodeURIComponent(product.slug)}`
           : `${origin}/checkout?product=${encodeURIComponent(product.slug)}&currency=${currency}&region=${pool.pool_id}`;
-      const hourly = Number.isSafeInteger(product.hourly_price) ? Number((product.hourly_price / 1e6).toFixed(6)) : null;
       records.push(baseRecord(source, result, {
         id: `${source.id}:plan:${product.id}-${pool?.pool_id ?? "nopool"}`,
         sourceUrl: `${origin}/products${usage ? "" : "?mode=periodic"}`,
@@ -234,15 +235,15 @@ export function parseBreaCloud(source, result, { baseRecord }) {
           product.traffic_unlimited ? "流量不限" : product.traffic_quota_gb ? `${product.traffic_quota_gb} GB/月` : product.traffic_mode === "overage" ? "流量按量计费" : null,
           product.free_ipv4_count ? `${product.free_ipv4_count} IPv4` : null
         ]),
-        price: primary ? `${currency} ${amount.toFixed(2)}/${breaCycles[primary.cycle]}${usage ? "（按小时计费折算）" : ""}` : null,
-        priceValue: amount, currency: primary ? currency : null,
+        price: amount === null ? null : usage ? `${currency} ${amount}/小时` : `${currency} ${amount.toFixed(2)}/${breaCycles[primary.cycle]}`,
+        priceValue: amount, currency: amount === null ? null : currency,
         status,
         statusLabel: status === "unavailable" ? (stockLeft !== null && stockLeft <= 0 ? "已售罄" : "地区已满") : status === "available" ? (usage ? "可按量开通" : "可订购") : "可用性未确认",
         stockCount: stockLeft !== null ? Math.max(0, stockLeft) : null,
         orderUrl,
-        note: usage ? `官方按量计费套餐${hourly !== null ? `（${currency} ${hourly}/小时）` : ""}；流量与额外 IP 另计。` : "官方周期付费套餐；下单需登录。",
+        note: usage ? `官方按量计费套餐${hourly !== null ? `（${currency} ${hourly}/小时）` : "（小时价格未公开）"}${primary ? `；官方参考折算 ${currency} ${estimate.toFixed(2)}/${breaCycles[primary.cycle]}` : ""}；流量与额外 IP 另计。` : "官方周期付费套餐；下单需登录。",
         evidence: `Official public products API; billing_mode=${product.billing_mode}; pool.available=${pool?.available ?? "no pool"}; stock_limited=${product.stock_limited ?? "not stated"}; stock_left=${stockLeft ?? "not stated"}`,
-        raw: { productId: product.id, slug: product.slug, poolId: pool?.pool_id ?? null, billingMode: product.billing_mode, pricing: pricing.map(({ cycle, price: micro }) => ({ cycle, micro })), stockLimited: product.stock_limited ?? null }
+        raw: { productId: product.id, slug: product.slug, poolId: pool?.pool_id ?? null, billingMode: product.billing_mode, billingCycle: usage ? "hourly" : primary?.cycle ?? null, pricing: pricing.map(({ cycle, price: micro }) => ({ cycle, micro })), stockLimited: product.stock_limited ?? null }
       }));
     }
   }

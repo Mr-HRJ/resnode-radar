@@ -48,6 +48,20 @@ test("a baseline and large newly ingested sources have no invented events", () =
   const legacy = { schemaVersion: 1, generatedAt: firstAt, products: [plan({ status: "unavailable" })] };
   assert.deepEqual(snapshot(secondAt, [later()], legacy).events, []);
 });
+test("events preserve routed checkout links and never merge different routed SKUs", () => {
+  const orderUrl = 'https://vendor.example/#/buy/basic';
+  const [event] = diffRuns([plan({ orderUrl, status: 'unavailable' })], [later({ orderUrl })], secondAt);
+  assert.equal(event.orderUrl, orderUrl);
+  assert.ok(isRadarEvent(event));
+  const before = plan({ id: 'old', orderUrl, status: 'unavailable' });
+  const after = later({ id: 'new', orderUrl: 'https://vendor.example/#/buy/plus' });
+  assert.deepEqual(diffRuns([before], [after], secondAt), []);
+});
+test("switching an estimated monthly price to the actual hourly quote is not a price-change event", () => {
+  const before = plan({ price: 'HKD 14.00/月（按小时计费折算）', priceValue: 14, currency: 'HKD' });
+  const after = later({ price: 'HKD 0.019444/小时', priceValue: 0.019444, currency: 'HKD', raw: { billingCycle: 'hourly' } });
+  assert.deepEqual(diffRuns([before], [after], secondAt), []);
+});
 
 test("missing, unknown, blocked, failed, diagnostic and Reader observations cannot create changes", () => {
   assert.deepEqual(diffRuns([plan()], [], secondAt), []);
