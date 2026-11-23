@@ -5,8 +5,8 @@ export function renderAnnouncements(feed) {
   const items = feed.items ?? [];
   const ok = feed.sources.filter((s) => s.status === "ok").length;
   const labels = { pending: "待核验", verified: "已核验", blocked: "核验受阻", unmatched: "尚未匹配 SKU" };
-  return `<section class="insp-card" aria-label="公告与优惠线索">
-    <h2 class="insp-card-title">公告与优惠线索 <span class="pill ${ok === feed.sources.length ? "pill-ok" : "pill-warn"}">${ok}/${feed.sources.length} 来源正常</span></h2>
+  return `<details class="insp-card" aria-label="公告与优惠线索">
+    <summary class="insp-card-title">公告与优惠线索 · ${items.length} 条 <span class="pill ${ok === feed.sources.length ? "pill-ok" : "pill-warn"}">${ok}/${feed.sources.length} 来源正常 · 展开</span></summary>
     <p class="workspace-sub">每 20 分钟检查。公告不代表当前有货；点击套餐查看采集核验结果。首次导入标为历史公告。</p>
     <details><summary>订阅来源与最近检查</summary><ul>${feed.sources.map((s) => `<li>${escapeHtml(s.name)} · ${escapeHtml(formatDateTime(s.checkedAt))} · ${s.status === "ok" ? "正常" : escapeHtml(s.error || "读取失败，保留历史公告")}</li>`).join("")}</ul></details>
     ${items.length ? `<ol>${items.slice(0, 30).map((item) => {
@@ -20,5 +20,5 @@ export function renderAnnouncements(feed) {
         }).join("")}</ul>` : `<div class="workspace-sub">未识别到可直接核验的官方套餐链接，请查看公告原文。</div>`}
       </li>`;
     }).join("")}</ol>` : `<p class="workspace-sub">尚未取得有效公告；订阅异常不影响现有商品采集。</p>`}
-  </section>`;
+  </details>`;
 }
