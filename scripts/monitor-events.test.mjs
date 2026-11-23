@@ -69,6 +69,13 @@ test("state-enabled collector retains a failed product as history and publishes 
   const dir = workspace(t), env = { MONITOR_STATE_DB: join(dir, "state.sqlite") };
   const first = run(dir, firstAt, fixture(3, 8), env);
   assert.equal(first.products[0].verification.verifiedAt, firstAt);
+  // Public-catalog adapters can return a diagnostic "unknown" when a vendor has no public plans.
+  const noCatalog = structuredClone(first);
+  noCatalog.sourceHealth[0].status = "unknown";
+  noCatalog.sourceHealth[0].products = 0;
+  assert.deepEqual(validateMonitorPayload(noCatalog), []);
+  noCatalog.sourceHealth[0].status = "not-a-status";
+  assert.ok(validateMonitorPayload(noCatalog).some((e) => e.includes("invalid source")));
   const failed = run(dir, secondAt, { url: sourceUrl, body: "Just a moment cf_chl", status: 403 }, env);
   assert.equal(failed.products.length, 2);
   const old = failed.products.find((p) => p.raw?.historical);

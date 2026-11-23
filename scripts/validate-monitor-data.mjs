@@ -93,7 +93,7 @@ export function validateMonitorPayload(payload, { expectedSourceIds } = {}) {
   if (payload.sourceHealth !== undefined) {
     if (!Array.isArray(payload.sourceHealth)) fail("sourceHealth must be an array");
     else for (const source of payload.sourceHealth) {
-      if (!sourceIds.has(source.id) || !["ok", "partial", "blocked", "error"].includes(source.status)) fail("sourceHealth contains an invalid source");
+      if (!sourceIds.has(source.id) || !["ok", "partial", "unknown", "blocked", "error"].includes(source.status)) fail("sourceHealth contains an invalid source");
       if (!Number.isFinite(timestampMs(source.lastAttemptAt)) || timestampMs(source.lastAttemptAt) > publishedAt) fail("sourceHealth contains an invalid attempt time");
     }
   }
