@@ -1,0 +1,28 @@
+[Unit]
+Description=ResNode Radar scoped residential fallback egress
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+DynamicUser=true
+RuntimeDirectory=resnode-radar-egress
+RuntimeDirectoryMode=0700
+LoadCredential=config.yaml:/etc/resnode-radar-egress/config.yaml
+ExecStart=/opt/resnode-radar-egress/mihomo -d /run/resnode-radar-egress -f ${CREDENTIALS_DIRECTORY}/config.yaml
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+MemoryMax=128M
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

@@ -60,6 +60,20 @@ Cloudflare 规则 `VPS Radar public cache — origin TTL`（`4998758453244597875
 
 不要覆盖持久化数据，不要修改同机其他站点的配置、证书或代理服务。采集日志由 journald 管理，访问日志沿用 Nginx 的 logrotate 策略。
 
+## 家宽备用采集出口
+
+启用后，绿云和 NovixLink 先从 VPS 直连，只有连接错误或公开页面的 403/验证页才重试家宽出口；单独的登录要求与 429 限流不会触发切换。其他商家继续直连。两次尝试各受原有的源级时间预算、请求间隔和官方域名校验约束；整体仍由 `resnode-radar` 每 20 分钟执行且不重叠。家宽结果在 `raw.egress` 标记为 `residential`，失败时保留诊断与直连已采到的商品，不把失败当成缺货。
+
+VPS 独立运行 Mihomo v1.19.33，无需本地电脑在线。部署该版本时核验官方 Linux amd64-v1 压缩包 SHA-256：`8ec92e7b2fdc6b853ba00156bab7e4e965c8b0d843b8c4ac8ab98795f02ad524`。二进制放在 `/opt/resnode-radar-egress/mihomo`。
+
+- `deploy/vps/resnode-radar-egress.service` 安装为同名 systemd 服务；使用动态用户、受限文件系统和 `LoadCredential`，开机自启。
+- 节点配置仅存 `/etc/resnode-radar-egress/config.yaml`，目录权限 0700、文件权限 0600，归 root 所有；不能放进仓库、公开目录或采集 JSON。
+- 配置监听 `127.0.0.1:17897`，关闭 LAN、TUN、DNS 服务和外部控制接口。规则仅允许 `greencloudvps.com`、`green.cloud`、`novixlink.com` 及子域走家宽，最后 `MATCH,REJECT`。
+- 先验证 VPS 能独立连接节点、两个目录能通过代理采集，再将 `deploy/vps/residential-fallback.conf` 安装到 `/etc/systemd/system/resnode-radar.service.d/residential-fallback.conf`，执行 `systemctl daemon-reload`，在采集空闲时重启主服务。连通验证失败时保留配置但不启用 drop-in，继续原有直连采集。
+- 备用服务故障不阻止主服务启动；停用备用功能可移除该 drop-in 后 reload/restart 主服务。不要设置全局 `HTTP_PROXY` 或修改服务器默认路由。
+
+HTTP/1.1 与 HTTP/2 都通过 CONNECT 隧道连接，仍验证上游 HTTPS 证书。验收需检查两个服务、回环监听端口、实际出口 IP，以及完整新快照中只有上述两家出现 `raw.egress=residential`。
+
 ## 验收证据
 
 本地和 Ubuntu 的全量测试各 262 项通过；20 分钟配置变更后的本地全量测试、服务器守护进程测试也通过。GitHub CI `45049224892` 成功。服务重启后保留已有快照，下一轮按新间隔恢复。

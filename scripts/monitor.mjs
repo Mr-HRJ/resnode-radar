@@ -20,6 +20,8 @@ import {
 import { cleanPublicUrl, catalogUrlAllowed, catalogRequestUrl } from "./adapters/catalog-pages.mjs";
 import { createOriginPacer } from "./request-pacing.mjs";
 import { fetchHttp2 } from "./http2-fetch.mjs";
+import { fetchProxy } from "./proxy-fetch.mjs";
+import { collectWithResidentialFallback } from "./residential-fallback.mjs";
 import { transportErrorDetails } from "./transport-errors.mjs";
 import { trackEvents } from "./radar-events.mjs";
 import { readFxSnapshot } from "./fx-rates.mjs";
@@ -245,7 +247,8 @@ async function fetchHtml(source, targetUrl = source.url, restrictAaitr = false) 
         : source.catalogFormat === "neburst" ? buildNeburstPublicCatalogRequest({ userAgent }) : null;
       for (let redirects = 0; ; redirects += 1) {
         if (source.transport === "http2" && publicRequest) throw new Error("HTTP/2 catalog transport supports public GET pages only");
-        response = await (source.transport === "http2" ? fetchHttp2 : fetch)(currentUrl, {
+        response = await (source.transport === "http2" ? fetchHttp2 : source.proxyUrl ? fetchProxy : fetch)(currentUrl, {
+          ...(source.proxyUrl ? { proxyUrl: source.proxyUrl } : {}),
           ...(publicRequest ? { method: publicRequest.method, body: publicRequest.body } : {}),
           headers: {
             "user-agent": userAgent,
@@ -1046,14 +1049,16 @@ async function timedMonitorSource(source) {
   const startedMs = Date.now();
   const budget = Number(source.timeBudgetMs ?? sourceTimeBudgetMs);
   if (!Number.isFinite(budget) || budget <= 0) throw new Error(`Invalid time budget for ${source.id}`);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(new Error("Source time budget exceeded; collection is incomplete")), budget);
-  try {
-    const records = await monitorSource({ ...source, signal: controller.signal, deadline: startedMs + budget });
-    return { records, durationMs: Date.now() - startedMs };
-  } finally {
-    clearTimeout(timer);
-  }
+  const records = await collectWithResidentialFallback(source, async (attemptSource) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new Error("Source time budget exceeded; collection is incomplete")), budget);
+    try {
+      return await monitorSource({ ...attemptSource, signal: controller.signal, deadline: Date.now() + budget });
+    } finally {
+      clearTimeout(timer);
+    }
+  }, process.env.MONITOR_FALLBACK_PROXY);
+  return { records, durationMs: Date.now() - startedMs };
 }
 
 const runStartedMs = Date.now();
