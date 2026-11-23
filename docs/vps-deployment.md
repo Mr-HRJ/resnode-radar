@@ -68,6 +68,7 @@ VPS 独立运行 Mihomo v1.19.33，无需本地电脑在线。部署该版本时
 
 - `deploy/vps/resnode-radar-egress.service` 安装为同名 systemd 服务；使用动态用户、受限文件系统和 `LoadCredential`，开机自启。
 - 节点配置仅存 `/etc/resnode-radar-egress/config.yaml`，目录权限 0700、文件权限 0600，归 root 所有；不能放进仓库、公开目录或采集 JSON。
+- 家宽节点侧的来源 IP 白名单必须包含采集 VPS `62.83.135.52`。只有本机或中转机在名单里时，本机测试成功也不能证明 VPS 能连通；保存白名单后须等待供应商防火墙同步再验证。
 - 配置监听 `127.0.0.1:17897`，关闭 LAN、TUN、DNS 服务和外部控制接口。规则仅允许 `greencloudvps.com`、`green.cloud`、`novixlink.com` 及子域走家宽，最后 `MATCH,REJECT`。
 - 先验证 VPS 能独立连接节点、两个目录能通过代理采集，再将 `deploy/vps/residential-fallback.conf` 安装到 `/etc/systemd/system/resnode-radar.service.d/residential-fallback.conf`，执行 `systemctl daemon-reload`，在采集空闲时重启主服务。连通验证失败时保留配置但不启用 drop-in，继续原有直连采集。
 - 备用服务故障不阻止主服务启动；停用备用功能可移除该 drop-in 后 reload/restart 主服务。不要设置全局 `HTTP_PROXY` 或修改服务器默认路由。
