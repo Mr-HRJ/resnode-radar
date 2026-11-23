@@ -3,19 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ResNode Radar · VPS 与住宅家宽实时库存雷达终端</title>
+    <title>VPS雷达 (vpsld) · 全网 VPS 与住宅家宽实时库存·线路·变价大盘</title>
     <meta
       name="description"
-      content="基于公开官方页面的 VPS 与住宅家宽（ISP）节点库存监控、回程线路甄别、原币种账单与 ECB 汇率参考折算及补货变盘雷达工作台。"
+      content="VPS雷达 (vpsld)：基于公开官方页面的 VPS 与住宅家宽（ISP）节点实时库存监控、三网回程线路甄别、原币种账单与 ECB 汇率参考折算及补货变价全网大盘。"
     />
     <link rel="canonical" href="https://majiayu000.github.io/resnode-radar/" />
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="ResNode Radar" />
+    <meta property="og:site_name" content="VPS雷达 (vpsld)" />
     <meta property="og:locale" content="zh_CN" />
-    <meta property="og:title" content="ResNode Radar · VPS 与住宅家宽实时库存雷达终端" />
+    <meta property="og:title" content="VPS雷达 (vpsld) · 全网 VPS 与住宅家宽实时库存·线路·变价大盘" />
     <meta
       property="og:description"
-      content="高信噪比 VPS / 真家宽（双 ISP）库存监控、解析证据链审计、变盘雷达与多方案横向对比工作台。"
+      content="VPS雷达 (vpsld) — 高信噪比 VPS / 真家宽（双 ISP）库存监控、解析证据链审计、全网实时大盘与多方案横向对比平台。"
     />
     <meta property="og:url" content="https://majiayu000.github.io/resnode-radar/" />
     <meta property="og:image" content="https://majiayu000.github.io/resnode-radar/assets/inventory-preview.png" />
@@ -37,13 +37,15 @@
     <div class="app-shell" data-app-root>
       <header class="cmd-header" data-app-header>
         <div class="cmd-bar">
-          <a class="brand-link" href="./">
-            <img class="brand-logo" src="favicon.svg" alt="" width="24" height="24" />
-            <span class="brand-name">
-              <span>ResNode Radar</span>
-              <span class="brand-chip">TERMINAL</span>
-            </span>
-          </a>
+          <div class="cmd-bar-left">
+            <a class="brand-link" href="./">
+              <img class="brand-logo" src="favicon.svg" alt="" width="26" height="26" />
+              <span class="brand-name">
+                <span class="brand-cn">VPS雷达</span>
+                <span class="brand-domain">vpsld</span>
+              </span>
+            </a>
+          </div>
         </div>
         <div class="telemetry-strip">
           <div class="telemetry-inner">
@@ -55,16 +57,16 @@
       <div class="status-banner-wrap" data-app-banner hidden></div>
 
       <main class="app-main" id="main-workspace" tabindex="-1">
-        <section data-view-panel="terminal" aria-label="选机终端"></section>
-        <section data-view-panel="radar" aria-label="市场异动雷达" hidden></section>
+        <section data-view-panel="terminal" aria-label="现货选机"></section>
+        <section data-view-panel="radar" aria-label="全网实时大盘" hidden></section>
         <section data-view-panel="providers" aria-label="商家目录与监控源健康" hidden></section>
-        <section data-view-panel="guide" aria-label="核验口径与避坑手册" hidden></section>
+        <section data-view-panel="guide" aria-label="选机避坑与核验口径" hidden></section>
       </main>
 
       <footer class="site-footer">
         <div class="site-footer-inner">
           <div>
-            <strong>ResNode Radar</strong> · 仅展示公开官方页面监控快照与显式诊断状态，绝不编造模拟库存、假跑分或隐性返利链接。
+            <strong>VPS雷达 (vpsld)</strong> · 仅展示公开官方页面实时监控快照与显式诊断证据，绝不编造模拟库存、假跑分或隐性返利链接。
           </div>
           <div class="footer-links">
             <a href="reviews/aaitr.html">AaITR 实测档案</a>

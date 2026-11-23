@@ -29,13 +29,14 @@ export function parseUrlState(href = globalThis.window?.location?.href || "https
   const view = VALID_VIEWS.includes(rawView) ? rawView : "terminal";
 
   const trackRaw = p.get("track") || p.get("cat") || "all";
-  const track = ["all", "home", "vps"].includes(trackRaw) ? trackRaw : "all";
+  const track = ["all", "home", "cn-opt", "landing", "vps"].includes(trackRaw) ? trackRaw : "all";
 
   const statusRaw = p.get("status") || DEFAULT_FILTERS.status;
   const status = ["available", "all", "unavailable", "unknown"].includes(statusRaw) ? statusRaw : DEFAULT_FILTERS.status;
 
   const filters = {
     track,
+    opt: p.get("opt") || "all",
     status,
     exactOnly: p.get("exact") === "1",
     noNat: p.get("noNat") === "1",
@@ -44,7 +45,14 @@ export function parseUrlState(href = globalThis.window?.location?.href || "https
     savedOnly: p.get("saved") === "1",
     region: p.get("region") || "all",
     route: p.get("route") || "all",
+    cpu: p.get("cpu") || "all",
+    memory: p.get("mem") || "all",
+    disk: p.get("disk") || "all",
+    bandwidth: p.get("bw") || "all",
+    traffic: p.get("traffic") || "all",
     budget: p.get("budget") || "all",
+    minPrice: p.get("minP") || "",
+    maxPrice: p.get("maxP") || "",
     cycle: p.get("cycle") || "all",
     provider: p.get("provider") || "all",
     q: p.get("q") || "",
@@ -94,6 +102,7 @@ export function serializeUrlState(state, baseHref = globalThis.window?.location?
 
   const f = state.filters || DEFAULT_FILTERS;
   if (f.track !== DEFAULT_FILTERS.track) p.set("track", f.track);
+  if (f.opt && f.opt !== "all") p.set("opt", f.opt);
   if (f.status !== DEFAULT_FILTERS.status) p.set("status", f.status);
   if (f.exactOnly) p.set("exact", "1");
   if (f.noNat) p.set("noNat", "1");
@@ -102,7 +111,14 @@ export function serializeUrlState(state, baseHref = globalThis.window?.location?
   if (f.savedOnly) p.set("saved", "1");
   if (f.region !== "all") p.set("region", f.region);
   if (f.route !== "all") p.set("route", f.route);
+  if (f.cpu && f.cpu !== "all") p.set("cpu", f.cpu);
+  if (f.memory && f.memory !== "all") p.set("mem", f.memory);
+  if (f.disk && f.disk !== "all") p.set("disk", f.disk);
+  if (f.bandwidth && f.bandwidth !== "all") p.set("bw", f.bandwidth);
+  if (f.traffic && f.traffic !== "all") p.set("traffic", f.traffic);
   if (f.budget !== "all") p.set("budget", f.budget);
+  if (f.minPrice && String(f.minPrice).trim()) p.set("minP", String(f.minPrice).trim());
+  if (f.maxPrice && String(f.maxPrice).trim()) p.set("maxP", String(f.maxPrice).trim());
   if (f.cycle !== "all") p.set("cycle", f.cycle);
   if (f.provider !== "all") p.set("provider", f.provider);
   if (f.q && f.q.trim()) p.set("q", f.q.trim());
@@ -188,7 +204,8 @@ export function createStore(initialUrl) {
     inspectId: fromUrl.inspectId,
     savedDrawerOpen: false,
     mobileRailOpen: false,
-    advancedOpen: false,
+    shopsExpanded: false,
+    specsExpanded: true,
     paletteOpen: false,
     paletteQuery: "",
     theme: loadTheme()
@@ -252,7 +269,6 @@ export function createStore(initialUrl) {
       if (!VALID_VIEWS.includes(view)) return;
       state.view = view;
       state.mobileRailOpen = false;
-      state.advancedOpen = false;
       notify({ syncUrl: true });
     },
     setLayout(layout) {
@@ -352,12 +368,12 @@ export function createStore(initialUrl) {
       state.mobileRailOpen = Boolean(open);
       notify();
     },
-    setAdvancedOpen(open) {
-      state.advancedOpen = Boolean(open);
+    toggleShopsExpanded() {
+      state.shopsExpanded = !state.shopsExpanded;
       notify();
     },
-    toggleAdvancedOpen() {
-      state.advancedOpen = !state.advancedOpen;
+    toggleSpecsExpanded() {
+      state.specsExpanded = !state.specsExpanded;
       notify();
     },
     setPaletteOpen(open, initialQuery) {

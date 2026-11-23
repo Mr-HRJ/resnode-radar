@@ -1,78 +1,108 @@
 /* ==========================================================================
-   ResNode Radar — Swiss Precision Telemetry Design System Tokens
-   Zero-Base Redesign: High-SNR Industrial Terminal (Light-First + Obsidian Dark)
+   ResNode Radar — Vibrant Telemetry & Live Market Design System Tokens
    ========================================================================== */
 
 :root,
 [data-theme="light"] {
   color-scheme: light;
 
-  /* Surfaces & Elevation */
-  --bg-canvas: #f4f5f7;
+  /* Luminous Ice-Sky Canvas & Crisp White Surfaces */
+  --bg-canvas: #edf4fb;
+  --bg-canvas-gradient:
+    radial-gradient(1200px 420px at 50% -130px, rgba(37, 99, 235, 0.13), rgba(14, 165, 233, 0.07) 46%, transparent 72%),
+    linear-gradient(180deg, #eaf3fc 0%, #eff5fb 380px, #f2f6fb 100%);
   --bg-surface: #ffffff;
-  --bg-surface-2: #f9fafb;
-  --bg-subtle: #eceff3;
-  --bg-hover: #f1f4f9;
-  --bg-selected: #eff5ff;
-  --bg-backdrop: rgba(15, 23, 42, 0.44);
+  --bg-surface-2: #f6f9fd;
+  --bg-subtle: #eaf0f8;
+  --bg-hover: #f0f6ff;
+  --bg-selected: #e8f1ff;
+  --bg-backdrop: rgba(15, 23, 42, 0.46);
 
-  /* Structural Hairlines */
-  --border-subtle: #e7eaf0;
-  --border-default: #dce1ea;
-  --border-strong: #c4ccd9;
+  /* Crisp Sky-Slate Hairlines */
+  --border-subtle: #e3ebf5;
+  --border-default: #d5e0ee;
+  --border-strong: #b6c7de;
 
-  /* Typography Ink Hierarchy */
+  /* Ink Hierarchy */
   --ink-primary: #0f172a;
   --ink-secondary: #334155;
-  --ink-muted: #64748b;
+  --ink-muted: #5b6b82;
   --ink-faint: #94a3b8;
   --ink-inverse: #ffffff;
 
-  /* Functional Semantic Accents (Zero decorative purple gradients) */
-  --accent: #1d4ed8;
-  --accent-hover: #1e40af;
+  /* Vibrant Primary Royal-Indigo Accent */
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-indigo: #4f46e5;
   --accent-soft: #eff6ff;
-  --accent-border: #bfdbfe;
+  --accent-border: #93c5fd;
+  --grad-primary: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+  --grad-hot: linear-gradient(135deg, #ef4444 0%, #f97316 55%, #f59e0b 100%);
+  --grad-home: linear-gradient(135deg, #0d9488 0%, #10b981 100%);
+  --grad-landing: linear-gradient(135deg, #0284c7 0%, #06b6d4 100%);
+  --grad-native: linear-gradient(135deg, #7c3aed 0%, #6366f1 100%);
 
   /* Track Ontology Colors */
-  --home-fg: #0f766e;
-  --home-bg: #f0fdfa;
-  --home-border: #99f6e4;
-  --home-bar: #0d9488;
+  --home-fg: #047857;
+  --home-bg: #ecfdf5;
+  --home-border: #6ee7b7;
+  --home-bar: #10b981;
 
   --vps-fg: #1d4ed8;
   --vps-bg: #eff6ff;
-  --vps-border: #bfdbfe;
+  --vps-border: #93c5fd;
   --vps-bar: #2563eb;
+
+  /* Jewel-Tone Carrier Palette */
+  --purple-fg: #7c3aed;
+  --purple-bg: #f5f3ff;
+  --purple-border: #c4b5fd;
+
+  --cyan-fg: #0e7490;
+  --cyan-bg: #ecfeff;
+  --cyan-border: #67e8f9;
+
+  --rose-fg: #e11d48;
+  --rose-bg: #fff1f2;
+  --rose-border: #fda4af;
+
+  --indigo-fg: #4338ca;
+  --indigo-bg: #eef2ff;
+  --indigo-border: #c7d2fe;
+
+  --price-main: #1d4ed8;
+  --price-promo: #7c3aed;
+  --price-cny: #d97706;
 
   /* Telemetry Signals */
   --ok-fg: #047857;
   --ok-bg: #ecfdf5;
-  --ok-border: #a7f3d0;
+  --ok-border: #6ee7b7;
   --ok-dot: #10b981;
 
   --warn-fg: #b45309;
   --warn-bg: #fffbeb;
-  --warn-border: #fde68a;
+  --warn-border: #fcd34d;
   --warn-dot: #f59e0b;
 
-  --danger-fg: #be123c;
+  --danger-fg: #e11d48;
   --danger-bg: #fff1f2;
-  --danger-border: #fecdd3;
+  --danger-border: #fda4af;
   --danger-dot: #f43f5e;
 
   --neutral-fg: #475569;
   --neutral-bg: #f1f5f9;
   --neutral-border: #cbd5e1;
 
-  /* Shadows — crisp architectural depth, never blurry neon */
+  /* Layered Elevation Shadows */
   --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-sm: 0 2px 6px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-md: 0 10px 28px rgba(15, 23, 42, 0.10), 0 2px 6px rgba(15, 23, 42, 0.05);
-  --shadow-lg: 0 22px 54px rgba(15, 23, 42, 0.18), 0 4px 12px rgba(15, 23, 42, 0.08);
+  --shadow-sm: 0 4px 14px rgba(30, 64, 175, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 12px 30px rgba(30, 58, 138, 0.10), 0 2px 6px rgba(15, 23, 42, 0.05);
+  --shadow-lg: 0 24px 56px rgba(15, 23, 42, 0.18), 0 4px 14px rgba(15, 23, 42, 0.08);
+  --shadow-cta: 0 3px 10px rgba(79, 70, 229, 0.28);
 
   /* Focus Ring */
-  --ring-color: rgba(29, 78, 216, 0.34);
+  --ring-color: rgba(37, 99, 235, 0.32);
 
   /* Typography Stacks (Local-first, zero CDN blocking in China) */
   --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", "Segoe UI", sans-serif;
@@ -96,17 +126,17 @@
   --sp-6: 24px;
 
   /* Radii */
-  --r-xs: 4px;
-  --r-sm: 6px;
-  --r-md: 8px;
-  --r-lg: 12px;
+  --r-xs: 5px;
+  --r-sm: 7px;
+  --r-md: 12px;
+  --r-lg: 14px;
   --r-pill: 999px;
 
   /* Shell Metrics */
-  --cmd-h: 50px;
-  --ticker-h: 36px;
+  --cmd-h: 52px;
+  --ticker-h: 40px;
   --rail-w: 268px;
-  --inspector-w: 488px;
+  --inspector-w: 496px;
   --container-max: 1560px;
 
   /* Z-Index Layers */
@@ -122,62 +152,92 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --bg-canvas: #090c11;
-  --bg-surface: #11151d;
-  --bg-surface-2: #151a24;
-  --bg-subtle: #1a2130;
-  --bg-hover: #1d2536;
-  --bg-selected: rgba(59, 130, 246, 0.14);
-  --bg-backdrop: rgba(2, 6, 14, 0.72);
+  --bg-canvas: #080d19;
+  --bg-canvas-gradient:
+    radial-gradient(1100px 380px at 50% -110px, rgba(37, 99, 235, 0.22), rgba(16, 185, 129, 0.08) 48%, transparent 72%),
+    linear-gradient(180deg, #080d19 0%, #0b1120 100%);
+  --bg-surface: #111827;
+  --bg-surface-2: #151f32;
+  --bg-subtle: #1c2840;
+  --bg-hover: #1e2c47;
+  --bg-selected: rgba(59, 130, 246, 0.16);
+  --bg-backdrop: rgba(2, 6, 16, 0.74);
 
-  --border-subtle: #1c2331;
-  --border-default: #252e40;
-  --border-strong: #37435c;
+  --border-subtle: #1e293b;
+  --border-default: #28354c;
+  --border-strong: #3b4d6b;
 
   --ink-primary: #f1f5f9;
   --ink-secondary: #cbd5e1;
-  --ink-muted: #8b9bb4;
+  --ink-muted: #94a3b8;
   --ink-faint: #64748b;
-  --ink-inverse: #090c11;
+  --ink-inverse: #ffffff;
 
-  --accent: #60a5fa;
-  --accent-hover: #93c5fd;
-  --accent-soft: rgba(59, 130, 246, 0.14);
-  --accent-border: rgba(96, 165, 250, 0.34);
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-indigo: #6366f1;
+  --accent-soft: rgba(59, 130, 246, 0.16);
+  --accent-border: rgba(96, 165, 250, 0.42);
+  --grad-primary: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+  --grad-hot: linear-gradient(135deg, #e11d48 0%, #f97316 60%, #f59e0b 100%);
+  --grad-home: linear-gradient(135deg, #0d9488 0%, #059669 100%);
+  --grad-landing: linear-gradient(135deg, #0284c7 0%, #0891b2 100%);
+  --grad-native: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
 
-  --home-fg: #2dd4bf;
-  --home-bg: rgba(20, 184, 166, 0.13);
-  --home-border: rgba(45, 212, 191, 0.30);
-  --home-bar: #14b8a6;
+  --home-fg: #34d399;
+  --home-bg: rgba(16, 185, 129, 0.15);
+  --home-border: rgba(52, 211, 153, 0.36);
+  --home-bar: #10b981;
 
   --vps-fg: #60a5fa;
-  --vps-bg: rgba(59, 130, 246, 0.13);
-  --vps-border: rgba(96, 165, 250, 0.30);
+  --vps-bg: rgba(59, 130, 246, 0.15);
+  --vps-border: rgba(96, 165, 250, 0.36);
   --vps-bar: #3b82f6;
 
+  --purple-fg: #c084fc;
+  --purple-bg: rgba(168, 85, 247, 0.16);
+  --purple-border: rgba(192, 132, 252, 0.36);
+
+  --cyan-fg: #22d3ee;
+  --cyan-bg: rgba(6, 182, 212, 0.15);
+  --cyan-border: rgba(34, 211, 238, 0.36);
+
+  --rose-fg: #fb7185;
+  --rose-bg: rgba(244, 63, 94, 0.16);
+  --rose-border: rgba(251, 113, 133, 0.36);
+
+  --indigo-fg: #a5b4fc;
+  --indigo-bg: rgba(99, 102, 241, 0.16);
+  --indigo-border: rgba(165, 180, 252, 0.36);
+
+  --price-main: #60a5fa;
+  --price-promo: #c084fc;
+  --price-cny: #fbbf24;
+
   --ok-fg: #34d399;
-  --ok-bg: rgba(16, 185, 129, 0.13);
-  --ok-border: rgba(52, 211, 153, 0.30);
+  --ok-bg: rgba(16, 185, 129, 0.15);
+  --ok-border: rgba(52, 211, 153, 0.36);
   --ok-dot: #10b981;
 
   --warn-fg: #fbbf24;
-  --warn-bg: rgba(245, 158, 11, 0.14);
-  --warn-border: rgba(251, 191, 36, 0.32);
+  --warn-bg: rgba(245, 158, 11, 0.15);
+  --warn-border: rgba(251, 191, 36, 0.36);
   --warn-dot: #f59e0b;
 
   --danger-fg: #fb7185;
-  --danger-bg: rgba(244, 63, 94, 0.14);
-  --danger-border: rgba(251, 113, 133, 0.32);
+  --danger-bg: rgba(244, 63, 94, 0.16);
+  --danger-border: rgba(251, 113, 133, 0.36);
   --danger-dot: #f43f5e;
 
   --neutral-fg: #94a3b8;
   --neutral-bg: rgba(148, 163, 184, 0.12);
-  --neutral-border: rgba(148, 163, 184, 0.24);
+  --neutral-border: rgba(148, 163, 184, 0.26);
 
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow-sm: 0 4px 10px rgba(0, 0, 0, 0.42);
-  --shadow-md: 0 14px 32px rgba(0, 0, 0, 0.56);
-  --shadow-lg: 0 28px 64px rgba(0, 0, 0, 0.72);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.40);
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.46);
+  --shadow-md: 0 14px 32px rgba(0, 0, 0, 0.58);
+  --shadow-lg: 0 28px 64px rgba(0, 0, 0, 0.74);
+  --shadow-cta: 0 4px 14px rgba(59, 130, 246, 0.34);
 
   --ring-color: rgba(96, 165, 250, 0.42);
 }

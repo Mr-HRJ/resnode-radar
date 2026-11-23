@@ -3,12 +3,14 @@ import { monthlyCny, priceQuote } from "../../pricing.js";
 
 export const ROUTE_OPTIONS = [
   { value: "all", label: "全部线路" },
-  { value: "cn2", label: "CN2 GIA / GT" },
+  { value: "cn2", label: "电信 CN2 GIA/GT" },
   { value: "9929", label: "联通 9929" },
   { value: "cmin2", label: "移动 CMIN2" },
   { value: "4837", label: "联通 4837" },
+  { value: "iij_sb", label: "日本 软银/IIJ" },
+  { value: "hinet", label: "台湾 HiNet" },
   { value: "bgp", label: "BGP 国际" },
-  { value: "other", label: "其他 / 未标明" }
+  { value: "other", label: "其他线路" }
 ];
 
 export const MACRO_REGIONS = [
@@ -26,21 +28,70 @@ export const MACRO_REGIONS = [
   { value: "MULTI", label: "多地区/全球", flag: "◎" }
 ];
 
+export const OPT_OPTIONS = [
+  { value: "all", label: "不限优化" },
+  { value: "opt", label: "⚡ 有回国优化" },
+  { value: "intl", label: "🌐 纯国际/无优化" },
+  { value: "native", label: "🛡 原生/双ISP" }
+];
+
 export const BUDGET_OPTIONS = [
-  { value: "all", label: "不限预算", max: null },
-  { value: "30", label: "≤ ¥30/月", max: 30 },
-  { value: "60", label: "≤ ¥60/月", max: 60 },
-  { value: "150", label: "≤ ¥150/月", max: 150 },
-  { value: "300", label: "≤ ¥300/月", max: 300 },
-  { value: "600", label: "≤ ¥600/月", max: 600 }
+  { value: "all", label: "不限预算", min: null, max: null },
+  { value: "0-20", label: "≤ ¥20", min: 0, max: 20 },
+  { value: "20-50", label: "¥20–50", min: 20, max: 50 },
+  { value: "50-100", label: "¥50–100", min: 50, max: 100 },
+  { value: "100-200", label: "¥100–200", min: 100, max: 200 },
+  { value: "200+", label: "¥200+", min: 200, max: null }
+];
+
+export const CPU_OPTIONS = [
+  { value: "all", label: "不限" },
+  { value: "1", label: "1 核" },
+  { value: "2", label: "2 核" },
+  { value: "4", label: "3–4 核" },
+  { value: "8+", label: "6 核+" }
+];
+
+export const MEMORY_OPTIONS = [
+  { value: "all", label: "不限" },
+  { value: "le1", label: "≤ 1GB" },
+  { value: "2", label: "2GB" },
+  { value: "4", label: "4GB" },
+  { value: "8", label: "8GB" },
+  { value: "16+", label: "16GB+" }
+];
+
+export const DISK_OPTIONS = [
+  { value: "all", label: "不限" },
+  { value: "le20", label: "≤ 20G" },
+  { value: "21-50", label: "21–50G" },
+  { value: "51-100", label: "51–100G" },
+  { value: "100+", label: "100G+" }
+];
+
+export const BANDWIDTH_OPTIONS = [
+  { value: "all", label: "不限" },
+  { value: "le100", label: "≤ 100M" },
+  { value: "200-500", label: "200–500M" },
+  { value: "1g", label: "1Gbps" },
+  { value: "2.5g+", label: "2Gbps+" }
+];
+
+export const TRAFFIC_OPTIONS = [
+  { value: "all", label: "不限" },
+  { value: "le500", label: "≤ 500G" },
+  { value: "501-1024", label: "501G–1T" },
+  { value: "1t-3t", label: "1T–3T" },
+  { value: "3t+", label: "3T+" },
+  { value: "unlimited", label: "♾ 不限流量" }
 ];
 
 export const CYCLE_OPTIONS = [
-  { value: "all", label: "不限周期" },
+  { value: "all", label: "全部周期" },
   { value: "monthly", label: "月付" },
   { value: "quarterly", label: "季付" },
   { value: "semiannual", label: "半年付" },
-  { value: "annual", label: "年付及以上" }
+  { value: "annual", label: "年付+" }
 ];
 
 export function text(value, fallback = "-") {
@@ -291,10 +342,12 @@ const routePatterns = {
   "9929": /(?:\b(?:as\s*)?9929\b|\bcuii\b|\bcu2\b)/i,
   cmin2: /\b(?:cmi\s*n\s*2|as\s*58807)\b/i,
   "4837": /\b(?:as\s*)?4837\b/i,
+  iij_sb: /(?:\biij\b|\bsoftbank\b|软银|軟銀)/i,
+  hinet: /\bhinet\b/i,
   bgp: /\bbgp\b/i
 };
 
-const coreRouteKeys = ["cn2", "9929", "cmin2", "4837", "bgp"];
+const coreRouteKeys = ["cn2", "9929", "cmin2", "4837", "iij_sb", "hinet", "bgp"];
 const carrierKey = /^(?:route|routing|carrier|network|线路|線路|网络|網絡|运营商|運營商|电信|電信|联通|聯通|移动|移動)$/i;
 
 export function declaredRouteText(product) {
@@ -325,6 +378,8 @@ export function detectedRoutes(product) {
   if (routePatterns["9929"].test(declared)) found.push("9929");
   if (routePatterns.cmin2.test(declared)) found.push("CMIN2");
   if (routePatterns["4837"].test(declared)) found.push("4837");
+  if (routePatterns.iij_sb.test(declared)) found.push(/softbank|软银|軟銀/i.test(declared) ? "软银" : "IIJ");
+  if (routePatterns.hinet.test(declared)) found.push("HiNet");
   if (routePatterns.bgp.test(declared)) found.push("BGP");
   return found;
 }
@@ -432,6 +487,89 @@ export function productSpecs(product) {
   result.bandwidth ||= speed(network);
   result.traffic ||= networkTraffic(network);
   return Object.fromEntries(Object.entries(result).map(([key, value]) => [key, value || "未标明"]));
+}
+
+function parseCapacityToGb(raw) {
+  if (!raw || raw === "未标明") return null;
+  const cleaned = String(raw).replace(/raid[- ]?\d+/gi, " ").replace(/ddr\d*(?:@[^\s]+)?/gi, " ");
+  // A configurable range or disk count is not a single published capacity.
+  if (/\d\s*(?:[KMGT](?:i?B)?)?\s*[-–~×*x]\s*\d/i.test(cleaned)) return null;
+  // Handle compound disks such as "50G+20G"
+  const parts = cleaned.split("+");
+  let sum = 0;
+  let matchedAny = false;
+  for (const part of parts) {
+    const m = part.match(/(\d+(?:\.\d+)?)(?:\s*[-–~]\s*(\d+(?:\.\d+)?))?\s*([KMGT])(?:i?B)?(?![a-z])/i);
+    if (!m) return null;
+    const val = Number(m[2] || m[1]);
+    const unit = m[3].toUpperCase();
+    if (!Number.isFinite(val)) continue;
+    matchedAny = true;
+    if (unit === "T") sum += val * 1024;
+    else if (unit === "G") sum += val;
+    else if (unit === "M") sum += val / 1024;
+    else if (unit === "K") sum += val / (1024 * 1024);
+  }
+  return matchedAny ? sum : null;
+}
+
+export function parseNumericSpecs(product, specs = productSpecs(product)) {
+  const hwSegs = segments(product?.hardware);
+
+  // CPU cores
+  let cpuCores = null;
+  const cpuRaw = specs.cpu && specs.cpu !== "未标明" ? String(specs.cpu) : hwSegs[0];
+  if (cpuRaw && !/\d\s*[-–~]\s*\d/.test(cpuRaw)) {
+    const mUnit =
+      cpuRaw.match(/(\d+(?:\.\d+)?)\s*(?:[x×*]\s*)?(?:v\s*(?:cpus?|cores?)|cpus?|cores?|核(?:心)?|H\b)/i);
+    if (mUnit) {
+      const n = Number(mUnit[2] || mUnit[1]);
+      if (Number.isFinite(n) && n > 0 && n <= 512) cpuCores = n;
+    }
+  }
+
+  // Memory GB (fallback to 2nd hardware segment for shorthand like "2H / 512M / 50G+20G")
+  let memoryGb = parseCapacityToGb(specs.memory);
+  if (memoryGb === null && cpuCores !== null && bareCapacity.test(hwSegs[1] || "")) {
+    memoryGb = parseCapacityToGb(hwSegs[1]);
+  }
+
+  // Only infer positional disks for an otherwise recognized compact CPU/RAM tuple.
+  let diskGb = parseCapacityToGb(specs.disk);
+  if (diskGb === null && cpuCores !== null && memoryGb !== null && hwSegs[2]?.split("+").every(part => bareCapacity.test(part.trim()))) {
+    diskGb = parseCapacityToGb(hwSegs[2]);
+  }
+
+  // Preserve bit/byte units; a configurable speed range has no single exact value.
+  let bandwidthMbps = null;
+  const bwRaw = String(specs.bandwidth || "");
+  if (bwRaw && bwRaw !== "未标明" && !/\d\s*[-–~]\s*\d/.test(bwRaw)) {
+    const mBw = bwRaw.match(/(?:\s|^)(\d+(?:\.\d+)?)\s*([KMGT])(bps|B\/s)/i);
+    if (mBw) {
+      const val = Number(mBw[1]) * (mBw[3].startsWith("B") ? 8 : 1);
+      const unit = mBw[2].toUpperCase();
+      if (Number.isFinite(val)) {
+        if (unit === "T") bandwidthMbps = val * 1_000_000;
+        else if (unit === "G") bandwidthMbps = val * 1000;
+        else if (unit === "M") bandwidthMbps = val;
+        else if (unit === "K") bandwidthMbps = val / 1000;
+      }
+    }
+  }
+
+  // Traffic GB
+  const trRaw = String(specs.traffic || "");
+  const unlimitedTraffic = trRaw === "不限流量";
+  const trafficGb = unlimitedTraffic ? Infinity : parseCapacityToGb(trRaw.split("@")[0]);
+
+  return {
+    cpuCores,
+    memoryGb,
+    diskGb,
+    bandwidthMbps,
+    trafficGb,
+    unlimitedTraffic
+  };
 }
 
 const countryPatterns = [

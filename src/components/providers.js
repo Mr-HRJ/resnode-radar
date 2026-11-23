@@ -1,5 +1,5 @@
 import { providers } from "../../providers.js";
-import { REVIEW_DOSSIERS, providerHealth } from "../domain/catalog.js";
+import { REVIEW_DOSSIERS, isHotProvider, providerBaseWeight, providerHealth } from "../domain/catalog.js";
 import { escapeHtml, normalizeSearch, plain, providerInitial, safeUrl } from "../domain/format.js";
 
 const PROV_REGIONS = [
@@ -74,8 +74,12 @@ export function renderProvidersView(state) {
       return true;
     })
     .sort((a, b) => {
-      const rank = (x) => (x.dossier ? 0 : x.health.available > 0 ? 1 : x.health.state === "blocked" ? 2 : 3);
-      return rank(a) - rank(b) || b.health.available - a.health.available || a.provider.name.localeCompare(b.provider.name, "zh-CN");
+      const score = (x) =>
+        (x.dossier ? 600 : 0) +
+        providerBaseWeight(x.provider.id) +
+        (x.health.available > 0 ? 180 : 0) +
+        Math.min(x.health.available, 160) * 1.4;
+      return score(b) - score(a) || a.provider.name.localeCompare(b.provider.name, "zh-CN");
     });
 
   return `
@@ -165,7 +169,7 @@ export function renderProvidersView(state) {
                     <div class="provider-ident">
                       <span class="provider-avatar">${escapeHtml(providerInitial(provider.name))}</span>
                       <div class="provider-name-wrap">
-                        <h3 class="provider-name" title="${escapeHtml(provider.name)}">${escapeHtml(provider.name)}</h3>
+                        <h3 class="provider-name" title="${escapeHtml(provider.name)}">${isHotProvider(provider.id) ? "🔥 " : ""}${escapeHtml(provider.name)}</h3>
                         <div class="provider-aliases">${aliases.length ? `别名：${escapeHtml(aliases.join(" / "))}` : `ID: ${escapeHtml(provider.id)}`}</div>
                       </div>
                     </div>

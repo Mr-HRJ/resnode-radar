@@ -23,7 +23,7 @@ export function renderRadarView(state, now = Date.now()) {
   }
   if (state.loadState === "error") {
     return `<section class="empty-state-card is-error">
-      <h2 class="empty-state-title">无法加载异动记录</h2>
+      <h2 class="empty-state-title">无法加载全网大盘与异动记录</h2>
       <p class="empty-state-desc">上游快照接口当前不可用（${escapeHtml(state.errorDetail?.detail || "Fetch error")}）。</p>
       <div><button type="button" class="btn btn-primary" data-action="refresh-snapshot">↻ 重试读取</button></div>
     </section>`;
@@ -33,6 +33,31 @@ export function renderRadarView(state, now = Date.now()) {
   const planById = new Map(state.plans.map((p) => [p.id, p]));
   const cutoffMs = now - (WINDOW_HOURS[r.window] || 168) * 3600 * 1000;
   const cutoff24 = now - 24 * 3600 * 1000;
+
+  // Compute genuine live market structure from real state.plans
+  let availCount = 0;
+  let homeAvail = 0;
+  let cnOptAvail = 0;
+  let exactAvail = 0;
+  const regionAvailMap = new Map();
+
+  for (const p of state.plans) {
+    if (p.status !== "available") continue;
+    availCount += 1;
+    if (p._classify.isResidential) homeAvail += 1;
+    else if (p._classify.hasCnOpt) cnOptAvail += 1;
+    if (p._isExactStock) exactAvail += 1;
+    for (const mr of p._macroRegions || []) {
+      if (mr !== "MULTI") regionAvailMap.set(mr, (regionAvailMap.get(mr) || 0) + 1);
+    }
+  }
+
+  const topRegions = MACRO_REGIONS.filter((m) => m.value !== "all" && m.value !== "MULTI")
+    .map((m) => ({ ...m, count: regionAvailMap.get(m.value) || 0 }))
+    .filter((m) => m.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+  const maxRegionCount = Math.max(1, topRegions[0]?.count || 1);
 
   let totalAll = 0;
   let restockAll = 0;
@@ -77,7 +102,6 @@ export function renderRadarView(state, now = Date.now()) {
     return true;
   });
 
-  // Group chronologically by day
   const groups = new Map();
   for (const ev of filtered) {
     const day = formatDayKey(ev.at);
@@ -93,13 +117,62 @@ export function renderRadarView(state, now = Date.now()) {
   return `
     <div class="workspace-head">
       <div>
-        <h1 class="workspace-title">市场异动雷达（Restock / Soldout / Price Tape）</h1>
+        <h1 class="workspace-title">全网实时大盘 · 现货分布与补货变价雷达</h1>
         <p class="workspace-sub">${escapeHtml(trackingNote)}。新接入监控源与第三方快照永不伪造补货。</p>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button type="button" class="btn btn-sm" data-action="copy-share-url">🔗 分享视图</button>
+        <button type="button" class="btn btn-sm btn-soft" data-nav-view="terminal">← 返回现货选机</button>
+        <button type="button" class="btn btn-sm" data-action="copy-share-url">分享大盘链接</button>
       </div>
     </div>
+
+    <!-- 全网现货横截面概览（100% 真实快照实时聚合） -->
+    <section class="market-board-grid" aria-label="全网实时现货结构">
+      <div class="market-board-card">
+        <div class="market-board-head">
+          <strong>全网在售现货大盘</strong>
+          <span class="mono" style="font-size:11px;color:var(--ink-muted)">点击直达对应选机视图</span>
+        </div>
+        <div class="market-stat-row">
+          <button type="button" class="market-mini-stat" data-action="quick-stat" data-stat="available">
+            <span class="market-mini-lbl">在售总现货</span>
+            <strong class="market-mini-val num" style="color:var(--accent)">${availCount}</strong>
+          </button>
+          <button type="button" class="market-mini-stat" data-action="quick-stat" data-stat="home">
+            <span class="market-mini-lbl">真家宽 / 双ISP</span>
+            <strong class="market-mini-val num" style="color:var(--home-fg)">${homeAvail}</strong>
+          </button>
+          <button type="button" class="market-mini-stat" data-action="market-jump-cnopt">
+            <span class="market-mini-lbl">回国优化线路</span>
+            <strong class="market-mini-val num" style="color:var(--purple-fg)">${cnOptAvail}</strong>
+          </button>
+          <button type="button" class="market-mini-stat" data-action="quick-stat" data-stat="exact">
+            <span class="market-mini-lbl">精确库存现货</span>
+            <strong class="market-mini-val num" style="color:var(--ok-fg)">${exactAvail}</strong>
+          </button>
+        </div>
+      </div>
+
+      <div class="market-board-card">
+        <div class="market-board-head">
+          <strong>热门地区在售现货分布 Top 6</strong>
+          <span class="mono" style="font-size:11px;color:var(--ink-muted)">点击按地区选机</span>
+        </div>
+        <div class="region-bars-grid">
+          ${topRegions
+            .map(
+              (reg) => `<button type="button" class="region-bar-item" data-action="market-jump-region" data-region="${reg.value}">
+                <div class="region-bar-top">
+                  <span><strong>${escapeHtml(reg.value === "APAC" ? "AP" : reg.value)}</strong> ${escapeHtml(reg.label)}</span>
+                  <span class="mono num">${reg.count} 款</span>
+                </div>
+                <div class="region-bar-track"><span class="region-bar-fill" style="width:${Math.max(6, Math.round((reg.count / maxRegionCount) * 100))}%"></span></div>
+              </button>`
+            )
+            .join("")}
+        </div>
+      </div>
+    </section>
 
     <div class="kpi-grid" role="group" aria-label="按异动类型快捷筛选">
       <button type="button" class="kpi-tile ${r.type === "all" ? "is-active" : ""}" data-action="set-radar-type" data-radar-type="all">
@@ -232,7 +305,7 @@ export function renderRadarView(state, now = Date.now()) {
                           }
                           ${
                             orderHref
-                              ? `<a class="btn btn-xs" href="${escapeHtml(orderHref)}" target="_blank" rel="nofollow noopener noreferrer">官网 ↗</a>`
+                              ? `<a class="btn-buy-cta" style="height:25px;padding:0 8px;font-size:11px" href="${escapeHtml(orderHref)}" target="_blank" rel="nofollow noopener noreferrer">官网 ↗</a>`
                               : ""
                           }
                         </div>

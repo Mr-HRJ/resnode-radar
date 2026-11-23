@@ -3,15 +3,23 @@ import { comparePrices } from "../../pricing.js";
 import { savedKey } from "../../saved.js";
 import { hasSharedIpEvidence } from "./network.js";
 import {
+  BANDWIDTH_OPTIONS,
   BUDGET_OPTIONS,
+  CPU_OPTIONS,
   CYCLE_OPTIONS,
+  DISK_OPTIONS,
   MACRO_REGIONS,
+  MEMORY_OPTIONS,
+  OPT_OPTIONS,
   ROUTE_OPTIONS,
+  TRAFFIC_OPTIONS,
+  declaredRouteText,
   describePricing,
   detectedRoutes,
   macroRegionsFor,
   matchesRoute,
   normalizeSearch,
+  parseNumericSpecs,
   plain,
   productRegions,
   productSearchText,
@@ -38,8 +46,66 @@ export const RISK_EXPLANATIONS = {
   "unknown-status": "页面可达但未能解析出明确的库存可用信号。"
 };
 
+/**
+ * Mainstream community flagship & reputable scale weights.
+ * Combined with real-time monitored inventory scale so popular, well-known,
+ * and well-stocked shops surface prominently by default without hiding smaller shops.
+ */
+export const POPULAR_PROVIDER_WEIGHTS = Object.freeze({
+  bwh: 460,
+  dmit: 455,
+  vps: 440,
+  misaka: 435,
+  lisahost: 430,
+  greencloud: 425,
+  lightlayer: 415,
+  spartan: 410,
+  vmiss: 405,
+  rfc: 400,
+  zgovps: 395,
+  evoxt: 390,
+  saltyfish: 385,
+  isif: 380,
+  zorocloud: 375,
+  bestvm: 370,
+  neburst: 365,
+  berohost: 355,
+  akko: 350,
+  yunyoo: 345,
+  bage: 340,
+  racknerd: 335,
+  netcup: 330,
+  wepc: 325,
+  boil: 320,
+  "666clouds": 315,
+  hostdare: 310,
+  vircs: 305,
+  ipraft: 300,
+  pqs: 295,
+  gomami: 290,
+  nube: 285,
+  cstonecloud: 280,
+  polocloud: 275,
+  usvps24: 270,
+  tothost: 265,
+  moonvm: 260,
+  cloudsilk: 255,
+  buyvm: 250,
+  hosthatch: 245,
+  aaitr: 240
+});
+
+export function providerBaseWeight(providerId) {
+  return POPULAR_PROVIDER_WEIGHTS[String(providerId || "").toLowerCase()] || 0;
+}
+
+export function isHotProvider(providerId) {
+  return providerBaseWeight(providerId) >= 260;
+}
+
 export const DEFAULT_FILTERS = Object.freeze({
   track: "all",
+  opt: "all",
   status: "available",
   exactOnly: false,
   noNat: false,
@@ -48,7 +114,14 @@ export const DEFAULT_FILTERS = Object.freeze({
   savedOnly: false,
   region: "all",
   route: "all",
+  cpu: "all",
+  memory: "all",
+  disk: "all",
+  bandwidth: "all",
+  traffic: "all",
   budget: "all",
+  minPrice: "",
+  maxPrice: "",
   cycle: "all",
   provider: "all",
   q: "",
@@ -56,16 +129,17 @@ export const DEFAULT_FILTERS = Object.freeze({
 });
 
 export const SORT_OPTIONS = [
-  { value: "recommended", label: "综合推荐（证据优先）" },
-  { value: "cny-asc", label: "月均参考价：低 → 高" },
-  { value: "cny-desc", label: "月均参考价：高 → 低" },
-  { value: "stock-desc", label: "精确库存：多 → 少" },
-  { value: "event-recent", label: "近期异动优先" },
-  { value: "orig-asc", label: "原币种报价：低 → 高" }
+  { value: "recommended", label: "🔥 热门大厂与现货优选" },
+  { value: "cny-asc", label: "💰 月均参考价：低 → 高" },
+  { value: "cny-desc", label: "💎 月均参考价：高 → 低" },
+  { value: "stock-desc", label: "📦 精确库存：多 → 少" },
+  { value: "event-recent", label: "⚡ 近期补货/变价优先" },
+  { value: "orig-asc", label: "💵 原币种报价：低 → 高" }
 ];
 
 const residentialTextRe = /家宽|家寬|住宅|民宅|residential|dual\s*isp|双\s*isp|雙\s*isp|comcast|verizon|at&t|frontier|hinet|softbank|att\b/i;
 const nativeIpRe = /原生\s*ip|native\s*ip/i;
+const cnDirectTextRe = /三网直连|三網直連|回国优化|回國優化|cn优化|cn優化|大陆优化|大陸優化|精品网|精品網|cmi\b|ctggia/i;
 
 const providerLookup = new Map();
 for (const p of providers) {
@@ -92,6 +166,7 @@ export function resolveProvider(product) {
 export function classifyProduct(product) {
   const category = product?.category === "home" ? "home" : product?.category === "vps" ? "vps" : "unclassified";
   const textBlob = [product?.name, product?.route, product?.region, product?.note].map(plain).join(" ");
+  const routeDeclared = declaredRouteText(product);
   const hasNatTag = Array.isArray(product?.riskTags) && product.riskTags.some((t) => t?.value === "nat-shared");
   const isNat = hasNatTag || hasSharedIpEvidence(product);
 
@@ -99,26 +174,34 @@ export function classifyProduct(product) {
   const isDualIsp = /双\s*isp|雙\s*isp|dual\s*isp/i.test(textBlob);
   const isNativeIp = nativeIpRe.test(textBlob);
 
+  const routes = detectedRoutes(product);
+  const hasCnOpt =
+    routes.some((r) => ["CN2", "9929", "CMIN2", "4837", "软银", "IIJ", "HiNet"].includes(r)) ||
+    cnDirectTextRe.test(routeDeclared);
+  const isLanding = !isResidential && !hasCnOpt;
+
   let ipTier;
   if (isResidential) {
     ipTier = isDualIsp
-      ? { value: "residential-dual-isp", label: "家宽 / 双 ISP", tone: "home" }
-      : { value: "residential", label: "住宅家宽 / ISP", tone: "home" };
+      ? { value: "residential-dual-isp", label: "家宽 · 双ISP", tone: "home" }
+      : { value: "residential", label: "真家宽 · ISP", tone: "home" };
+  } else if (hasCnOpt) {
+    ipTier = { value: "cn-optimized", label: isNativeIp ? "优化 · 原生IP" : "CN优化直连", tone: "opt" };
   } else if (isNativeIp) {
-    ipTier = { value: "datacenter-native", label: "机房原生 IP", tone: "vps" };
+    ipTier = { value: "datacenter-native", label: "机房原生IP", tone: "native" };
   } else {
-    ipTier = { value: "datacenter", label: "机房 VPS", tone: "vps" };
+    ipTier = { value: "datacenter", label: "国际纯落地", tone: "landing" };
   }
 
-  const routes = detectedRoutes(product);
-  const hasCnOpt = routes.some((r) => ["CN2", "9929", "CMIN2", "4837"].includes(r));
   const delivery = isNat ? "nat" : "unknown";
 
   return {
     category,
     isResidential,
     isDualIsp,
+    isNativeIp,
     isNat,
+    isLanding,
     delivery,
     ipTier,
     routes,
@@ -148,16 +231,16 @@ export function buildEventIndex(events = []) {
 }
 
 export function normalizeProduct(raw, index, exchangeRates, eventIndex = new Map(), now = Date.now()) {
-  // Older collectors matched "native", "international" and shared bandwidth as NAT.
-  // Recheck this derived tag against the retained plan fields without changing observations.
   if (Array.isArray(raw?.riskTags) && !hasSharedIpEvidence(raw)) {
     raw = { ...raw, riskTags: raw.riskTags.filter((tag) => tag?.value !== "nat-shared") };
   }
   const providerObj = resolveProvider(raw);
+  const providerId = providerObj?.id || raw?.providerId || normalizeSearch(plain(raw?.provider)) || "unknown";
   const key = savedKey(raw) || `row:${index}`;
   const classify = classifyProduct(raw);
   const pricing = describePricing(raw, exchangeRates, now);
   const specs = productSpecs(raw);
+  const numSpecs = parseNumericSpecs(raw, specs);
   const regions = productRegions(raw);
   const macroRegions = macroRegionsFor(raw);
   const flag = regionFlag(regions[0] || raw?.region || "");
@@ -176,12 +259,15 @@ export function normalizeProduct(raw, index, exchangeRates, eventIndex = new Map
     diagnostic: Boolean(raw?.diagnostic) || ["blocked", "error"].includes(raw?.status),
     _idx: index,
     _key: key,
-    _providerId: providerObj?.id || raw?.providerId || normalizeSearch(plain(raw?.provider)) || "unknown",
+    _providerId: providerId,
     _providerName: providerObj?.name || plain(raw?.provider) || "未知商家",
+    _providerHot: isHotProvider(providerId),
+    _providerWeight: providerBaseWeight(providerId),
     _dossier: REVIEW_DOSSIERS[providerObj?.id] || null,
     _classify: classify,
     _pricing: pricing,
     _specs: specs,
+    _numSpecs: numSpecs,
     _regions: regions,
     _macroRegions: macroRegions,
     _flag: flag,
@@ -213,16 +299,101 @@ export function matchesRegion(product, region) {
   return (product._regions || []).some((r) => normalizeSearch(r) === target);
 }
 
+export function matchesHardwareSpecs(product, filters) {
+  const ns = product._numSpecs || {};
+  if (filters.cpu && filters.cpu !== "all") {
+    const c = ns.cpuCores;
+    if (!Number.isFinite(c)) return false;
+    if (filters.cpu === "1" && c !== 1) return false;
+    if (filters.cpu === "2" && c !== 2) return false;
+    if (filters.cpu === "4" && (c < 3 || c > 4)) return false;
+    if (filters.cpu === "8+" && c < 6) return false;
+  }
+  if (filters.memory && filters.memory !== "all") {
+    const m = ns.memoryGb;
+    if (!Number.isFinite(m)) return false;
+    if (filters.memory === "le1" && m > 1) return false;
+    if (filters.memory === "2" && m !== 2) return false;
+    if (filters.memory === "4" && m !== 4) return false;
+    if (filters.memory === "8" && m !== 8) return false;
+    if (filters.memory === "16+" && m < 16) return false;
+  }
+  if (filters.disk && filters.disk !== "all") {
+    const d = ns.diskGb;
+    if (!Number.isFinite(d)) return false;
+    if (filters.disk === "le20" && d > 20) return false;
+    if (filters.disk === "21-50" && (d < 21 || d > 50)) return false;
+    if (filters.disk === "51-100" && (d < 51 || d > 100)) return false;
+    if (filters.disk === "100+" && d < 100) return false;
+  }
+  if (filters.bandwidth && filters.bandwidth !== "all") {
+    const b = ns.bandwidthMbps;
+    if (!Number.isFinite(b)) return false;
+    if (filters.bandwidth === "le100" && b > 100) return false;
+    if (filters.bandwidth === "200-500" && (b < 200 || b > 500)) return false;
+    if (filters.bandwidth === "1g" && b !== 1000) return false;
+    if (filters.bandwidth === "2.5g+" && b < 2000) return false;
+  }
+  if (filters.traffic && filters.traffic !== "all") {
+    if (filters.traffic === "unlimited") {
+      if (!ns.unlimitedTraffic) return false;
+    } else {
+      const t = ns.trafficGb;
+      if (!Number.isFinite(t)) return false;
+      if (filters.traffic === "le500" && t > 500) return false;
+      if (filters.traffic === "501-1024" && (t < 501 || t > 1024)) return false;
+      if (filters.traffic === "1t-3t" && (t < 1024 || t > 3072)) return false;
+      if (filters.traffic === "3t+" && t < 3072) return false;
+    }
+  }
+  return true;
+}
+
+export function matchesBudgetRange(product, filters) {
+  const hasPreset = filters.budget && filters.budget !== "all";
+  const minRaw = String(filters.minPrice ?? "").trim();
+  const maxRaw = String(filters.maxPrice ?? "").trim();
+  const hasMin = minRaw !== "" && Number.isFinite(Number(minRaw));
+  const hasMax = maxRaw !== "" && Number.isFinite(Number(maxRaw));
+
+  if (!hasPreset && !hasMin && !hasMax) return true;
+  const cny = product._pricing?.cnyMonthly;
+  if (!Number.isFinite(cny)) return false;
+
+  if (hasMin && cny < Number(minRaw)) return false;
+  if (hasMax && cny > Number(maxRaw)) return false;
+
+  if (hasPreset && !hasMin && !hasMax) {
+    const opt = BUDGET_OPTIONS.find((b) => b.value === filters.budget);
+    if (opt) {
+      if (opt.min !== null && cny < opt.min) return false;
+      if (opt.max !== null && cny > opt.max) return false;
+    } else if (/^\d+(?:\.\d+)?$/.test(filters.budget)) {
+      // Backward compatibility for legacy ?budget=60 / ?budget=150 links
+      if (cny > Number(filters.budget)) return false;
+    }
+  }
+  return true;
+}
+
 export function matchesFilters(product, filters = DEFAULT_FILTERS, savedSet = new Set()) {
   if (!product || product.diagnostic) return false;
-  if (filters.track === "home" && !product._classify.isResidential) return false;
-  if (filters.track === "vps" && product._classify.isResidential) return false;
+  const c = product._classify;
+
+  if (filters.track === "home" && !c.isResidential) return false;
+  if (filters.track === "vps" && c.isResidential) return false;
+  if (filters.track === "cn-opt" && (c.isResidential || !c.hasCnOpt)) return false;
+  if (filters.track === "landing" && !c.isLanding) return false;
+
+  if (filters.opt === "opt" && !c.hasCnOpt) return false;
+  if (filters.opt === "intl" && c.hasCnOpt) return false;
+  if (filters.opt === "native" && !c.isResidential && !c.isDualIsp && !c.isNativeIp) return false;
 
   if (filters.status && filters.status !== "all") {
     if (product.status !== filters.status) return false;
   }
   if (filters.exactOnly && !product._isExactStock) return false;
-  if (filters.noNat && product._classify.isNat) return false;
+  if (filters.noNat && c.isNat) return false;
   if (filters.noSnapshot && product._isSnapshot) return false;
   if (filters.fixedPriceOnly) {
     const q = product._pricing.quote;
@@ -232,13 +403,8 @@ export function matchesFilters(product, filters = DEFAULT_FILTERS, savedSet = ne
 
   if (!matchesRegion(product, filters.region)) return false;
   if (filters.route && filters.route !== "all" && !matchesRoute(product, filters.route)) return false;
-
-  if (filters.budget && filters.budget !== "all") {
-    const max = Number(filters.budget);
-    const cny = product._pricing.cnyMonthly;
-    if (!Number.isFinite(cny) || cny > max) return false;
-  }
-
+  if (!matchesHardwareSpecs(product, filters)) return false;
+  if (!matchesBudgetRange(product, filters)) return false;
   if (!matchesCycle(product, filters.cycle)) return false;
 
   if (filters.provider && filters.provider !== "all") {
@@ -255,55 +421,138 @@ export function matchesFilters(product, filters = DEFAULT_FILTERS, savedSet = ne
   return true;
 }
 
+/**
+ * Ranks all 121 providers by Mainstream Popularity + Live Monitored Inventory Scale.
+ */
+export function rankProvidersByPopularity(allPlans = [], facetCounts = null) {
+  const scaleMap = new Map();
+  for (const p of allPlans) {
+    if (!p || p.diagnostic) continue;
+    const cur = scaleMap.get(p._providerId) || { avail: 0, total: 0 };
+    cur.total += 1;
+    if (p.status === "available") cur.avail += 1;
+    scaleMap.set(p._providerId, cur);
+  }
+
+  return [...providers]
+    .map((prov) => {
+      const sc = scaleMap.get(prov.id) || { avail: 0, total: 0 };
+      const base = providerBaseWeight(prov.id);
+      // Popularity weight + live available inventory scale (active shops beat 0-stock shops)
+      const hasStockBoost = sc.avail > 0 ? 180 : sc.total > 0 ? 40 : 0;
+      const scaleScore = Math.min(sc.avail, 160) * 1.4 + Math.min(sc.total, 200) * 0.35;
+      const score = base + hasStockBoost + scaleScore;
+      const count = facetCounts ? facetCounts.get(prov.id) || 0 : sc.avail;
+      return {
+        provider: prov,
+        avail: sc.avail,
+        total: sc.total,
+        count,
+        isHot: base >= 260,
+        score
+      };
+    })
+    .sort((a, b) => b.score - a.score || b.count - a.count || a.provider.name.localeCompare(b.provider.name, "zh-CN"));
+}
+
 export function sortProducts(list, sortKey = "recommended") {
   const arr = [...list];
   const statusWeight = (p) => (p.status === "available" ? 0 : p.status === "unknown" ? 1 : 2);
-  arr.sort((a, b) => {
-    if (sortKey === "cny-asc") {
-      const ca = a._pricing.cnyMonthly ?? Infinity;
-      const cb = b._pricing.cnyMonthly ?? Infinity;
-      return statusWeight(a) - statusWeight(b) || ca - cb || comparePrices(a, b) || a._idx - b._idx;
+
+  if (sortKey !== "recommended") {
+    arr.sort((a, b) => {
+      if (sortKey === "cny-asc") {
+        const ca = a._pricing.cnyMonthly ?? Infinity;
+        const cb = b._pricing.cnyMonthly ?? Infinity;
+        return statusWeight(a) - statusWeight(b) || ca - cb || comparePrices(a, b) || a._idx - b._idx;
+      }
+      if (sortKey === "cny-desc") {
+        const ca = a._pricing.cnyMonthly ?? -1;
+        const cb = b._pricing.cnyMonthly ?? -1;
+        return statusWeight(a) - statusWeight(b) || cb - ca || a._idx - b._idx;
+      }
+      if (sortKey === "stock-desc") {
+        const sa = Number.isInteger(a.stockCount) ? a.stockCount : -1;
+        const sb = Number.isInteger(b.stockCount) ? b.stockCount : -1;
+        return statusWeight(a) - statusWeight(b) || sb - sa || a._evidenceRank - b._evidenceRank || a._idx - b._idx;
+      }
+      if (sortKey === "event-recent") {
+        return b._latestEventMs - a._latestEventMs || statusWeight(a) - statusWeight(b) || a._evidenceRank - b._evidenceRank || a._idx - b._idx;
+      }
+      if (sortKey === "orig-asc") {
+        return statusWeight(a) - statusWeight(b) || comparePrices(a, b) || a._idx - b._idx;
+      }
+      return a._idx - b._idx;
+    });
+    return arr;
+  }
+
+  // Popularity + Scale + Brand-Diversity Wave Interleaving for "recommended":
+  // 1) Compute live scale per provider in current matched list
+  const provAvail = new Map();
+  for (const p of arr) {
+    if (p.status === "available") {
+      provAvail.set(p._providerId, (provAvail.get(p._providerId) || 0) + 1);
     }
-    if (sortKey === "cny-desc") {
-      const ca = a._pricing.cnyMonthly ?? -1;
-      const cb = b._pricing.cnyMonthly ?? -1;
-      return statusWeight(a) - statusWeight(b) || cb - ca || a._idx - b._idx;
-    }
-    if (sortKey === "stock-desc") {
-      const sa = Number.isInteger(a.stockCount) ? a.stockCount : -1;
-      const sb = Number.isInteger(b.stockCount) ? b.stockCount : -1;
-      return statusWeight(a) - statusWeight(b) || sb - sa || a._evidenceRank - b._evidenceRank || a._idx - b._idx;
-    }
-    if (sortKey === "event-recent") {
-      return b._latestEventMs - a._latestEventMs || statusWeight(a) - statusWeight(b) || a._evidenceRank - b._evidenceRank || a._idx - b._idx;
-    }
-    if (sortKey === "orig-asc") {
-      return statusWeight(a) - statusWeight(b) || comparePrices(a, b) || a._idx - b._idx;
-    }
-    // "recommended": available first -> stronger evidence -> no high risk -> lower CNY monthly -> original price
+  }
+  const provScore = (p) =>
+    (p._providerWeight || 0) + Math.min(provAvail.get(p._providerId) || 0, 140) * 1.3;
+
+  // 2) Pre-sort within each provider by best quality & price
+  const innerRankCompare = (a, b) => {
     const ca = a._pricing.cnyMonthly ?? Infinity;
     const cb = b._pricing.cnyMonthly ?? Infinity;
+    const natA = a._classify.isNat ? 1 : 0;
+    const natB = b._classify.isNat ? 1 : 0;
     return (
       statusWeight(a) - statusWeight(b) ||
       a._evidenceRank - b._evidenceRank ||
+      natA - natB ||
       a._highRiskCount - b._highRiskCount ||
       ca - cb ||
       comparePrices(a, b) ||
       a._idx - b._idx
     );
+  };
+
+  arr.sort(innerRankCompare);
+
+  // Assign diversity wave (3 flagship plans per provider per wave so top rows showcase top brands!)
+  const seenPerProvider = new Map();
+  const waveOf = new Map();
+  for (const p of arr) {
+    const k = `${statusWeight(p)}:${p._providerId}`;
+    const n = seenPerProvider.get(k) || 0;
+    seenPerProvider.set(k, n + 1);
+    // Non-flagship domestic/NAT-heavy bulk vendors get tighter wave cap so they never flood page 1
+    const perWave = (p._providerWeight || 0) >= 260 ? 3 : 1;
+    waveOf.set(p, Math.floor(n / perWave));
+  }
+
+  arr.sort((a, b) => {
+    return (
+      statusWeight(a) - statusWeight(b) ||
+      waveOf.get(a) - waveOf.get(b) ||
+      provScore(b) - provScore(a) ||
+      innerRankCompare(a, b)
+    );
   });
+
   return arr;
 }
 
 export function computeFacetCounts(plans, filters, savedSet) {
-  // Compute counts for each dimension with that single dimension relaxed
-  const tracks = { all: 0, home: 0, vps: 0 };
+  const tracks = { all: 0, home: 0, "cn-opt": 0, landing: 0, vps: 0 };
   const withoutTrack = { ...filters, track: "all" };
   for (const p of plans) {
     if (!matchesFilters(p, withoutTrack, savedSet)) continue;
     tracks.all += 1;
     if (p._classify.isResidential) tracks.home += 1;
-    else tracks.vps += 1;
+    else {
+      tracks.vps += 1;
+      if (p._classify.hasCnOpt) tracks["cn-opt"] += 1;
+      if (p._classify.isLanding) tracks.landing += 1;
+    }
   }
 
   const regions = new Map();
@@ -342,18 +591,28 @@ export function computeFacetCounts(plans, filters, savedSet) {
 
 export function listActiveFilterBadges(filters) {
   const badges = [];
+  const trackMap = {
+    home: "类型: 真家宽/双ISP",
+    "cn-opt": "类型: CN回国优化",
+    landing: "类型: 国际纯落地",
+    vps: "类型: 机房VPS"
+  };
   if (filters.track !== "all") {
-    badges.push({ key: "track", label: filters.track === "home" ? "赛道: 真家宽/双ISP" : "赛道: 机房/优化线路" });
+    badges.push({ key: "track", label: trackMap[filters.track] || `类型: ${filters.track}` });
+  }
+  if (filters.opt && filters.opt !== "all") {
+    const m = OPT_OPTIONS.find((o) => o.value === filters.opt);
+    badges.push({ key: "opt", label: m ? m.label : `优化: ${filters.opt}` });
   }
   if (filters.status !== DEFAULT_FILTERS.status) {
     const map = { all: "全部库存状态", unavailable: "仅看售罄", unknown: "仅看库存未公开", available: "仅看可购" };
     badges.push({ key: "status", label: `状态: ${map[filters.status] || filters.status}` });
   }
-  if (filters.exactOnly) badges.push({ key: "exactOnly", label: "仅看精确库存" });
-  if (filters.noNat) badges.push({ key: "noNat", label: "排除 NAT/共享" });
-  if (filters.noSnapshot) badges.push({ key: "noSnapshot", label: "排除第三方快照" });
-  if (filters.fixedPriceOnly) badges.push({ key: "fixedPriceOnly", label: "仅看明码固定周期" });
-  if (filters.savedOnly) badges.push({ key: "savedOnly", label: "仅看本地收藏" });
+  if (filters.exactOnly) badges.push({ key: "exactOnly", label: "精确库存" });
+  if (filters.noNat) badges.push({ key: "noNat", label: "排除 NAT" });
+  if (filters.noSnapshot) badges.push({ key: "noSnapshot", label: "排除快照" });
+  if (filters.fixedPriceOnly) badges.push({ key: "fixedPriceOnly", label: "明码固定周期" });
+  if (filters.savedOnly) badges.push({ key: "savedOnly", label: "本地收藏" });
   if (filters.region !== "all") {
     const m = MACRO_REGIONS.find((r) => r.value === filters.region);
     badges.push({ key: "region", label: `地区: ${m ? m.label : filters.region}` });
@@ -362,7 +621,32 @@ export function listActiveFilterBadges(filters) {
     const m = ROUTE_OPTIONS.find((r) => r.value === filters.route);
     badges.push({ key: "route", label: `线路: ${m ? m.label : filters.route}` });
   }
-  if (filters.budget !== "all") {
+  if (filters.cpu && filters.cpu !== "all") {
+    const m = CPU_OPTIONS.find((o) => o.value === filters.cpu);
+    badges.push({ key: "cpu", label: `CPU: ${m ? m.label : filters.cpu}` });
+  }
+  if (filters.memory && filters.memory !== "all") {
+    const m = MEMORY_OPTIONS.find((o) => o.value === filters.memory);
+    badges.push({ key: "memory", label: `内存: ${m ? m.label : filters.memory}` });
+  }
+  if (filters.disk && filters.disk !== "all") {
+    const m = DISK_OPTIONS.find((o) => o.value === filters.disk);
+    badges.push({ key: "disk", label: `硬盘: ${m ? m.label : filters.disk}` });
+  }
+  if (filters.bandwidth && filters.bandwidth !== "all") {
+    const m = BANDWIDTH_OPTIONS.find((o) => o.value === filters.bandwidth);
+    badges.push({ key: "bandwidth", label: `带宽: ${m ? m.label : filters.bandwidth}` });
+  }
+  if (filters.traffic && filters.traffic !== "all") {
+    const m = TRAFFIC_OPTIONS.find((o) => o.value === filters.traffic);
+    badges.push({ key: "traffic", label: `流量: ${m ? m.label : filters.traffic}` });
+  }
+  if (filters.minPrice || filters.maxPrice) {
+    badges.push({
+      key: "priceRange",
+      label: `预算: ¥${filters.minPrice || "0"}–${filters.maxPrice || "不限"}/月`
+    });
+  } else if (filters.budget !== "all") {
     const m = BUDGET_OPTIONS.find((b) => b.value === filters.budget);
     badges.push({ key: "budget", label: `预算: ${m ? m.label : `≤¥${filters.budget}`}` });
   }
@@ -372,7 +656,7 @@ export function listActiveFilterBadges(filters) {
   }
   if (filters.provider !== "all") {
     const prov = providers.find((p) => p.id === filters.provider);
-    badges.push({ key: "provider", label: `商家: ${prov ? prov.name : filters.provider}` });
+    badges.push({ key: "provider", label: `店铺: ${prov ? prov.name : filters.provider}` });
   }
   if (filters.q && filters.q.trim()) {
     badges.push({ key: "q", label: `关键词: “${filters.q.trim()}”` });
@@ -380,11 +664,6 @@ export function listActiveFilterBadges(filters) {
   return badges;
 }
 
-/**
- * Counterfactual Zero-Result Conflict Attribution Engine:
- * Simulates relaxing each active constraint individually (and high-impact pairs if needed)
- * to tell the user exactly which condition caused 0 matches and offer 1-click recovery.
- */
 export function diagnoseZeroResults(plans, filters, savedSet = new Set()) {
   const candidates = [];
   const check = (keys, label, patch) => {
@@ -399,7 +678,12 @@ export function diagnoseZeroResults(plans, filters, savedSet = new Set()) {
   };
 
   if (filters.q && filters.q.trim()) check(["q"], `清空搜索关键词「${filters.q.trim()}」`, { q: "" });
-  if (filters.track !== "all") check(["track"], "切换为「全部赛道（含家宽与机房）」", { track: "all" });
+  if (filters.provider !== "all") {
+    const prov = providers.find((p) => p.id === filters.provider);
+    check(["provider"], `放宽店铺限定「${prov ? prov.name : filters.provider}」→ 全部店铺`, { provider: "all" });
+  }
+  if (filters.track !== "all") check(["track"], "切换为「全部节点类型」", { track: "all" });
+  if (filters.opt && filters.opt !== "all") check(["opt"], "放宽「线路优化」限制", { opt: "all" });
   if (filters.region !== "all") {
     const m = MACRO_REGIONS.find((r) => r.value === filters.region);
     check(["region"], `放宽地区「${m ? m.label : filters.region}」→ 全部地区`, { region: "all" });
@@ -408,9 +692,13 @@ export function diagnoseZeroResults(plans, filters, savedSet = new Set()) {
     const m = ROUTE_OPTIONS.find((r) => r.value === filters.route);
     check(["route"], `放宽线路「${m ? m.label : filters.route}」→ 全部线路`, { route: "all" });
   }
-  if (filters.provider !== "all") {
-    const prov = providers.find((p) => p.id === filters.provider);
-    check(["provider"], `移除商家限定「${prov ? prov.name : filters.provider}」`, { provider: "all" });
+  if (filters.cpu && filters.cpu !== "all") check(["cpu"], "放宽 CPU 核数限制", { cpu: "all" });
+  if (filters.memory && filters.memory !== "all") check(["memory"], "放宽内存容量限制", { memory: "all" });
+  if (filters.disk && filters.disk !== "all") check(["disk"], "放宽硬盘容量限制", { disk: "all" });
+  if (filters.bandwidth && filters.bandwidth !== "all") check(["bandwidth"], "放宽端口带宽限制", { bandwidth: "all" });
+  if (filters.traffic && filters.traffic !== "all") check(["traffic"], "放宽月流量配额限制", { traffic: "all" });
+  if (filters.minPrice || filters.maxPrice || filters.budget !== "all") {
+    check(["budget", "minPrice", "maxPrice"], "放宽月均预算范围限制", { budget: "all", minPrice: "", maxPrice: "" });
   }
   if (filters.status === "available") check(["status"], "包含已售罄与库存未公开套餐", { status: "all" });
   else if (filters.status !== "all") check(["status"], "切回全部库存状态", { status: "all" });
@@ -418,17 +706,15 @@ export function diagnoseZeroResults(plans, filters, savedSet = new Set()) {
   if (filters.noNat) check(["noNat"], "关闭「排除 NAT / 共享 IP」", { noNat: false });
   if (filters.noSnapshot) check(["noSnapshot"], "允许包含第三方快照记录", { noSnapshot: false });
   if (filters.fixedPriceOnly) check(["fixedPriceOnly"], "允许包含起步价/周期未明套餐", { fixedPriceOnly: false });
-  if (filters.budget !== "all") check(["budget"], `放宽月均预算上限（≤¥${filters.budget}）`, { budget: "all" });
   if (filters.cycle !== "all") check(["cycle"], "放宽计费周期限制", { cycle: "all" });
   if (filters.savedOnly) check(["savedOnly"], "退出「仅看本地收藏」", { savedOnly: false });
 
-  // Pairwise relaxation fallback if single-filter relaxation recovers nothing
   if (candidates.length === 0) {
     if (filters.track !== "all" && filters.region !== "all") {
-      check(["track", "region"], "同时放宽「赛道」与「地区」限制", { track: "all", region: "all" });
+      check(["track", "region"], "同时放宽「类型」与「地区」限制", { track: "all", region: "all" });
     }
-    if (filters.q && filters.status === "available") {
-      check(["q", "status"], "清空关键词并显示含售罄在内的全部套餐", { q: "", status: "all" });
+    if (filters.provider !== "all" && filters.status === "available") {
+      check(["provider", "status"], "显示该店铺含售罄在内的全部记录或切回全部店铺", { status: "all" });
     }
   }
 
@@ -439,9 +725,6 @@ export function diagnoseZeroResults(plans, filters, savedSet = new Set()) {
   };
 }
 
-/**
- * Provider monitoring health aggregator — preserves full diagnostic/blocked/pageLimit transparency.
- */
 export function providerHealth(provider, allRecords = []) {
   const names = new Set(
     [provider?.id, provider?.name, ...(provider?.aliases || []), ...(provider?.inventoryNames || [])]

@@ -4,7 +4,7 @@ import { REFRESH_INTERVAL_MS, fetchSnapshot } from "./services/snapshot.js";
 import { applyTheme, createStore } from "./state/store.js";
 import { renderCompareDock, renderCompareModal } from "./components/compare.js";
 import { renderGuideView } from "./components/guide.js";
-import { renderCommandPalette, renderHeader, renderStatusBanner } from "./components/header.js";
+import { renderCommandPalette, formatLiveClockText, renderHeader, renderStatusBanner } from "./components/header.js";
 import { renderInspectorDrawer } from "./components/inspector.js";
 import { renderProvidersView } from "./components/providers.js";
 import { renderRadarView } from "./components/radar.js";
@@ -79,13 +79,11 @@ export function mountApp(options = {}) {
   function captureActiveInput() {
     const active = doc.activeElement;
     if (!active || active.tagName?.toLowerCase() !== "input") return null;
-    if (active.hasAttribute?.("data-terminal-search")) {
-      const scope = active.closest?.("[data-filter-dock]") ? "[data-filter-dock] " : ".mobile-quick-bar ";
-      return {
-        selector: `${scope}[data-terminal-search]`,
-        start: active.selectionStart ?? active.value?.length ?? 0,
-        end: active.selectionEnd ?? active.value?.length ?? 0
-      };
+    for (const attr of ["data-price-min", "data-price-max"]) {
+      if (active.hasAttribute?.(attr)) {
+        const scope = active.closest?.("[data-filter-dock]") ? "[data-filter-dock] " : "[data-mobile-filter-sheet] ";
+        return { selector: `${scope}[${attr}]`, start: null, end: null };
+      }
     }
     for (const attr of ["data-radar-search", "data-provider-search", "data-palette-input"]) {
       if (active.hasAttribute?.(attr)) {
@@ -104,10 +102,12 @@ export function mountApp(options = {}) {
     const node = doc.querySelector(snapshot.selector);
     if (node) {
       node.focus?.();
-      try {
-        node.setSelectionRange?.(snapshot.start, snapshot.end);
-      } catch {
-        // ignore non-selectable inputs
+      if (snapshot.start !== null) {
+        try {
+          node.setSelectionRange?.(snapshot.start, snapshot.end);
+        } catch {
+          // ignore non-selectable inputs
+        }
       }
     }
   }
@@ -227,7 +227,6 @@ export function mountApp(options = {}) {
     store.setView("terminal");
     store.patchFilters(preset);
     store.setMobileRailOpen(false);
-    store.setAdvancedOpen(false);
     store.setPaletteOpen(false);
   }
 
@@ -255,11 +254,6 @@ export function mountApp(options = {}) {
     if (target === elSheetBackdrop) {
       store.setMobileRailOpen(false);
       return;
-    }
-
-    // Close advanced filter popover when clicking outside
-    if (store.getState().advancedOpen && !target.closest(".adv-wrap")) {
-      store.setAdvancedOpen(false);
     }
 
     // Nav workspace tabs
@@ -307,6 +301,23 @@ export function mountApp(options = {}) {
         store.patchFilters({ ...DEFAULT_FILTERS, status: "all", provider: pid });
         break;
       }
+      case "palette-filter-q": {
+        const qVal = actNode.getAttribute("data-query") || "";
+        store.setPaletteOpen(false);
+        store.setView("terminal");
+        store.patchFilters({ q: qVal });
+        break;
+      }
+      case "market-jump-cnopt":
+        store.setView("terminal");
+        store.patchFilters({ ...DEFAULT_FILTERS, track: "cn-opt", status: "available" });
+        break;
+      case "market-jump-region": {
+        const reg = actNode.getAttribute("data-region") || "all";
+        store.setView("terminal");
+        store.patchFilters({ ...DEFAULT_FILTERS, region: reg, status: "available" });
+        break;
+      }
       case "palette-plan": {
         const id = actNode.getAttribute("data-product-id");
         store.setPaletteOpen(false);
@@ -344,6 +355,33 @@ export function mountApp(options = {}) {
       case "set-track":
         store.patchFilters({ track: actNode.getAttribute("data-track") || "all" });
         break;
+      case "set-provider": {
+        const p = actNode.getAttribute("data-provider") || "all";
+        const cur = store.getState().filters.provider;
+        store.patchFilters({ provider: p !== "all" && cur === p ? "all" : p });
+        break;
+      }
+      case "toggle-shops-expand":
+        store.toggleShopsExpanded();
+        break;
+      case "toggle-specs-expand":
+        store.toggleSpecsExpanded();
+        break;
+      case "set-opt": {
+        const o = actNode.getAttribute("data-opt") || "all";
+        const cur = store.getState().filters.opt;
+        store.patchFilters({ opt: o !== "all" && cur === o ? "all" : o });
+        break;
+      }
+      case "set-spec": {
+        const sk = actNode.getAttribute("data-spec-key");
+        const sv = actNode.getAttribute("data-spec-val") || "all";
+        if (sk && Object.hasOwn(DEFAULT_FILTERS, sk)) {
+          const cur = store.getState().filters[sk];
+          store.patchFilters({ [sk]: sv !== "all" && cur === sv ? "all" : sv });
+        }
+        break;
+      }
       case "set-region": {
         const reg = actNode.getAttribute("data-region");
         const cur = store.getState().filters.region;
@@ -353,12 +391,19 @@ export function mountApp(options = {}) {
       case "set-route": {
         const rt = actNode.getAttribute("data-route");
         const cur = store.getState().filters.route;
-        store.patchFilters({ route: cur === rt ? "all" : rt });
+        store.patchFilters({ route: rt !== "all" && cur === rt ? "all" : rt });
         break;
       }
-      case "set-budget":
-        store.patchFilters({ budget: actNode.getAttribute("data-budget") || "all" });
+      case "set-budget": {
+        const b = actNode.getAttribute("data-budget") || "all";
+        const cur = store.getState().filters.budget;
+        store.patchFilters({
+          budget: b !== "all" && cur === b && !store.getState().filters.minPrice && !store.getState().filters.maxPrice ? "all" : b,
+          minPrice: "",
+          maxPrice: ""
+        });
         break;
+      }
       case "set-cycle":
         store.patchFilters({ cycle: actNode.getAttribute("data-cycle") || "all" });
         break;
@@ -371,11 +416,11 @@ export function mountApp(options = {}) {
       case "toggle-quick-nonat":
         store.patchFilters({ noNat: !store.getState().filters.noNat });
         break;
-      case "toggle-advanced":
-        store.toggleAdvancedOpen();
+      case "toggle-quick-nosnap":
+        store.patchFilters({ noSnapshot: !store.getState().filters.noSnapshot });
         break;
-      case "close-advanced":
-        store.setAdvancedOpen(false);
+      case "toggle-quick-saved":
+        store.patchFilters({ savedOnly: !store.getState().filters.savedOnly });
         break;
       case "sort-col": {
         const col = actNode.getAttribute("data-sort-col");
@@ -392,7 +437,9 @@ export function mountApp(options = {}) {
         break;
       case "remove-filter": {
         const key = actNode.getAttribute("data-filter-key");
-        if (key && Object.hasOwn(DEFAULT_FILTERS, key)) {
+        if (key === "priceRange") {
+          store.patchFilters({ minPrice: "", maxPrice: "", budget: "all" });
+        } else if (key && Object.hasOwn(DEFAULT_FILTERS, key)) {
           store.patchFilters({ [key]: DEFAULT_FILTERS[key] });
         }
         break;
@@ -561,8 +608,12 @@ export function mountApp(options = {}) {
     const target = event.target;
     if (!target || typeof target.hasAttribute !== "function") return;
 
-    if (target.hasAttribute("data-terminal-search")) {
-      store.patchFilters({ q: target.value });
+    if (target.hasAttribute("data-price-min")) {
+      store.patchFilters({ minPrice: target.value, budget: "all" });
+      return;
+    }
+    if (target.hasAttribute("data-price-max")) {
+      store.patchFilters({ maxPrice: target.value, budget: "all" });
       return;
     }
     if (target.hasAttribute("data-radar-search")) {
@@ -600,10 +651,20 @@ export function mountApp(options = {}) {
       return;
     }
 
+    if (key === "Enter" && store.getState().paletteOpen && document.activeElement?.hasAttribute?.("data-palette-input")) {
+      const qVal = store.getState().paletteQuery.trim();
+      if (qVal) {
+        event.preventDefault?.();
+        store.setPaletteOpen(false);
+        store.setView("terminal");
+        store.patchFilters({ q: qVal });
+      }
+      return;
+    }
+
     if (key === "Escape") {
       const s = store.getState();
       if (s.paletteOpen) store.setPaletteOpen(false);
-      else if (s.advancedOpen) store.setAdvancedOpen(false);
       else if (s.compareOpen) store.setCompareOpen(false);
       else if (s.inspectId) store.setInspectId(null);
       else if (s.savedDrawerOpen) store.setSavedDrawerOpen(false);
@@ -612,7 +673,7 @@ export function mountApp(options = {}) {
   }
 
   function onVisibilityChange() {
-    if (document.visibilityState === "visible") {
+    if (doc.visibilityState === "visible") {
       const s = store.getState();
       if (s.lastFetchAt && Date.now() - s.lastFetchAt >= REFRESH_INTERVAL_MS) {
         refresh(false);
@@ -632,6 +693,28 @@ export function mountApp(options = {}) {
     }
   }, REFRESH_INTERVAL_MS);
 
+  // Lightweight 1s live clock + 3s live event capsule ticker (zero full-DOM re-render)
+  let capsuleTick = 0;
+  let capsuleStep = 0;
+  const liveTickerTimer = setInterval(() => {
+    if (doc.visibilityState !== "visible") return;
+    const clockNode = doc.querySelector("[data-live-clock]");
+    if (clockNode) clockNode.textContent = formatLiveClockText(new Date());
+
+    capsuleTick += 1;
+    if (capsuleTick % 3 === 0) {
+      const capsule = doc.querySelector("[data-live-capsule]");
+      if (capsule && !capsule.matches?.(":hover")) {
+        const count = Number(capsule.getAttribute("data-capsule-count") || 0);
+        const track = capsule.querySelector("[data-capsule-track]");
+        if (track && count > 1) {
+          capsuleStep = (capsuleStep + 1) % count;
+          track.style.transform = `translateY(-${capsuleStep * 24}px)`;
+        }
+      }
+    }
+  }, 1000);
+
   // Initial synchronous skeleton render + live snapshot fetch
   render(store.getState());
   refresh(true);
@@ -644,6 +727,7 @@ export function mountApp(options = {}) {
       refreshController?.abort();
       unsubscribe();
       clearInterval(pollTimer);
+      clearInterval(liveTickerTimer);
       if (toastTimer) clearTimeout(toastTimer);
       doc.removeEventListener("click", onClick);
       doc.removeEventListener("change", onChange);

@@ -344,23 +344,36 @@ test("track isolation, zero-result recovery, command palette, compare matrix, in
   t.after(() => app.dispose());
   await new Promise(setImmediate);
 
-  // 1. Track isolation via Top Filter Dock: True Residential ISP excludes Datacenter Native IP
+  // 1. Track isolation via Top Facet Matrix Card: True Residential ISP excludes Datacenter Native IP
+  assert.equal(env.document.querySelector("[data-filter-dock] [data-terminal-search]"), null);
   env.click("[data-filter-dock] [data-track='home']");
   assert.match(env.text("[data-view-panel='terminal']"), /加州 AT&T 双ISP 家宽/);
   assert.doesNotMatch(env.text("[data-view-panel='terminal']"), /JP-CN2-Starter/);
   assert.match(env.getHref(), /track=home/);
 
-  // 2. Smart zero-results counterfactual attribution & 1-click relaxation
-  env.input("[data-filter-dock] [data-terminal-search]", "JP-CN2");
+  // 2. Smart zero-results counterfactual attribution via conflicting route pill & 1-click relaxation
+  env.click("[data-filter-dock] [data-route='cn2']");
   assert.ok(env.document.querySelector("[data-zero-results]"));
   env.click("[data-action='apply-relaxation']");
   assert.ok(!env.document.querySelector("[data-zero-results]"));
 
-  // 2b. Advanced filter popover opens & closes via Escape; clickable column sort updates URL
-  env.click("[data-action='toggle-advanced']");
-  assert.ok(env.document.querySelector("[data-adv-popover]"));
-  env.pressKey("Escape");
-  assert.ok(!env.document.querySelector("[data-adv-popover]"));
+  // 2b. Brand identity, zero-count shops hidden even when expanded, hardware spec pills, custom price range, and column sort
+  assert.match(env.text("[data-app-header]"), /VPS雷达/);
+  assert.match(env.text("[data-app-header]"), /vpsld/);
+  assert.match(env.text(".market-spotlight"), /全网大盘/);
+  env.click("[data-action='reset-filters']");
+  assert.match(env.text(".terminal-table"), /官方入口 · 未报数/);
+  assert.doesNotMatch(env.text(".terminal-table"), /有货可购/);
+  env.click("[data-action='toggle-shops-expand']");
+  assert.match(env.text("[data-action='toggle-shops-expand']"), /收起店铺/);
+  assert.match(env.text("[data-shops-row]"), /ZoroCloud/);
+  assert.doesNotMatch(env.text("[data-shops-row]"), /Taipei101/);
+  assert.doesNotMatch(env.text("[data-shops-row]"), /DMIT/);
+  env.click("[data-action='toggle-shops-expand']");
+  env.click("[data-filter-dock] [data-spec-key='cpu'][data-spec-val='2']");
+  assert.match(env.getHref(), /cpu=2/);
+  env.input("[data-filter-dock] [data-price-max]", "200");
+  assert.match(env.getHref(), /maxP=200/);
   env.click("[data-action='sort-col']");
   assert.match(env.getHref(), /sort=cny-asc/);
 
@@ -389,11 +402,15 @@ test("track isolation, zero-result recovery, command palette, compare matrix, in
   env.pressKey("Escape");
   assert.equal(env.document.querySelector("[data-inspector-backdrop]").hidden, true);
 
-  // 5. Command Palette via Cmd+K & Escape
+  // 5. Command Palette via Cmd+K, filter list via Enter, & Escape
   env.pressKey("k", { metaKey: true });
   assert.equal(env.document.querySelector("[data-palette-backdrop]").hidden, false);
-  env.pressKey("Escape");
+  env.input("[data-palette-input]", "AT&T");
+  env.pressKey("Enter");
   assert.equal(env.document.querySelector("[data-palette-backdrop]").hidden, true);
+  assert.match(env.getHref(), /q=AT%26T/);
+  env.click("[data-action='clear-search']");
+  assert.doesNotMatch(env.getHref(), /q=/);
 
   // 6. Save item & open Saved Watchlist Drawer
   env.click(".terminal-table [data-action='toggle-save']");

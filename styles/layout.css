@@ -8,13 +8,16 @@
   min-height: 100vh;
 }
 
-/* ---------- 1. Global Command Bar (50px Sticky Top) ---------- */
+/* ---------- 1. Global Command Bar (52px Sticky Top) ---------- */
 .cmd-header {
   position: sticky;
   top: 0;
   z-index: var(--z-header);
-  background: var(--bg-surface);
+  background: color-mix(in srgb, var(--bg-surface) 94%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-default);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.035);
 }
 
 .cmd-bar {
@@ -26,6 +29,14 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-3);
+}
+
+.cmd-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 100%;
+  min-width: 0;
 }
 
 .brand-link {
@@ -42,80 +53,101 @@
 }
 
 .brand-logo {
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
   display: block;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.22);
 }
 
 .brand-name {
   display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  font-weight: 700;
-  font-size: var(--text-md);
+  align-items: center;
+  gap: 7px;
+}
+
+.brand-cn {
+  font-weight: 800;
+  font-size: 16.5px;
   letter-spacing: -0.02em;
+  color: var(--ink-primary);
 }
 
-.brand-chip {
+.brand-domain {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  padding: 1px 5px;
-  border-radius: var(--r-xs);
-  background: var(--bg-subtle);
-  color: var(--ink-muted);
-  border: 1px solid var(--border-default);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 7px;
+  border-radius: var(--r-pill);
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
 }
 
-/* Workspace Primary Tabs */
+.header-vsep {
+  width: 1px;
+  height: 18px;
+  background: var(--border-default);
+  flex-shrink: 0;
+}
+
+/* Seamless Underline Navigation (Zero heavy pill box) */
 .ws-nav {
   display: flex;
-  align-items: center;
+  align-items: stretch;
+  height: 100%;
   gap: 2px;
-  padding: 3px;
-  background: var(--bg-subtle);
-  border-radius: var(--r-md);
-  border: 1px solid var(--border-subtle);
 }
 
 .ws-tab {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 30px;
+  gap: 5px;
+  height: 100%;
   padding: 0 11px;
   border: 0;
-  border-radius: var(--r-sm);
+  border-radius: 0;
   background: transparent;
   color: var(--ink-secondary);
-  font-size: var(--text-sm);
+  font-size: 13.5px;
   font-weight: 500;
   white-space: nowrap;
   text-decoration: none;
-  transition: background 120ms ease, color 120ms ease, box-shadow 120ms ease;
+  transition: color 120ms ease;
 }
 
 .ws-tab:hover {
   color: var(--ink-primary);
-  background: var(--bg-hover);
   text-decoration: none;
 }
 
 .ws-tab.is-active,
 .ws-tab[aria-current="page"] {
-  background: var(--bg-surface);
-  color: var(--ink-primary);
-  font-weight: 600;
-  box-shadow: var(--shadow-xs);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.ws-tab.is-active::after,
+.ws-tab[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 2.5px;
+  border-radius: 2px 2px 0 0;
+  background: var(--grad-primary);
 }
 
 .ws-tab-count {
   font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10.5px;
+  font-weight: 700;
   padding: 0 5px;
   height: 17px;
   line-height: 17px;
@@ -134,11 +166,6 @@
   color: var(--ok-fg);
 }
 
-.ws-tab-count.is-alert {
-  background: var(--danger-bg);
-  color: var(--danger-fg);
-}
-
 /* Header Utility Cluster */
 .cmd-utils {
   display: flex;
@@ -151,22 +178,29 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  height: 30px;
-  min-width: 136px;
-  padding: 0 9px;
-  border-radius: var(--r-sm);
+  height: 32px;
+  min-width: 244px;
+  padding: 0 11px;
+  border-radius: var(--r-pill);
   border: 1px solid var(--border-default);
   background: var(--bg-surface-2);
   color: var(--ink-muted);
   font-size: var(--text-xs);
   text-align: left;
-  transition: border-color 120ms ease, background 120ms ease;
+  transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
 }
 
 .cmd-search-trigger:hover {
-  border-color: var(--border-strong);
+  border-color: var(--accent-border);
   background: var(--bg-surface);
   color: var(--ink-secondary);
+}
+
+.cmd-search-trigger.has-query {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .cmd-search-trigger .kbd-hint {
@@ -180,7 +214,7 @@
   color: var(--ink-muted);
 }
 
-/* ---------- 2. Live Telemetry & Pulse Strip (36px) ---------- */
+/* ---------- 2. Live Telemetry & Centered Market Overview Strip ---------- */
 .telemetry-strip {
   background: var(--bg-surface-2);
   border-bottom: 1px solid var(--border-subtle);
@@ -189,29 +223,38 @@
 .telemetry-inner {
   max-width: var(--container-max);
   margin: 0 auto;
-  min-height: var(--ticker-h);
+  min-height: 40px;
   padding: 5px var(--sp-4);
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  flex-wrap: wrap;
+  gap: 12px;
 }
 
-.telemetry-left,
-.telemetry-right {
+.telemetry-left {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
+  justify-self: start;
+  flex-wrap: nowrap;
   min-width: 0;
 }
 
-.telemetry-divider {
-  width: 1px;
-  height: 14px;
-  background: var(--border-default);
-  flex-shrink: 0;
+.telemetry-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: center;
+  min-width: 0;
+}
+
+.telemetry-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-self: end;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
 /* ---------- 3. Honest Alert Banner Zone ---------- */
@@ -463,12 +506,24 @@
    Responsive Breakpoints
    ========================================================================== */
 
-@media (max-width: 1160px) {
-  .cmd-search-trigger {
-    min-width: 150px;
+@media (max-width: 1280px) {
+  .tele-fx-chip {
+    display: none !important;
   }
+  .cmd-search-trigger {
+    min-width: 176px;
+  }
+}
+
+@media (max-width: 1120px) {
   .telemetry-right {
     display: none;
+  }
+  .telemetry-inner {
+    grid-template-columns: auto 1fr;
+  }
+  .telemetry-center {
+    justify-self: end;
   }
 }
 
@@ -478,9 +533,15 @@
   }
   .cmd-bar {
     height: auto;
-    padding: 8px var(--sp-3);
+    padding: 8px var(--sp-3) 0;
     flex-wrap: wrap;
-    row-gap: 8px;
+    row-gap: 6px;
+  }
+  .cmd-bar-left {
+    display: contents;
+  }
+  .header-vsep {
+    display: none;
   }
   .brand-link {
     order: 1;
@@ -493,9 +554,11 @@
     order: 3;
     flex: 1 0 100%;
     width: 100%;
+    height: 36px;
+    border-top: 1px solid var(--border-subtle);
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 2px;
+    gap: 0;
   }
   .ws-tab {
     justify-content: center;
@@ -509,11 +572,27 @@
   }
   .cmd-search-trigger {
     min-width: auto;
-    padding: 0 8px;
+    padding: 0 9px;
   }
   .cmd-search-trigger .search-label,
   .cmd-search-trigger .kbd-hint {
     display: none;
+  }
+  .telemetry-inner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    padding: 6px var(--sp-3);
+  }
+  .telemetry-center {
+    order: 1;
+    width: 100%;
+    justify-self: stretch;
+  }
+  .telemetry-left {
+    order: 2;
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
   }
   .dossier-layout {
     grid-template-columns: 1fr;
@@ -521,21 +600,11 @@
 }
 
 @media (max-width: 640px) {
-  .brand-chip,
   .header-compare-btn {
     display: none;
   }
   .ws-tab-count {
     display: none;
-  }
-  .telemetry-divider {
-    display: none;
-  }
-  .telemetry-left {
-    width: 100%;
-    justify-content: flex-start;
-    row-gap: 5px;
-    column-gap: 6px;
   }
   .compare-dock {
     flex-wrap: nowrap;

@@ -7,7 +7,11 @@ import {
   DEFAULT_FILTERS,
   classifyProduct,
   diagnoseZeroResults,
-  normalizeProduct
+  matchesFilters,
+  matchesHardwareSpecs,
+  normalizeProduct,
+  rankProvidersByPopularity,
+  sortProducts
 } from "../src/domain/catalog.js";
 import {
   ROUTE_OPTIONS,
@@ -16,6 +20,7 @@ import {
   fxFreshness,
   matchesRoute,
   monitorFreshness,
+  parseNumericSpecs,
   productSearchText,
   productSpecs,
   providerInitial,
@@ -26,7 +31,7 @@ import { parseUrlState, serializeUrlState } from "../src/state/store.js";
 const unknown = { cpu: "未标明", memory: "未标明", disk: "未标明", bandwidth: "未标明", traffic: "未标明" };
 
 test("route choices classify declared multi-carrier routes and exclude response evidence", () => {
-  assert.deepEqual(ROUTE_OPTIONS.map(({ value }) => value), ["all", "cn2", "9929", "cmin2", "4837", "bgp", "other"]);
+  assert.deepEqual(ROUTE_OPTIONS.map(({ value }) => value), ["all", "cn2", "9929", "cmin2", "4837", "iij_sb", "hinet", "bgp", "other"]);
   const product = { name: "日本入门", raw: { features: { 电信: "双程 CN2 GIA", 联通: "回程 AS9929", 移动: "CMIN2" } } };
   for (const route of ["all", "cn2", "9929", "cmin2"]) assert.equal(matchesRoute(product, route), true, route);
   assert.equal(matchesRoute(product, "other"), false);
@@ -34,6 +39,8 @@ test("route choices classify declared multi-carrier routes and exclude response 
   assert.equal(matchesRoute({ carrier: "CUII" }, "9929"), true);
   assert.equal(matchesRoute({ route: "AS58807" }, "cmin2"), true);
   assert.equal(matchesRoute({ route: "AS4837 直连" }, "4837"), true);
+  assert.equal(matchesRoute({ route: "SoftBank 住宅网络" }, "iij_sb"), true);
+  assert.equal(matchesRoute({ route: "HiNet 动态" }, "hinet"), true);
   assert.equal(matchesRoute({ raw: { features: { 線路: "BGP 國際" } } }, "bgp"), true);
   assert.equal(matchesRoute({ raw: { features: ["CN2 GIA", "AMD EPYC"] } }, "cn2"), true);
   const diagnostic = {
@@ -241,6 +248,117 @@ test("flags, initials, 90-minute snapshot freshness, and 7-day FX freshness hono
   const expired = fxFreshness({ base: "CNY", date: "2026-11-01" }, now);
   assert.equal(expired.valid, false);
   assert.equal(expired.expired, true);
+});
+
+test("numeric hardware/network spec filters, budget range, and flagship popularity ranking work accurately", () => {
+  const bwhPlan = normalizeProduct(
+    {
+      id: "bwh-1",
+      providerId: "bwh",
+      provider: "搬瓦工(BWH)",
+      category: "vps",
+      name: "LA CN2 GIA-E 2C2G",
+      region: "美国",
+      route: "CN2 GIA / 9929 / CMIN2",
+      hardware: "2 vCPU AMD R9 7950X3D / 2048MB DDR5 / 40 GB NVMe RAID-10",
+      bandwidth: "1000GB @ 2.5 Gbps",
+      price: "$49.99 / Quarterly",
+      priceValue: 49.99,
+      currency: "USD",
+      status: "available",
+      stockCount: 5,
+      evidenceLevel: { value: "stock-count", rank: 1 }
+    },
+    0,
+    { base: "CNY", date: new Date().toISOString().slice(0, 10), rates: { CNY: 1, USD: 7.0 } }
+  );
+  const cheapNat = normalizeProduct(
+    {
+      id: "nat-1",
+      providerId: "jdidc",
+      provider: "JDIDC",
+      category: "vps",
+      name: "西安 NAT全能云",
+      region: "中国内地",
+      hardware: "2H / 512M / 50G+20G",
+      bandwidth: "10 Mbps / 不限流量",
+      price: "CNY 10/月",
+      priceValue: 10,
+      currency: "CNY",
+      status: "available",
+      stockCount: 80,
+      evidenceLevel: { value: "stock-count", rank: 1 },
+      riskTags: [{ value: "nat-shared", label: "NAT/共享", severity: "medium" }]
+    },
+    1,
+    { base: "CNY", date: new Date().toISOString().slice(0, 10), rates: { CNY: 1, USD: 7.0 } }
+  );
+
+  assert.equal(bwhPlan._numSpecs.cpuCores, 2);
+  assert.equal(bwhPlan._numSpecs.memoryGb, 2);
+  assert.equal(bwhPlan._numSpecs.diskGb, 40);
+  assert.equal(bwhPlan._numSpecs.bandwidthMbps, 2500);
+  assert.equal(bwhPlan._numSpecs.trafficGb, 1000);
+
+  assert.equal(cheapNat._numSpecs.cpuCores, 2);
+  assert.equal(cheapNat._numSpecs.memoryGb, 0.5);
+  assert.equal(cheapNat._numSpecs.diskGb, 70);
+  assert.equal(cheapNat._numSpecs.unlimitedTraffic, true);
+
+  assert.equal(matchesFilters(bwhPlan, { ...DEFAULT_FILTERS, cpu: "2", memory: "2", disk: "21-50", bandwidth: "2.5g+", traffic: "501-1024", minPrice: "100", maxPrice: "130" }), true);
+  assert.equal(matchesFilters(bwhPlan, { ...DEFAULT_FILTERS, track: "cn-opt", opt: "opt" }), true);
+  assert.equal(matchesFilters(bwhPlan, { ...DEFAULT_FILTERS, track: "landing" }), false);
+  assert.equal(matchesFilters(cheapNat, { ...DEFAULT_FILTERS, traffic: "unlimited" }), true);
+
+  // Flagship popular provider ranks ahead of obscure cheap NAT box by default
+  const sorted = sortProducts([cheapNat, bwhPlan], "recommended");
+  assert.equal(sorted[0].id, "bwh-1");
+
+  const rankedShops = rankProvidersByPopularity([cheapNat, bwhPlan]);
+  assert.equal(rankedShops[0].provider.id, "bwh");
+});
+
+test("hardware filter boundaries match their displayed capacities and units", () => {
+  const cases = [
+    ["memory", "le1", "memoryGb", 1, 1.1],
+    ["memory", "2", "memoryGb", 2, 1.5],
+    ["memory", "4", "memoryGb", 4, 3],
+    ["memory", "8", "memoryGb", 8, 6],
+    ["memory", "16+", "memoryGb", 16, 12],
+    ["disk", "le20", "diskGb", 20, 20.5],
+    ["disk", "21-50", "diskGb", 50, 50.5],
+    ["disk", "51-100", "diskGb", 100, 100.5],
+    ["disk", "100+", "diskGb", 100, 99],
+    ["bandwidth", "le100", "bandwidthMbps", 100, 120],
+    ["bandwidth", "200-500", "bandwidthMbps", 500, 600],
+    ["bandwidth", "1g", "bandwidthMbps", 1000, 1500],
+    ["bandwidth", "2.5g+", "bandwidthMbps", 2000, 1800],
+    ["traffic", "le500", "trafficGb", 500, 505],
+    ["traffic", "501-1024", "trafficGb", 1024, 1050],
+    ["traffic", "1t-3t", "trafficGb", 3072, 3100],
+    ["traffic", "1t-3t", "trafficGb", 1024, 1023],
+    ["traffic", "3t+", "trafficGb", 3072, 3071]
+  ];
+  for (const [filter, value, spec, valid, invalid] of cases) {
+    for (const [capacity, expected] of [[valid, true], [invalid, false], [null, false]]) {
+      assert.equal(matchesHardwareSpecs({ _numSpecs: { [spec]: capacity } }, { [filter]: value }), expected, `${filter}=${value}, ${capacity}`);
+    }
+  }
+});
+
+test("numeric specs preserve uncertainty and distinguish bandwidth bits from bytes", () => {
+  assert.equal(parseNumericSpecs({ hardware: "2 vCPU / 40 GB SSD" }).memoryGb, null);
+  assert.equal(parseNumericSpecs({ hardware: "2 x Xeon / 4 GB RAM / 40 GB SSD" }).cpuCores, null);
+  assert.equal(parseNumericSpecs({ hardware: "2-4 vCPU / 2-4 GB RAM / 20-40 GB SSD" }).cpuCores, null);
+  for (const memory of ["2-4 GB", "2 GB–4 GB"]) {
+    assert.equal(parseNumericSpecs({}, { ...unknown, memory }).memoryGb, null);
+  }
+  assert.equal(parseNumericSpecs({}, { ...unknown, disk: "2 x 500 GB SSD" }).diskGb, null);
+  assert.equal(parseNumericSpecs({}, { ...unknown, bandwidth: "100-1000 Mbps" }).bandwidthMbps, null);
+  for (const [bandwidth, expected] of [["100 Mbps", 100], ["100 MB/s", 800], ["100 MBps", 800], ["1 GB/s", 8000], ["2.5 Gbps", 2500]]) {
+    assert.equal(parseNumericSpecs({ bandwidth }).bandwidthMbps, expected, bandwidth);
+  }
+  assert.equal(parseNumericSpecs({ bandwidth: "Bandwidth: unlimited / Traffic: 500 GB" }).unlimitedTraffic, false);
 });
 
 test("current catalog saved identities remain unique across all records", () => {

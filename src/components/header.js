@@ -2,6 +2,7 @@ import { providers } from "../../providers.js";
 import { MAX_COMPARE } from "../state/store.js";
 import {
   escapeHtml,
+  formatClockTime,
   formatDateTime,
   formatEventDelta,
   fxFreshness,
@@ -44,7 +45,7 @@ function computeHeadlineStats(state, now = Date.now()) {
   const prioritized = [...hotPool].sort((a, b) => {
     const score = (e) => {
       if (e.type === "restock") return 0;
-      if (e.type === "price" && (formatEventDelta(e)?.direction === "down")) return 1;
+      if (e.type === "price" && formatEventDelta(e)?.direction === "down") return 1;
       if (e.type === "price") return 2;
       return 3;
     };
@@ -57,8 +58,13 @@ function computeHeadlineStats(state, now = Date.now()) {
     home,
     blocked,
     events24h: recent24.length,
-    hotEvents: prioritized.slice(0, 2)
+    hotEvents: prioritized.slice(0, 6)
   };
+}
+
+export function formatLiveClockText(now = new Date()) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 }
 
 export function renderHeader(state, now = Date.now()) {
@@ -69,20 +75,22 @@ export function renderHeader(state, now = Date.now()) {
   let teleDotClass = "status-dot";
   let teleLabel = "同步快照中…";
   let telePillClass = "tele-pill";
+  let isLiveFresh = false;
 
   if (state.loadState === "loading") {
     teleLabel = "同步快照中…";
   } else if (state.loadState === "error") {
-    teleDotClass = "status-dot is-danger";
+    teleDotClass = "radar-ping-dot is-danger";
     telePillClass = "tele-pill is-danger";
     teleLabel = "上游数据源不可用";
   } else if (freshness?.stale) {
-    teleDotClass = "status-dot is-warn";
+    teleDotClass = "radar-ping-dot is-warn";
     telePillClass = "tele-pill is-warn";
     teleLabel = `快照偏旧 · ${freshness.label}`;
   } else if (freshness) {
-    teleDotClass = "status-dot is-live";
+    teleDotClass = "radar-ping-dot";
     teleLabel = `实时快照 · ${freshness.label}`;
+    isLiveFresh = true;
   }
 
   const fxPillClass = !fx
@@ -103,77 +111,93 @@ export function renderHeader(state, now = Date.now()) {
   const navItems = [
     {
       id: "terminal",
-      label: "选机终端",
+      label: "现货选机",
       count: stats.available !== "-" ? String(stats.available) : "",
       countClass: ""
     },
     {
       id: "radar",
-      label: "异动雷达",
+      label: "全网大盘",
       count: stats.events24h > 0 ? `+${stats.events24h}` : state.events.length ? String(state.events.length) : "",
       countClass: stats.events24h > 0 ? "is-pulse" : ""
     },
     {
       id: "providers",
-      label: "商家与源",
+      label: "商家名录",
       count: String(providers.length),
-      countClass: stats.blocked > 0 ? "is-alert" : ""
+      countClass: ""
     },
     {
       id: "guide",
-      label: "核验口径",
+      label: "避坑口径",
       count: "",
       countClass: ""
     }
   ];
 
-  const hotHtml = stats.hotEvents
+  const capsuleItemsHtml = stats.hotEvents
     .map((ev) => {
       const delta = formatEventDelta(ev);
-      const tag =
+      const timeStr = formatClockTime(ev.at);
+      const badge =
         ev.type === "restock"
-          ? `<span style="color:var(--ok-fg);font-weight:700">↑补货</span>`
+          ? `<span class="tag-badge is-restock">补货</span>`
           : ev.type === "soldout"
-            ? `<span style="color:var(--danger-fg);font-weight:700">↓售罄</span>`
+            ? `<span class="tag-badge is-soldout">售罄</span>`
             : delta?.direction === "down"
-              ? `<span style="color:var(--ok-fg);font-weight:700">↓${escapeHtml(delta.label)}</span>`
-              : `<span style="color:var(--danger-fg);font-weight:700">↑${escapeHtml(delta?.label || "调价")}</span>`;
-      const stockHint = ev.type === "restock" && Number.isInteger(ev.stockCount) ? ` · 余${ev.stockCount}` : "";
-      return `<button type="button" class="pulse-chip" data-action="inspect-event" data-product-id="${escapeHtml(ev.productId || "")}" title="${escapeHtml(`${ev.provider} ${ev.name}`)}">
-        ${tag}
-        <span class="pulse-chip-label">${escapeHtml(plain(ev.provider))} ${escapeHtml(plain(ev.name))}${escapeHtml(stockHint)}</span>
+              ? `<span class="tag-badge is-restock num">${escapeHtml(delta.label)}</span>`
+              : `<span class="tag-badge is-hot num">${escapeHtml(delta?.label || "变价")}</span>`;
+      const stockHint = ev.type === "restock" && Number.isInteger(ev.stockCount) ? ` (余${ev.stockCount})` : "";
+      return `<button type="button" class="live-capsule-item" data-action="inspect-event" data-product-id="${escapeHtml(ev.productId || "")}" title="${escapeHtml(`${ev.provider} ${ev.name} ${ev.price || ""}`)}">
+        <span class="mono ev-time" style="color:var(--ink-muted);font-size:10.5px">${escapeHtml(timeStr)}</span>
+        ${badge}
+        <strong class="ev-name">${escapeHtml(plain(ev.provider))} · ${escapeHtml(plain(ev.name))}${escapeHtml(stockHint)}</strong>
+        <span class="mono ev-price" style="color:var(--price-main);font-weight:700">${escapeHtml(plain(ev.price || ""))}</span>
       </button>`;
     })
     .join("");
 
   const compareCount = state.compareKeys.length;
   const themeLabel = state.theme === "dark" ? "☀ 亮色" : "☾ 暗色";
+  const activeQuery = plain(state.filters.q);
 
   return `
     <div class="cmd-bar">
-      <a class="brand-link" href="./" data-action="go-home">
-        <img class="brand-logo" src="favicon.svg" alt="" width="24" height="24" />
-        <span class="brand-name">
-          <span>ResNode Radar</span>
-          <span class="brand-chip">TERMINAL</span>
-        </span>
-      </a>
-      <nav class="ws-nav" aria-label="主工作区导航">
-        ${navItems
-          .map(
-            (item) => `<button type="button" class="ws-tab ${state.view === item.id ? "is-active" : ""}" data-nav-view="${item.id}" aria-current="${state.view === item.id ? "page" : "false"}">
-            <span>${item.label}</span>
-            ${item.count ? `<span class="ws-tab-count num ${item.countClass}">${escapeHtml(item.count)}</span>` : ""}
-          </button>`
-          )
-          .join("")}
-      </nav>
+      <div class="cmd-bar-left">
+        <a class="brand-link" href="./" data-action="go-home">
+          <img class="brand-logo" src="favicon.svg" alt="" width="26" height="26" />
+          <span class="brand-name">
+            <span class="brand-cn">VPS雷达</span>
+            <span class="brand-domain">
+              <span class="radar-ping-dot" style="width:5.5px;height:5.5px" aria-hidden="true"></span>
+              <span>vpsld</span>
+            </span>
+          </span>
+        </a>
+        <span class="header-vsep" aria-hidden="true"></span>
+        <nav class="ws-nav" aria-label="主工作区导航">
+          ${navItems
+            .map(
+              (item) => `<button type="button" class="ws-tab ${state.view === item.id ? "is-active" : ""}" data-nav-view="${item.id}" aria-current="${state.view === item.id ? "page" : "false"}">
+              <span>${item.label}</span>
+              ${item.count ? `<span class="ws-tab-count num ${item.countClass}">${escapeHtml(item.count)}</span>` : ""}
+            </button>`
+            )
+            .join("")}
+        </nav>
+      </div>
+
       <div class="cmd-utils">
-        <button type="button" class="cmd-search-trigger" data-action="open-palette" aria-label="全域命令检索 (快捷键 / 或 ⌘K)">
-          <span aria-hidden="true">⌕</span>
-          <span class="search-label">命令检索</span>
+        <button type="button" class="cmd-search-trigger ${activeQuery ? "has-query" : ""}" data-action="open-palette" aria-label="搜索商家、地区、线路或型号 (快捷键 / 或 ⌘K)">
+          <span aria-hidden="true" style="font-size:13px">⌕</span>
+          <span class="search-label">${activeQuery ? `搜索词：${escapeHtml(activeQuery)}` : "搜商家 / 地区 / 线路 / 型号…"}</span>
           <kbd class="kbd-hint">⌘K</kbd>
         </button>
+        ${
+          activeQuery
+            ? `<button type="button" class="btn btn-xs btn-soft" data-action="clear-search" title="清除当前关键词过滤">✕ 清词</button>`
+            : ""
+        }
         <button type="button" class="btn btn-sm ${state.savedKeys.size ? "btn-star is-active" : ""}" data-action="open-saved" aria-label="打开本地收藏夹">
           <span>★</span>
           <span class="num" data-saved-count>${state.savedKeys.size}</span>
@@ -190,33 +214,60 @@ export function renderHeader(state, now = Date.now()) {
       </div>
     </div>
 
-    <div class="telemetry-strip" aria-label="实时数据遥测与市场脉冲">
+    <div class="telemetry-strip" aria-label="实时数据遥测与全网大盘">
       <div class="telemetry-inner">
         <div class="telemetry-left">
           <span class="${telePillClass}" title="${escapeHtml(state.payload?.generatedAt ? `快照生成时间: ${formatDateTime(state.payload.generatedAt)}` : "等待快照响应")}">
             <span class="${teleDotClass}" aria-hidden="true"></span>
-            <span data-telemetry-label>${escapeHtml(teleLabel)}</span>
+            <span data-telemetry-label class="${isLiveFresh ? "live-shimmer" : ""}">${escapeHtml(teleLabel)}</span>
+          </span>
+          <span class="live-clock-pill" title="本地实时时间">
+            <span class="num" data-live-clock>${formatLiveClockText(new Date(now))}</span>
           </span>
           <button type="button" class="btn btn-xs btn-ghost" data-action="refresh-snapshot" ${state.refreshing ? "disabled" : ""} title="重新读取已发布的最新快照（不触发后端抓取）">
-            ${state.refreshing ? "读取中…" : "↻ 重载"}
+            ${state.refreshing ? "读取中…" : "↻ 刷新"}
           </button>
-          <span class="${fxPillClass}" data-fx-pill title="参考人民币折算基于欧洲央行（ECB）每日参考汇率">${escapeHtml(fxText)}</span>
-          <span class="telemetry-divider" aria-hidden="true"></span>
-          <button type="button" class="tele-stat is-ok" data-action="quick-stat" data-stat="available" title="查看所有可购套餐">
-            <span>可购</span><strong data-stat-available>${stats.available}</strong>
-          </button>
-          <button type="button" class="tele-stat" data-action="quick-stat" data-stat="exact" title="仅看公布精确库存数量的套餐">
-            <span>精确库存</span><strong data-stat-exact>${stats.exact}</strong>
+          <span class="${fxPillClass} tele-fx-chip" data-fx-pill title="参考人民币折算基于欧洲央行（ECB）每日参考汇率">${escapeHtml(fxText)}</span>
+        </div>
+
+        <div class="telemetry-center">
+          <div class="market-spotlight" data-live-capsule data-capsule-count="${stats.hotEvents.length}">
+            <button type="button" class="spotlight-badge" data-nav-view="radar" title="查看全网实时库存大盘与补货降价流">
+              <span class="spotlight-dot" aria-hidden="true"></span>
+              <span>全网大盘</span>
+            </button>
+            ${
+              stats.hotEvents.length
+                ? `<div class="live-capsule-viewport">
+                    <div class="live-capsule-track" data-capsule-track>
+                      ${capsuleItemsHtml}
+                    </div>
+                  </div>`
+                : `<button type="button" class="spotlight-fallback" data-nav-view="radar">
+                    实时监控全网 ${providers.length} 家官方源库存与价格异动
+                  </button>`
+            }
+            <button type="button" class="spotlight-cta" data-nav-view="radar">
+              <span>异动榜</span>
+              <strong class="num">${stats.events24h > 0 ? `+${stats.events24h}` : state.events.length}</strong>
+              <span aria-hidden="true">→</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="telemetry-right">
+          <button type="button" class="tele-stat is-ok" data-action="quick-stat" data-stat="available" title="查看所有在售可购套餐">
+            <span>现货</span><strong data-stat-available>${stats.available}</strong>
           </button>
           <button type="button" class="tele-stat is-home" data-action="quick-stat" data-stat="home" title="仅看真家宽 / 双 ISP 住宅节点">
             <span>真家宽</span><strong data-stat-home>${stats.home}</strong>
           </button>
-          <button type="button" class="tele-stat is-danger" data-action="quick-stat" data-stat="blocked" title="前往商家健康看板查看直连受阻源">
+          <button type="button" class="tele-stat" data-action="quick-stat" data-stat="exact" title="仅看公布精确库存数量的套餐">
+            <span>精确库存</span><strong data-stat-exact>${stats.exact}</strong>
+          </button>
+          <button type="button" class="tele-stat is-danger" data-action="quick-stat" data-stat="blocked" title="前往商家名录查看直连受阻源">
             <span>受阻源</span><strong data-stat-blocked>${stats.blocked}</strong>
           </button>
-        </div>
-        <div class="telemetry-right">
-          ${hotHtml || `<span style="font-size:11px;color:var(--ink-muted)">近 7 天共观测 ${state.events.length} 条真实异动</span>`}
         </div>
       </div>
     </div>
@@ -259,14 +310,15 @@ export function renderStatusBanner(state, now = Date.now()) {
 
 export function renderCommandPalette(state) {
   if (!state.paletteOpen) return "";
-  const q = normalizeSearch(state.paletteQuery);
+  const rawQ = state.paletteQuery.trim();
+  const q = normalizeSearch(rawQ);
 
   const matchedProviders = providers
     .filter((p) => {
       if (!q) return false;
       return normalizeSearch([p.name, p.id, ...(p.aliases || [])].join(" ")).includes(q);
     })
-    .slice(0, 4);
+    .slice(0, 5);
 
   const matchedPlans = state.plans
     .filter((p) => {
@@ -276,16 +328,16 @@ export function renderCommandPalette(state) {
     .slice(0, 6);
 
   const quickCommands = [
-    { id: "preset-us-home", label: "美区家宽（排除 NAT 标记 / 仅看可购）", sub: "预设筛选" },
-    { id: "preset-cn2", label: "CN2 GIA 优化回程（仅看可购）", sub: "预设筛选" },
-    { id: "go-radar", label: "打开异动雷达（补货 / 售罄 / 变价流）", sub: "工作区" },
-    { id: "go-providers", label: `查看 ${providers.length} 家商家与采集源健康诊断`, sub: "工作区" },
-    { id: "copy-share", label: "复制当前工作台完整状态分享链接", sub: "操作" },
-    { id: "toggle-theme", label: `切换为${state.theme === "dark" ? "亮色纸墨" : "深空曜石"}主题`, sub: "外观" }
+    { id: "preset-us-home", label: "美区真家宽（排除 NAT 共享 / 仅看现货）", sub: "场景直达" },
+    { id: "preset-cn2", label: "电信 CN2 GIA 优化回程（仅看现货）", sub: "场景直达" },
+    { id: "go-radar", label: "进入全网大盘（实时补货 / 售罄 / 变价流）", sub: "工作区" },
+    { id: "go-providers", label: `查看 ${providers.length} 家商家名录与采集健康诊断`, sub: "工作区" },
+    { id: "copy-share", label: "复制当前筛选与对比状态分享链接", sub: "操作" },
+    { id: "toggle-theme", label: `切换为${state.theme === "dark" ? "亮色冰透" : "深空暗夜"}主题`, sub: "外观" }
   ].filter((cmd) => !q || normalizeSearch(cmd.label).includes(q));
 
   return `
-    <div class="palette-shell" role="dialog" aria-modal="true" aria-label="全域命令检索">
+    <div class="palette-shell" role="dialog" aria-modal="true" aria-label="全局快速检索">
       <div class="palette-input-row">
         <span aria-hidden="true" style="color:var(--ink-muted)">⌕</span>
         <input
@@ -293,21 +345,32 @@ export function renderCommandPalette(state) {
           class="palette-input"
           data-palette-input
           value="${escapeHtml(state.paletteQuery)}"
-          placeholder="搜索套餐名、商家、地区、线路（如 US 家宽、CN2、LisaHost）…"
+          placeholder="输入商家、地区、线路或型号（如 搬瓦工 / 香港 / 9929 / 双ISP），回车直接过滤列表…"
           autocomplete="off"
         />
         <button type="button" class="btn btn-xs btn-ghost" data-action="close-palette">Esc</button>
       </div>
       <div class="palette-results">
         ${
+          rawQ
+            ? `<div>
+                <div class="palette-group-label">列表过滤</div>
+                <button type="button" class="palette-item is-focused" data-action="palette-filter-q" data-query="${escapeHtml(rawQ)}">
+                  <span><strong>在选机列表中筛选包含「${escapeHtml(rawQ)}」的全部方案</strong></span>
+                  <span class="palette-item-sub">按回车直达 ↵</span>
+                </button>
+              </div>`
+            : ""
+        }
+        ${
           matchedProviders.length
             ? `<div>
-                <div class="palette-group-label">商家直达</div>
+                <div class="palette-group-label">匹配商家</div>
                 ${matchedProviders
                   .map(
                     (p) => `<button type="button" class="palette-item" data-action="palette-provider" data-provider-id="${escapeHtml(p.id)}">
                       <span><strong>${escapeHtml(p.name)}</strong></span>
-                      <span class="palette-item-sub">筛选该商家套餐 ↵</span>
+                      <span class="palette-item-sub">查看该商家全部方案 ↵</span>
                     </button>`
                   )
                   .join("")}
@@ -317,7 +380,7 @@ export function renderCommandPalette(state) {
         ${
           matchedPlans.length
             ? `<div>
-                <div class="palette-group-label">${q ? "匹配套餐（点击直接解剖证据）" : "精确库存热门套餐"}</div>
+                <div class="palette-group-label">${q ? "匹配方案（点击直接核验详情）" : "精确库存热门现货"}</div>
                 ${matchedPlans
                   .map(
                     (p) => `<button type="button" class="palette-item" data-action="palette-plan" data-product-id="${escapeHtml(p.id)}">
@@ -333,7 +396,7 @@ export function renderCommandPalette(state) {
             : ""
         }
         <div>
-          <div class="palette-group-label">快捷指令</div>
+          <div class="palette-group-label">快捷导航</div>
           ${quickCommands
             .map(
               (cmd) => `<button type="button" class="palette-item" data-action="palette-cmd" data-cmd="${cmd.id}">

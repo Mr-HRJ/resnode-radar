@@ -17,7 +17,9 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg-canvas);
+  background-color: var(--bg-canvas);
+  background-image: var(--bg-canvas-gradient);
+  background-attachment: fixed;
   color: var(--ink-primary);
   font-family: var(--font-sans);
   font-size: var(--text-base);
@@ -162,9 +164,32 @@ time {
   50% { opacity: 0.45; transform: scale(0.86); }
 }
 
+@keyframes radar-ping {
+  0% { transform: scale(0.95); opacity: 0.85; }
+  75%, 100% { transform: scale(2.35); opacity: 0; }
+}
+
+@keyframes text-shimmer {
+  0% { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+@keyframes gentle-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.045); }
+}
+
+@keyframes fade-slide-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .skel,
-  .status-dot.is-live { animation: none !important; }
+  .status-dot.is-live,
+  .radar-ping-dot::after,
+  .live-shimmer,
+  .price-promo-pulse { animation: none !important; }
   * { transition-duration: 0.01ms !important; }
 }
