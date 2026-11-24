@@ -4,8 +4,6 @@ on:
   # Primary trigger: the Cloudflare Worker cron ("*/10 * * * *") calls workflow_dispatch.
   # GitHub's own schedule is only a best-effort fallback (public repositories are often delayed by
   # hours); the guard allows only one collection start per ten-minute UTC slot.
-  schedule:
-    - cron: "*/10 * * * *"
   workflow_dispatch:
     inputs:
       force:
