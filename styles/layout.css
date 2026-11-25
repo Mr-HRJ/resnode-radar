@@ -262,7 +262,7 @@
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 12px;
+  gap: 18px;
 }
 
 .telemetry-left {
@@ -582,15 +582,12 @@
    ========================================================================== */
 
 @media (max-width: 1280px) {
-  .tele-fx-chip {
-    display: none !important;
-  }
   .cmd-search-trigger {
     min-width: 176px;
   }
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1180px) {
   .telemetry-right {
     display: none;
   }
@@ -654,20 +651,26 @@
     display: none;
   }
   .telemetry-inner {
-    grid-template-columns: minmax(0, 1fr);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
     gap: 6px;
     padding: 6px var(--sp-3);
   }
   .telemetry-center {
     order: 1;
+    flex: 1 1 100%;
     width: 100%;
-    justify-self: stretch;
   }
   .telemetry-left {
     order: 2;
-    width: 100%;
-    justify-content: space-between;
+    flex: 1 1 auto;
     flex-wrap: wrap;
+  }
+  .telemetry-right {
+    order: 3;
+    margin-left: auto;
   }
   .dossier-layout {
     grid-template-columns: 1fr;

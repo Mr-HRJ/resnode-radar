@@ -60,6 +60,19 @@ test("built-in static live server serves assets with no-store on data/ and block
 
     const postRes = await fetch(`${base}/data/daemon-status.json`, { method: "POST" });
     assert.equal(postRes.status, 405);
+
+    // Built-in /api/stats works locally on :4173 while keeping data/visits.sqlite private
+    const visitPost = await fetch(`${base}/api/stats`, {
+      method: "POST",
+      headers: {
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36"
+      }
+    });
+    assert.equal(visitPost.status, 200);
+    const visitJson = await visitPost.json();
+    assert.equal(visitJson.todayPv, 1);
+    assert.equal(visitJson.todayUv, 1);
+    assert.equal((await fetch(`${base}/data/visits.sqlite`)).status, 403);
   } finally {
     await new Promise((resolve) => server.close(resolve));
     rmSync(root, { recursive: true, force: true });

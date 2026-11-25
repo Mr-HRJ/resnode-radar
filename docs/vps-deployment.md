@@ -16,7 +16,8 @@
 - `/var/lib/resnode-radar/data/`：持久化 `products.json`、汇率及守护进程状态，由 `resnode-radar` 用户写入。每个发布版本的 `data` 链接到这里。
 - `/var/lib/resnode-radar/static/<revision>/`：按内容生成版本号的浏览器资源，由发布操作写入，跨版本保留。
 - `/etc/systemd/system/resnode-radar.service`：开机启动、退出自动重启，显式传入 `--interval 20`，禁止 Git 自动发布。
-- `/etc/nginx/sites-available/resnode-radar`：独立的 Nginx 站点配置，仅公开构建目录、版本化静态资源和库存 JSON。
+- `/etc/systemd/system/resnode-radar-stats.service`：本机轻量实时访问统计服务（监听 `127.0.0.1:18920`，SQLite WAL 落盘于 `/var/lib/resnode-radar/state/visits.sqlite`，按北京时间统计今日 PV / UV 与累计访问，自动过滤爬虫且不存储明文访客 IP）。
+- `/etc/nginx/sites-available/resnode-radar`：独立的 Nginx 站点配置，仅公开构建目录、版本化静态资源、库存 JSON 与 `/api/stats` 实时统计反代入口。
 
 ```sh
 systemctl status resnode-radar

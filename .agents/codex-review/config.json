@@ -1,0 +1,28 @@
+{
+  "base_ref": "bd634a0f54f68fcf9270f365cce0edf9de899977",
+  "checks": [
+    [
+      "/Users/haorenjie/.local/bin/npm",
+      "run",
+      "check"
+    ],
+    [
+      "/Users/haorenjie/.local/bin/npm",
+      "test"
+    ],
+    [
+      "/Users/haorenjie/.local/bin/npm",
+      "run",
+      "monitor:validate"
+    ]
+  ],
+  "codex_bin": "/opt/homebrew/bin/codex",
+  "requirements_file": ".agents/codex-review/requirements.txt",
+  "review_timeout_seconds": 600,
+  "check_timeout_seconds": 300,
+  "max_repair_rounds": 3,
+  "cache_ttl_seconds": 3600,
+  "model": "",
+  "release_adapter": [],
+  "adapter_timeout_seconds": 30
+}

@@ -44,3 +44,26 @@ test("snapshot timeout covers both response headers and body reads", async (t) =
     }
   }
 });
+
+test("large snapshot normalization yields to browser input and can be aborted between batches", async (t) => {
+  const products = Array.from({ length: 3880 }, (_, index) => ({ ...valid.products[0], id: `p-${index}` }));
+  t.mock.method(globalThis, "fetch", async () => Response.json({ ...valid, products }));
+  const original = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const controller = new AbortController();
+  let yields = 0;
+  let abortOnYield = false;
+  Object.defineProperty(globalThis, "window", { configurable: true, value: {
+    setTimeout(resolve) {
+      yields += 1;
+      if (abortOnYield) controller.abort();
+      resolve();
+    }
+  } });
+  t.after(() => original ? Object.defineProperty(globalThis, "window", original) : delete globalThis.window);
+  const snapshot = await fetchSnapshot();
+  assert.equal(snapshot.plans.length, 3880);
+  assert.equal(snapshot.plans.at(-1).id, "p-3879");
+  assert.ok(yields > 1);
+  abortOnYield = true;
+  await assert.rejects(fetchSnapshot("data/products.json", { signal: controller.signal }), error => error.code === "ABORTED");
+});

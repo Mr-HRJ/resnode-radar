@@ -1,4 +1,10 @@
+import { renderVirtualBlocks } from "./virtual-list.js";
+import { buildTagTipAttrs, renderPlanTagBadge, renderShopTagBadge, renderTagSvg } from "./tag-icons.js";
 import {
+  PLAN_TAG_DEFS,
+  PLAN_TAG_ORDER,
+  SHOP_TAG_DEFS,
+  SHOP_TAG_ORDER,
   SORT_OPTIONS,
   computeFacetCounts,
   diagnoseZeroResults,
@@ -29,7 +35,7 @@ import {
   safeUrl
 } from "../domain/format.js";
 
-function shortProviderLabel(name) {
+export function shortProviderLabel(name) {
   const s = plain(name);
   if (/搬瓦工/i.test(s)) return "搬瓦工";
   if (/GreenCloud/i.test(s)) return "绿云 GreenCloud";
@@ -99,6 +105,19 @@ function renderInlineLeadTag(plan, now = Date.now()) {
   return "";
 }
 
+function renderPlanHighlightTag(plan, activeDeal = "all") {
+  const tags = plan?._planTags || [];
+  if (tags.length === 0) return "";
+  const isFiltered = Boolean(activeDeal && activeDeal !== "all" && activeDeal !== "any");
+  const chosen = isFiltered ? tags.find((t) => t.key === activeDeal) || plan._primaryPlanTag : plan._primaryPlanTag;
+  if (!chosen) return "";
+  const fullReason = tags.length > 1 ? tags.map((t) => `【${t.shortLabel}】${t.reason}`).join("；") : chosen.reason;
+  return renderPlanTagBadge(
+    { ...chosen, reason: fullReason },
+    { interactive: true, isActiveFilter: isFiltered && chosen.key === activeDeal }
+  );
+}
+
 function renderEventSpark(plan, now = Date.now()) {
   const ev = plan._latestEvent;
   const badges = [];
@@ -113,111 +132,225 @@ function renderEventSpark(plan, now = Date.now()) {
       }
     }
   }
-  if (plan.status === "available" && Number.isFinite(plan._pricing.cnyMonthly) && plan._pricing.cnyMonthly <= 20) {
-    badges.push(`<span class="pill pill-deal" style="height:19px;padding:0 5px" title="折合人民币月均 ≤ ￥20">特惠</span>`);
-  }
   return badges.join("");
 }
 
-function compactHwToken(cpu, memory, disk) {
-  const cleanParens = (str) => str.replace(/\(\s*\)|（\s*）/g, "").replace(/\s+/g, " ").trim();
-  const c = cpu && cpu !== "未标明"
-    ? cleanParens(
-        cpu
+function compactHwParts(plan) {
+  const ns = plan._numSpecs || {};
+  const s = plan._specs || {};
+
+  let c = "";
+  if (Number.isFinite(ns.cpuCores)) {
+    c = `${ns.cpuCores}C`;
+  } else if (s.cpu && s.cpu !== "未标明") {
+    const vpsUnitMatch = s.cpu.match(/^(\d+)\s*[x×]\s*(?:AMD|Intel|Xeon|EPYC)\b/i);
+    c = vpsUnitMatch
+      ? `${vpsUnitMatch[1]}C`
+      : s.cpu
+          .replace(/\(\s*\)|（\s*）/g, "")
           .replace(/\s*(?:x\s*)?v?\s*(?:cpus?|cores?)\b/gi, "C")
           .replace(/核(?:心)?/g, "C")
           .replace(/\s+/g, "")
-      )
-    : "";
-  const m = memory && memory !== "未标明"
-    ? cleanParens(
-        memory
-          .replace(/\s*Gi?B\b/gi, "G")
-          .replace(/\s*Mi?B\b/gi, "M")
-          .replace(/\s*DDR\d*(?:@[^\s)]+)?(?:\s*ECC)?/gi, "")
-      )
-    : "";
-  const d = disk && disk !== "未标明"
-    ? cleanParens(
-        disk
-          .replace(/\s*Gi?B\b/gi, "G")
-          .replace(/\s*Ti?B\b/gi, "T")
-          .replace(/\bdisk\b/gi, "")
-          .replace(/高性能|固态|硬盘/g, "")
-      )
-    : "";
-  return [c, m, d].filter(Boolean).join(" / ");
+          .slice(0, 8);
+  }
+
+  let m = "";
+  if (Number.isFinite(ns.memoryGb)) {
+    if (ns.memoryGb >= 1) {
+      m = `${Number.isInteger(ns.memoryGb) ? ns.memoryGb : Number(ns.memoryGb.toFixed(1))}G`;
+    } else {
+      m = `${Math.round(ns.memoryGb * 1024)}M`;
+    }
+  } else if (s.memory && s.memory !== "未标明") {
+    m = s.memory.replace(/\s*Gi?B\b/gi, "G").replace(/\s*Mi?B\b/gi, "M").replace(/\s*DDR\d*.*$/i, "").trim();
+  }
+
+  let d = "";
+  if (Number.isFinite(ns.diskGb)) {
+    if (ns.diskGb >= 1024 && ns.diskGb % 1024 === 0) {
+      d = `${ns.diskGb / 1024}T`;
+    } else {
+      d = `${Number.isInteger(ns.diskGb) ? ns.diskGb : Number(ns.diskGb.toFixed(1))}G`;
+    }
+  } else if (s.disk && s.disk !== "未标明") {
+    d = s.disk
+      .replace(/\s*Gi?B\b/gi, "G")
+      .replace(/\s*Ti?B\b/gi, "T")
+      .replace(/\b(?:RAID(?:[- ]?\d+)?|SSD|NVMe|HDD|disk|storage)\b/gi, "")
+      .replace(/高性能|固态|硬盘/g, "")
+      .trim();
+  }
+
+  const tuple = [c, m, d].filter(Boolean).join(" / ");
+
+  const rawBlob = [s.cpu, s.memory, s.disk, plain(plan.hardware)].filter((v) => v && v !== "未标明").join(" ");
+  const notes = [];
+  if (/9950x/i.test(rawBlob)) notes.push("Ryzen 9950X");
+  else if (/7950x/i.test(rawBlob)) notes.push("Ryzen 7950X");
+  else if (/ryzen/i.test(rawBlob)) notes.push("Ryzen");
+  else if (/epyc/i.test(rawBlob)) notes.push("EPYC");
+  else if (/xeon/i.test(rawBlob)) notes.push("Xeon");
+  else if (/\bamd\b/i.test(rawBlob)) notes.push("AMD");
+
+  if (/\bnvme\b/i.test(rawBlob)) notes.push("NVMe");
+  else if (/\bssd\b/i.test(rawBlob)) notes.push("SSD");
+  else if (/\bhdd\b/i.test(rawBlob)) notes.push("HDD");
+
+  if (/raid[- ]?10/i.test(rawBlob)) notes.push("RAID10");
+  else if (/ddr5/i.test(rawBlob)) notes.push("DDR5");
+
+  return {
+    tuple,
+    hwSub: notes.slice(0, 2).join(" · ")
+  };
 }
 
-function renderSpecsParts(plan) {
+function compactBwText(bw) {
+  if (!bw) return "";
+  const m = bw.match(/^(\d+(?:\.\d+)?)\s*Mbps$/);
+  if (m && Number(m[1]) >= 1000 && Number(m[1]) % 1000 === 0) {
+    return `${Number(m[1]) / 1000} Gbps`;
+  }
+  return bw.replace(/\s+/g, " ").trim();
+}
+
+function compactTrafficText(tr) {
+  if (!tr) return "";
+  return tr
+    .replace(/\s*Gi?B\b/gi, "G")
+    .replace(/\s*Ti?B\b/gi, "T")
+    .replace(/\/mo(?:nth)?\b/gi, "/月")
+    .replace(/\((?:in\+out|双向|雙向)\)/gi, "")
+    .trim();
+}
+
+export function renderSpecsParts(plan) {
   const s = plan._specs;
   const fullHw = [s.cpu, s.memory, s.disk].filter((v) => v && v !== "未标明").join(" / ");
-  const shortHw = compactHwToken(s.cpu, s.memory, s.disk);
+  const { tuple, hwSub } = compactHwParts(plan);
   const fallbackHw = plain(plan.hardware);
 
-  const hwChipText = shortHw || fallbackHw || "";
+  const hwChipText = tuple || fallbackHw || "";
 
-  const bw = s.bandwidth && s.bandwidth !== "未标明" ? s.bandwidth : "";
-  const traffic = s.traffic && s.traffic !== "未标明" ? s.traffic : "";
+  const rawBw = s.bandwidth && s.bandwidth !== "未标明" ? s.bandwidth : "";
+  const rawTraffic = s.traffic && s.traffic !== "未标明" ? s.traffic : "";
+  const bw = compactBwText(rawBw);
+  const traffic = compactTrafficText(rawTraffic);
   const fallbackNet = plain(plan.bandwidth);
   const hasStructuredNet = Boolean(bw || traffic);
 
   return {
     hwChipText,
+    hwSub,
     fullHw: fullHw || fallbackHw || "配置未标明",
     bw,
     traffic,
-    isUnlimited: plan._numSpecs?.unlimitedTraffic || traffic === "不限流量",
+    isUnlimited: plan._numSpecs?.unlimitedTraffic || rawTraffic === "不限流量",
     fallbackNet: !hasStructuredNet ? fallbackNet : "",
-    compactHw: fullHw || fallbackHw || "配置未标明",
+    compactHw: tuple ? `${tuple}${hwSub ? ` (${hwSub})` : ""}` : fullHw || fallbackHw || "配置未标明",
     compactNet: [bw, traffic].filter(Boolean).join(" · ") || fallbackNet || "带宽流量未标明"
   };
 }
 
+export function renderBandwidthCell(plan) {
+  const sp = renderSpecsParts(plan);
+  return `<div class="bw-stack">
+    ${
+      sp.bw
+        ? `<span class="bw-highlight num" title="${escapeHtml(sp.compactNet)}">${escapeHtml(sp.bw)}</span>`
+        : sp.fallbackNet
+          ? `<span class="spec-line" title="${escapeHtml(sp.fallbackNet)}">${escapeHtml(sp.fallbackNet)}</span>`
+          : `<span class="spec-line is-missing">未标明</span>`
+    }
+    ${
+      sp.isUnlimited
+        ? `<span class="traffic-unlimited">不限流量</span>`
+        : sp.traffic
+          ? `<span class="spec-line is-sub num" title="${escapeHtml(plan._specs.traffic)}">${escapeHtml(sp.traffic)}</span>`
+          : ""
+    }
+  </div>`;
+}
+
+export function renderLocationCell(plan, fallbackLoc = null) {
+  const loc = plan?._location || fallbackLoc || { code: "--", primary: "待核验", sub: "", isPending: true, fullTitle: "地区待核验" };
+  if (loc.isPending) {
+    return `<div class="loc-cell is-pending" title="${escapeHtml(loc.fullTitle)}">
+      <div class="loc-primary-row">
+        <span class="iso-code">--</span>
+        <span class="loc-city">待核验</span>
+      </div>
+    </div>`;
+  }
+  return `<div class="loc-cell" title="${escapeHtml(loc.fullTitle)}">
+    <div class="loc-primary-row">
+      <span class="iso-code">${escapeHtml(loc.code)}</span>
+      <strong class="loc-city">${escapeHtml(loc.primary)}</strong>
+    </div>
+    ${loc.sub ? `<span class="loc-sub">${escapeHtml(loc.sub)}</span>` : ""}
+  </div>`;
+}
+
 function renderRegionSummary(plan) {
-  const regions = plan._regions || [];
-  if (regions.length === 0) return `<span class="region-tag"><span class="iso-code">--</span> 地区待核验</span>`;
-  const primary = regions[0];
-  const extra = regions.length > 1 ? ` +${regions.length - 1}` : "";
-  const iso = plan._macroRegions?.[0] === "MULTI" ? "GL" : plan._macroRegions?.[0] === "APAC" ? "AP" : plan._macroRegions?.[0] || "GL";
-  return `<span class="region-tag" title="${escapeHtml(regions.join(" / "))}"><span class="iso-code">${escapeHtml(iso)}</span> ${escapeHtml(primary)}${escapeHtml(extra)}</span>`;
+  const loc = plan._location;
+  if (!loc || loc.isPending) return `<span class="region-tag"><span class="iso-code">--</span> 地区待核验</span>`;
+  const label = loc.sub && loc.sub !== loc.primary && !loc.sub.startsWith("+") ? `${loc.sub}·${loc.primary}` : loc.primary;
+  return `<span class="region-tag" title="${escapeHtml(loc.fullTitle)}"><span class="iso-code">${escapeHtml(loc.code)}</span> ${escapeHtml(label)}</span>`;
 }
 
-function routePillClass(r) {
-  if (r === "CN2") return "pill pill-route-cn2";
-  if (r === "9929") return "pill pill-route-9929";
-  if (r === "CMIN2") return "pill pill-route-cmin2";
-  if (r === "4837") return "pill pill-route-4837";
-  if (r === "软银" || r === "IIJ" || r === "HiNet") return "pill pill-route-jp";
-  return "pill pill-route-bgp";
+export function routeChipClass(tone) {
+  if (tone === "cn2") return "net-micro-tag is-cn2";
+  if (tone === "9929") return "net-micro-tag is-9929";
+  if (tone === "cmin2") return "net-micro-tag is-cmin2";
+  if (tone === "4837") return "net-micro-tag is-4837";
+  if (tone === "jp") return "net-micro-tag is-jp";
+  if (tone === "home") return "net-micro-tag is-home";
+  if (tone === "native") return "net-micro-tag is-native";
+  if (tone === "warn") return "net-micro-tag is-warn";
+  if (tone === "bgp") return "net-micro-tag is-bgp";
+  return "net-micro-tag is-muted";
 }
 
-function roleSolidBadgeClass(tone) {
+export function roleSolidBadgeClass(tone) {
   if (tone === "home") return "badge-solid badge-solid-home";
   if (tone === "opt") return "badge-solid badge-solid-opt";
   if (tone === "native") return "badge-solid badge-solid-native";
   return "badge-solid badge-solid-landing";
 }
 
+export function renderRouteHierarchyCell(plan) {
+  const c = plan._classify;
+  const rp = c.routeProfile || { netCount: 0, headline: "国际标准互联", headlineTone: "intl", chips: [] };
+  const rawRoute = plain(plan.route);
+  const chips = [...(rp.chips || [])];
+  if (plan._isSnapshot && !chips.some((ch) => ch.label === "快照")) {
+    chips.push({ label: "快照", tone: "warn" });
+  }
+
+  return `<div class="route-cell-stack" title="${escapeHtml(rawRoute || rp.headline)}">
+    <div class="route-headline-row">
+      <span class="route-headline is-${escapeHtml(rp.headlineTone)}">${escapeHtml(rp.headline)}</span>
+    </div>
+    <div class="route-chips-row">
+      ${chips.slice(0, 3).map((ch) => `<span class="${routeChipClass(ch.tone)}">${escapeHtml(ch.label)}</span>`).join("")}
+    </div>
+  </div>`;
+}
+
 function renderNetworkBadges(plan) {
   const c = plan._classify;
+  const rp = c.routeProfile || { headline: "", headlineTone: "intl", chips: [] };
   const badges = [];
   badges.push(`<span class="${roleSolidBadgeClass(c.ipTier.tone)}">${escapeHtml(c.ipTier.label)}</span>`);
-  if (c.routes.length > 0) {
-    for (const r of c.routes.slice(0, 3)) {
-      const prefix = r === "CN2" ? "电:CN2" : r === "9929" ? "联:9929" : r === "CMIN2" ? "移:CMIN2" : r === "4837" ? "联:4837" : r;
-      badges.push(`<span class="${routePillClass(r)}">${escapeHtml(prefix)}</span>`);
-    }
-  } else {
-    const rawRoute = plain(plan.route);
-    if (rawRoute && !/以所选机房为准|默认|未知|待核验/i.test(rawRoute)) {
-      badges.push(`<span class="pill pill-route-bgp route-pill" title="${escapeHtml(rawRoute)}">${escapeHtml(rawRoute)}</span>`);
-    }
+  if (rp.headline) {
+    badges.push(`<span class="pill ${rp.headlineTone.startsWith("opt") ? "pill-vps" : rp.headlineTone === "home" ? "pill-home" : "pill-neutral"}">${escapeHtml(rp.headline)}</span>`);
   }
-  if (c.isNat) {
-    badges.push(`<span class="pill pill-warn" title="NAT 共享 IPv4 / 动态端口">NAT共享</span>`);
-  } else if (plan._isSnapshot) {
-    badges.push(`<span class="pill pill-warn" title="第三方 Reader 公开快照">快照</span>`);
+  for (const ch of (rp.chips || []).slice(0, 3)) {
+    if (ch.label === "国际无优化") continue;
+    badges.push(`<span class="${routeChipClass(ch.tone)}">${escapeHtml(ch.label)}</span>`);
+  }
+  if (plan._isSnapshot) {
+    badges.push(`<span class="net-micro-tag is-warn" title="第三方 Reader 公开快照">快照</span>`);
   }
   return badges.join("");
 }
@@ -231,14 +364,15 @@ function renderPriceStack(plan, align = "right") {
       : p.cnyTone === "warn"
         ? "price-sub is-warn"
         : "price-sub is-muted";
-  const cnyDisplay = p.cnyTone === "ok" && !p.cnyLabel.startsWith("折合") ? `折合 ${p.cnyLabel.replace(/^≈\s*/, "")}` : p.cnyLabel;
+  const compactCny = p.cnyLabel.replace(/\s*\(按[^)]+分摊\)/, "");
+  const cnyDisplay = p.cnyTone === "ok" && !compactCny.startsWith("折合") ? `折合 ${compactCny.replace(/^≈\s*/, "")}` : compactCny;
   return `<div class="${align === "right" ? "price-stack" : "plan-card-price"}">
     <span class="price-primary ${isPromo ? "is-promo price-promo-pulse" : ""} num" title="${escapeHtml(p.originalLabel)}">${escapeHtml(p.displayLabel)}</span>
-    <span class="${subClass} num" title="${escapeHtml(p.formula || p.honestReason || "")}">${escapeHtml(cnyDisplay)}</span>
+    <span class="${subClass} num" title="${escapeHtml(p.formula || p.honestReason || p.cnyLabel || "")}">${escapeHtml(cnyDisplay)}</span>
   </div>`;
 }
 
-function renderTableRow(plan, state, now, idx = 0) {
+export function renderTableRow(plan, state, now, idx = 0) {
   const isSaved = state.savedKeys.has(plan._key);
   const isCompared = state.compareKeys.includes(plan._key);
   const isInspected = state.inspectId === plan.id;
@@ -246,51 +380,38 @@ function renderTableRow(plan, state, now, idx = 0) {
   const sp = renderSpecsParts(plan);
   const orderHref = safeUrl(plan.orderUrl);
   const leadTag = renderInlineLeadTag(plan, now);
+  const dealTag = renderPlanHighlightTag(plan, state.filters?.deal);
+  const c = plan._classify;
 
   return `
-    <tr class="${isInspected ? "is-inspected" : ""} ${isSoldout ? "is-soldout" : ""} ${plan._classify.isResidential ? "is-home-row" : ""}" style="--stagger-i:${Math.min(idx, 14)}" data-action="inspect-plan" data-product-id="${escapeHtml(plan.id)}">
+    <tr aria-rowindex="${idx + 2}" class="${isInspected ? "is-inspected" : ""} ${isSoldout ? "is-soldout" : ""} ${c.isResidential ? "is-home-row" : ""}" style="--stagger-i:${Math.min(idx, 14)}" data-action="inspect-plan" data-product-id="${escapeHtml(plan.id)}">
       <td class="col-plan">
-        <div class="plan-cell">
-          <div class="plan-title-row">
-            ${leadTag}
-            <span class="plan-title" title="${escapeHtml(plain(plan.name))}">${escapeHtml(plain(plan.name))}</span>
-          </div>
-          <div class="plan-meta-row">
-            <span class="provider-tag">${escapeHtml(plan._providerName)}</span>
-            <span class="meta-sep">·</span>
-            ${renderRegionSummary(plan)}
-            ${renderEventSpark(plan, now)}
+        <div class="plan-cell-split">
+          <span class="${roleSolidBadgeClass(c.ipTier.tone)} role-pill-fixed">${escapeHtml(c.ipTier.label)}</span>
+          <div class="plan-main-stack">
+            <div class="plan-vendor-row">
+              ${dealTag}
+              <strong class="provider-brand" title="${escapeHtml(plan._providerName)}">${escapeHtml(shortProviderLabel(plan._providerName))}</strong>
+              ${leadTag}
+              ${renderEventSpark(plan, now)}
+            </div>
+            <div class="plan-title" title="${escapeHtml(plain(plan.name))}">${escapeHtml(plain(plan.name))}</div>
           </div>
         </div>
       </td>
-      <td class="col-net">
-        <div class="net-stack">${renderNetworkBadges(plan)}</div>
-      </td>
+      <td class="col-loc">${renderLocationCell(plan)}</td>
+      <td class="col-net">${renderRouteHierarchyCell(plan)}</td>
       <td class="col-hw">
-        ${
-          sp.hwChipText
-            ? `<span class="hw-chip" title="${escapeHtml(sp.fullHw)}">${escapeHtml(sp.hwChipText)}</span>`
-            : `<span class="spec-line is-missing">配置未标明</span>`
-        }
-      </td>
-      <td class="col-bw">
-        <div class="spec-stack">
+        <div class="hw-stack">
           ${
-            sp.bw
-              ? `<span class="bw-highlight" title="${escapeHtml(sp.compactNet)}">${escapeHtml(sp.bw)}</span>`
-              : sp.fallbackNet
-                ? `<span class="spec-line" title="${escapeHtml(sp.fallbackNet)}">${escapeHtml(sp.fallbackNet)}</span>`
-                : `<span class="spec-line is-missing">未标明</span>`
+            sp.hwChipText
+              ? `<span class="hw-chip num" title="${escapeHtml(sp.fullHw)}">${escapeHtml(sp.hwChipText)}</span>`
+              : `<span class="spec-line is-missing">未标明</span>`
           }
-          ${
-            sp.isUnlimited
-              ? `<span class="traffic-unlimited">不限流量</span>`
-              : sp.traffic
-                ? `<span class="spec-line is-sub">${escapeHtml(sp.traffic)}</span>`
-                : ""
-          }
+          ${sp.hwSub ? `<span class="hw-sub" title="${escapeHtml(sp.fullHw)}">${escapeHtml(sp.hwSub)}</span>` : ""}
         </div>
       </td>
+      <td class="col-bw">${renderBandwidthCell(plan)}</td>
       <td class="col-price">${renderPriceStack(plan, "right")}</td>
       <td class="col-stock">${renderStockEvidenceCell(plan)}</td>
       <td class="col-act">
@@ -308,7 +429,7 @@ function renderTableRow(plan, state, now, idx = 0) {
   `;
 }
 
-function renderPlanCard(plan, state, now, idx = 0) {
+export function renderPlanCard(plan, state, now, idx = 0) {
   const isSaved = state.savedKeys.has(plan._key);
   const isCompared = state.compareKeys.includes(plan._key);
   const isInspected = state.inspectId === plan.id;
@@ -316,11 +437,13 @@ function renderPlanCard(plan, state, now, idx = 0) {
   const sp = renderSpecsParts(plan);
   const orderHref = safeUrl(plan.orderUrl);
   const leadTag = renderInlineLeadTag(plan, now);
+  const dealTag = renderPlanHighlightTag(plan, state.filters?.deal);
 
   return `
     <article class="plan-card ${plan._classify.isResidential ? "is-home" : ""} ${isInspected ? "is-inspected" : ""} ${isSoldout ? "is-soldout" : ""}" style="--stagger-i:${Math.min(idx, 14)}" data-action="inspect-plan" data-product-id="${escapeHtml(plan.id)}">
       <div class="plan-card-top">
         <div class="plan-card-vendor">
+          ${dealTag}
           ${leadTag}
           <strong>${escapeHtml(plan._providerName)}</strong>
           <span>·</span>
@@ -357,13 +480,45 @@ function renderPlanCard(plan, state, now, idx = 0) {
   `;
 }
 
-function renderShopChoice({ provider, count, total }, selectedId, compact = false) {
+function formatShopTooltip(provider, count, total, shopTags = []) {
+  const parts = [
+    provider.name,
+    total === 0 ? "尚无可核验套餐，库存待确认" : `${count} 款匹配套餐`
+  ];
+  if (shopTags.length > 0) {
+    parts.push(shopTags.map((t) => `${t.label}：${t.reason}`).join("；"));
+  }
+  return parts.join(" · ");
+}
+
+function renderShopChoice({ provider, count, total, primaryTag = null, shopTags = [] }, selectedId, compact = false, preferredTagKey = null) {
   const active = selectedId === provider.id;
+  const displayTag = preferredTagKey ? shopTags.find((t) => t.key === preferredTagKey) || primaryTag : primaryTag;
+  const multiReason = shopTags.length > 1 ? shopTags.map((t) => `【${t.shortLabel}】${t.reason}`).join("；") : displayTag?.reason;
+  const tagHtml = displayTag ? renderShopTagBadge({ ...displayTag, reason: multiReason }, { compact }) : "";
+  const tooltip = formatShopTooltip(provider, count, total, shopTags);
+
+  if (compact) {
+    return `<button type="button"
+      class="${fPillClass(active, false, `shop-shortcut${displayTag ? ` has-tag is-tag-${displayTag.tone}` : ""}`)}"
+      data-action="set-provider" data-provider="${escapeHtml(provider.id)}" aria-pressed="${active}"
+      ${displayTag ? "" : `title="${escapeHtml(tooltip)}"`}>
+      <span class="shop-choice-lead">
+        ${tagHtml}
+        <span class="shop-choice-name">${escapeHtml(shortProviderLabel(provider.name))}</span>
+      </span>
+      <span class="shop-choice-count ${total === 0 ? "is-pending" : "num"}">${total === 0 ? "待核验" : count}</span>
+    </button>`;
+  }
+
   return `<button type="button"
-    class="${compact ? fPillClass(active, false, "shop-shortcut") : `shop-choice${active ? " is-active" : ""}`}"
+    class="shop-choice${active ? " is-active" : ""}${displayTag ? ` has-tag is-tag-${displayTag.tone}` : ""}"
     data-action="set-provider" data-provider="${escapeHtml(provider.id)}" aria-pressed="${active}"
-    title="${escapeHtml(provider.name)} · ${total === 0 ? "尚无可核验套餐，库存待确认" : `${count} 款匹配套餐`}">
-    <span class="shop-choice-name">${escapeHtml(shortProviderLabel(provider.name))}</span>
+    ${displayTag ? "" : `title="${escapeHtml(tooltip)}"`}>
+    <span class="shop-choice-lead">
+      ${tagHtml}
+      <span class="shop-choice-name">${escapeHtml(shortProviderLabel(provider.name))}</span>
+    </span>
     <span class="shop-choice-count ${total === 0 ? "is-pending" : "num"}">${total === 0 ? "待核验" : count}</span>
   </button>`;
 }
@@ -373,19 +528,45 @@ function renderTopFacetMatrixCard(state, facets, matchedCount, visibleCount, now
   const fx = state.payload ? fxFreshness(state.payload.exchangeRates, now) : { valid: true };
   const activeBadges = listActiveFilterBadges(f);
   const rankedShops = rankProvidersByPopularity(state.plans, facets.providerCounts);
-  const COLLAPSED_SHOP_LIMIT = 8;
+  const winW = globalThis.window?.innerWidth;
+  const COLLAPSED_SHOP_LIMIT =
+    typeof winW === "number" ? (winW >= 1520 ? 8 : winW >= 1340 ? 7 : winW >= 1140 ? 6 : 5) : 8;
 
   // Missing collection data must not make priority brands disappear or imply sold out.
   const eligibleShops = rankedShops.filter((s) => s.count > 0 || (s.isHot && s.total === 0) || s.provider.id === f.provider);
   let displayedShops = eligibleShops.slice(0, COLLAPSED_SHOP_LIMIT);
   if (f.provider !== "all" && !displayedShops.some((s) => s.provider.id === f.provider)) {
     const selectedItem = rankedShops.find((s) => s.provider.id === f.provider);
-    if (selectedItem) displayedShops = [...displayedShops, selectedItem];
+    if (selectedItem) displayedShops = [...displayedShops.slice(0, Math.max(1, COLLAPSED_SHOP_LIMIT - 1)), selectedItem];
   }
 
+  const shopTab = state.shopTab || "all";
+  const activeTagTabKey = shopTab.startsWith("tag:") ? shopTab.slice(4) : null;
+  const tagTabCounts = new Map(SHOP_TAG_ORDER.map((k) => [k, 0]));
+  for (const item of eligibleShops) {
+    for (const t of item.shopTags || []) {
+      if (tagTabCounts.has(t.key)) tagTabCounts.set(t.key, tagTabCounts.get(t.key) + 1);
+    }
+  }
+
+  const matchesShopTab = (item) => {
+    if (activeTagTabKey) {
+      return (item.shopTags || []).some((t) => t.key === activeTagTabKey);
+    }
+    const feats = item.provider.features || [];
+    if (shopTab === "home") return feats.some((ft) => /家宽|双\s*ISP/i.test(ft));
+    if (shopTab === "cn") return feats.includes("CN优化线路");
+    if (shopTab === "landing") return feats.some((ft) => /纯落地|性能/i.test(ft));
+    return true;
+  };
+
   const shopTokens = normalizeSearch(state.shopQuery || "").split(/\s+/).filter(Boolean);
-  const matchingShops = eligibleShops.filter(({ provider }) => {
-    const text = normalizeSearch([provider.id, provider.name, ...(provider.aliases || []), shortProviderLabel(provider.name)].join(" "));
+  const matchingShops = eligibleShops.filter((item) => {
+    if (!matchesShopTab(item)) return false;
+    if (shopTokens.length === 0) return true;
+    const { provider, shopTags = [] } = item;
+    const tagSearchTerms = shopTags.flatMap((t) => [t.shortLabel, t.label, ...(t.searchAliases || [])]);
+    const text = normalizeSearch([provider.id, provider.name, ...(provider.aliases || []), shortProviderLabel(provider.name), ...tagSearchTerms].join(" "));
     return shopTokens.every((token) => text.includes(token));
   });
   const totalShopCount = eligibleShops.length;
@@ -403,17 +584,17 @@ function renderTopFacetMatrixCard(state, facets, matchedCount, visibleCount, now
   return `
     <section class="filter-dock" aria-label="多维直选配置与筛选工作台" data-filter-dock>
       <!-- Shops with current catalog data come first; unavailable sources remain selectable. -->
-      <div class="facet-matrix-row">
-        <div class="facet-row-label" title="有采集结果的商家优先，暂无结果的商家排在最后；数字为匹配套餐数">常用商家</div>
-        <div class="facet-row-options" data-shops-row>
-          <button type="button" class="${fPillClass(f.provider === "all", true)}" data-action="set-provider" data-provider="all">
+      <div class="facet-matrix-row is-centered">
+        <div class="facet-row-label" title="有采集结果的商家优先，暂无结果的商家排在最后；数字为匹配套餐数，标签基于真实品牌定位与实时现货核验">常用商家</div>
+        <div class="facet-row-options shops-row-full" data-shops-row>
+          <button type="button" class="${fPillClass(f.provider === "all", true, "shop-all-btn")}" data-action="set-provider" data-provider="all">
             <span>全部品牌</span>
           </button>
           ${displayedShops.map((shop) => renderShopChoice(shop, f.provider, true)).join("")}
         </div>
         <div class="facet-row-extra">
-          <button type="button" class="expand-btn" data-action="toggle-shops-expand" aria-expanded="${state.shopsExpanded}" aria-controls="shop-picker">
-            <span>${state.shopsExpanded ? "收起店铺 ▴" : `更多商家 (${totalShopCount}) ▾`}</span>
+          <button type="button" class="expand-btn ${state.shopsExpanded ? "has-active" : ""}" data-action="toggle-shops-expand" aria-expanded="${state.shopsExpanded}" aria-controls="shop-picker">
+            <span>${state.shopsExpanded ? "收起店铺 ▴" : `全部 ${totalShopCount} 家 ▾`}</span>
           </button>
         </div>
       </div>
@@ -421,17 +602,54 @@ function renderTopFacetMatrixCard(state, facets, matchedCount, visibleCount, now
       <section class="shop-picker" id="shop-picker" data-shop-picker aria-label="商家选择面板" ${state.shopsExpanded ? "" : "hidden"}>
         ${state.shopsExpanded ? `
           <div class="shop-picker-head">
-            <div class="shop-picker-heading">
-              <strong>全部商家</strong>
-              <span aria-live="polite">${matchingShops.length} 家 · 数字为匹配套餐数</span>
+            <div class="shop-picker-tabs" role="group" aria-label="按商家标签与主营方向筛选">
+              <button type="button" class="f-pill ${shopTab === "all" ? "is-active" : ""}" data-action="set-shop-tab" data-shop-tab="all">全部 (${totalShopCount})</button>
+              <span class="shop-tabs-sep" aria-hidden="true"></span>
+              ${SHOP_TAG_ORDER.map((key) => {
+                const def = SHOP_TAG_DEFS[key];
+                const cnt = tagTabCounts.get(key) || 0;
+                const val = `tag:${key}`;
+                const tipAttrs = buildTagTipAttrs({
+                  tone: def.tone,
+                  title: def.label,
+                  kind: "店铺标签筛选口径",
+                  reason: def.summary,
+                  hint: shopTab === val ? "再次点击或选全部恢复" : "点击仅看该标签商家"
+                });
+                return `<button type="button" class="f-pill shop-tab-tag is-${def.tone} ${shopTab === val ? "is-active" : ""}" data-action="set-shop-tab" data-shop-tab="${val}" ${tipAttrs}>
+                  ${renderTagSvg(def.tone)}
+                  <span>${escapeHtml(def.label)}</span>
+                  <span class="f-cnt num">${cnt}</span>
+                </button>`;
+              }).join("")}
+              <span class="shop-tabs-sep" aria-hidden="true"></span>
+              ${[
+                ["home", "含家宽"],
+                ["cn", "含优化"],
+                ["landing", "含落地"]
+              ]
+                .map(
+                  ([val, lbl]) =>
+                    `<button type="button" class="f-pill is-scope-pill ${shopTab === val ? "is-active" : ""}" data-action="set-shop-tab" data-shop-tab="${val}">${lbl}</button>`
+                )
+                .join("")}
             </div>
-            <input type="search" class="input-field shop-picker-search" data-shop-search value="${escapeHtml(state.shopQuery)}" placeholder="搜索商家名称或别名" aria-label="查找商家" />
+            <input type="search" class="input-field shop-picker-search" data-shop-search value="${escapeHtml(state.shopQuery)}" placeholder="搜商家或标签（热门/老牌/家宽/性价比）" aria-label="查找商家" />
           </div>
-          ${matchingShops.length ? `<div class="shop-picker-grid" role="group" aria-label="匹配商家">
-            ${matchingShops.map((shop) => renderShopChoice(shop, f.provider)).join("")}
-          </div>` : `<div class="shop-picker-empty">
+          ${matchingShops.length ? `
+            <div class="shop-picker-scroll-wrap">
+              <div class="shop-picker-grid" role="group" aria-label="匹配商家">
+                ${matchingShops.map((shop) => renderShopChoice(shop, f.provider, false, activeTagTabKey)).join("")}
+              </div>
+            </div>
+            <div class="shop-picker-foot">
+              <span>7 维店铺标签：「热门」「老牌」按真实品牌资历核定；「家宽」「优线」「高配」「性价比」「低价」按实时非 NAT 现货占比与单价核验（悬停标签即看实测依据，当前匹配 ${matchingShops.length} 家）。</span>
+              <button type="button" class="btn btn-xs btn-ghost" data-action="toggle-shops-expand">收起店铺面板 ▴</button>
+            </div>
+          ` : `<div class="shop-picker-empty">
             <span>没有找到匹配的商家</span>
-            <button type="button" class="btn btn-xs btn-ghost" data-action="clear-shop-search">清空搜索</button>
+            ${state.shopQuery ? `<button type="button" class="btn btn-xs btn-ghost" data-action="clear-shop-search">清空搜索</button>` : ""}
+            ${shopTab !== "all" ? `<button type="button" class="btn btn-xs btn-ghost" data-action="set-shop-tab" data-shop-tab="all">切回全部可售</button>` : ""}
           </div>`}
         ` : ""}
       </section>
@@ -468,6 +686,8 @@ function renderTopFacetMatrixCard(state, facets, matchedCount, visibleCount, now
           </div>
 
           <div class="facet-pill-cluster is-subtle-sep" role="group" aria-label="原生与优化细分">
+            <button type="button" class="${fPillClass(f.opt === "3net", false)}" data-action="set-opt" data-opt="3net">三网优化</button>
+            <button type="button" class="${fPillClass(f.opt === "2net", false)}" data-action="set-opt" data-opt="2net">双网+优化</button>
             <button type="button" class="${fPillClass(f.opt === "native", false)}" data-action="set-opt" data-opt="native">原生 / 双ISP</button>
             <button type="button" class="${fPillClass(f.opt === "opt", false)}" data-action="set-opt" data-opt="opt">有回国优化</button>
             <button type="button" class="${fPillClass(f.opt === "intl", false)}" data-action="set-opt" data-opt="intl">无优化直连</button>
@@ -492,6 +712,33 @@ function renderTopFacetMatrixCard(state, facets, matchedCount, visibleCount, now
           <button type="button" class="expand-btn ${hasSpecFilters ? "has-active" : ""}" data-action="toggle-specs-expand" aria-expanded="${state.specsExpanded}">
             <span>${state.specsExpanded ? "收起硬件预算 ▴" : "硬件与预算 ▾"}</span>
           </button>
+        </div>
+      </div>
+
+      <!-- Row 4: 商品亮点标签（基于实测规格、线路、周期、余量与限量型号客观核验） -->
+      <div class="facet-matrix-row is-centered is-deal-row">
+        <div class="facet-row-label" title="基于非 NAT 在售现货的真实配置、线路、年付单价、精确余量与限量型号核验，自动排除 NAT 共享端口">精选亮点</div>
+        <div class="facet-row-options" role="group" aria-label="按商品亮点标签筛选">
+          <button type="button" class="${fPillClass((f.deal || "all") === "all", true)}" data-action="set-deal" data-deal="all">
+            <span>全部商品</span>
+          </button>
+          ${PLAN_TAG_ORDER.map((key) => {
+            const def = PLAN_TAG_DEFS[key];
+            const cnt = facets.deals?.get(key) || 0;
+            const tipAttrs = buildTagTipAttrs({
+              tone: def.tone,
+              title: def.label,
+              kind: "商品亮点筛选口径",
+              reason: def.summary,
+              hint: f.deal === key ? "再次点击恢复全部商品" : "点击筛选符合该标准的现货"
+            });
+            return `<button type="button" class="${fPillClass(f.deal === key, false, `deal-pill is-${def.tone}`)}" data-action="set-deal" data-deal="${key}" ${tipAttrs}>
+              ${renderTagSvg(def.tone)}
+              <span>${escapeHtml(def.label)}</span>
+              <span class="f-cnt num">${cnt}</span>
+            </button>`;
+          }).join("")}
+          <span class="deal-row-hint">悬停看核验依据 · 点击行内标签可速筛</span>
         </div>
       </div>
 
@@ -591,7 +838,7 @@ function renderTopFacetMatrixCard(state, facets, matchedCount, visibleCount, now
             <span>排除快照</span>
           </button>
           <button type="button" class="q-toggle ${f.savedOnly ? "is-on-accent" : ""}" data-action="toggle-quick-saved" aria-pressed="${f.savedOnly}">
-            <span>★ 收藏 (${state.savedKeys.size})</span>
+            <span data-terminal-saved-count>★ 收藏 (${state.savedKeys.size})</span>
           </button>
 
           <select class="select-field mini-select" data-filter-select="cycle" aria-label="按计费周期筛选">
@@ -621,7 +868,7 @@ function renderTopFacetMatrixCard(state, facets, matchedCount, visibleCount, now
               (opt) => `<option value="${opt.value}" ${f.sort === opt.value ? "selected" : ""}>${opt.label}</option>`
             ).join("")}
           </select>
-          <div class="view-toggle" role="group" aria-label="桌面视图切换">
+          <div class="view-toggle layout-view-toggle" role="group" aria-label="桌面视图切换">
             <button type="button" class="view-toggle-btn ${state.layout === "table" ? "is-active" : ""}" data-action="set-layout" data-layout="table">列表</button>
             <button type="button" class="view-toggle-btn ${state.layout === "grid" ? "is-active" : ""}" data-action="set-layout" data-layout="grid">卡片</button>
           </div>
@@ -651,8 +898,8 @@ function renderMobileFilterSheet(state, facets, matchedCount, now) {
           <option value="all" ${f.provider === "all" ? "selected" : ""}>全部品牌（常用商家优先）</option>
           ${mobileShops
             .map(
-              ({ provider, count, total, isHot }) =>
-                `<option value="${escapeHtml(provider.id)}" ${f.provider === provider.id ? "selected" : ""}>${isHot ? "★ " : ""}${escapeHtml(provider.name)} (${total === 0 ? "待核验" : count})</option>`
+              ({ provider, count, total, primaryTag }) =>
+                `<option value="${escapeHtml(provider.id)}" ${f.provider === provider.id ? "selected" : ""}>${primaryTag ? `[${escapeHtml(primaryTag.shortLabel)}] ` : ""}${escapeHtml(provider.name)} (${total === 0 ? "待核验" : count})</option>`
             )
             .join("")}
         </select>
@@ -663,6 +910,18 @@ function renderMobileFilterSheet(state, facets, matchedCount, now) {
             return `<option value="${r.value}" ${f.region === r.value ? "selected" : ""}>${r.value === "all" ? "全部地区" : `${code} ${r.label} (${cnt})`}</option>`;
           }).join("")}
         </select>
+      </div>
+
+      <div class="rail-section">
+        <div class="rail-heading"><span>精选亮点标签</span></div>
+        <div class="facet-wrap">
+          <button type="button" class="${fPillClass((f.deal || "all") === "all", true)}" data-action="set-deal" data-deal="all">全部商品</button>
+          ${PLAN_TAG_ORDER.map((key) => {
+            const def = PLAN_TAG_DEFS[key];
+            const cnt = facets.deals?.get(key) || 0;
+            return `<button type="button" class="${fPillClass(f.deal === key, false, `deal-pill is-${def.tone}`)}" data-action="set-deal" data-deal="${key}">${renderTagSvg(def.tone)}<span>${escapeHtml(def.label)} (${cnt})</span></button>`;
+          }).join("")}
+        </div>
       </div>
 
       <div class="rail-section">
@@ -893,7 +1152,18 @@ function renderLiveTickerRibbon(state, matched, activeCount) {
   `;
 }
 
-export function renderTerminalView(state, now = Date.now()) {
+export function terminalListOptions(state, width = globalThis.window?.innerWidth || 1280) {
+  const table = state.layout !== "grid" && (globalThis.window?.innerWidth || width) > 860;
+  const columns = table || state.layout !== "grid" || (globalThis.window?.innerWidth || width) <= 480
+    ? 1 : Math.max(1, Math.floor((width + 12) / 322));
+  return { table, columns, size: table ? 24 : columns * 6 };
+}
+
+export function selectTerminalPlans(state) {
+  return sortProducts(state.plans.filter((p) => matchesFilters(p, state.filters, state.savedKeys)), state.filters.sort);
+}
+
+export function renderTerminalView(state, now = Date.now(), list = {}) {
   if (state.loadState === "loading") {
     return `<div class="terminal-shell">${renderSkeleton()}</div>`;
   }
@@ -902,11 +1172,10 @@ export function renderTerminalView(state, now = Date.now()) {
     return renderErrorPanel(state.errorDetail);
   }
 
-  const matched = sortProducts(
-    state.plans.filter((p) => matchesFilters(p, state.filters, state.savedKeys)),
-    state.filters.sort
-  );
-  const visible = matched.slice(0, state.pageLimit);
+  const matched = list.items || selectTerminalPlans(state);
+  const options = list.options || terminalListOptions(state);
+  const renderItem = (plan, index) => (options.table ? renderTableRow : renderPlanCard)(plan, state, now, index);
+  const blocks = renderVirtualBlocks(matched, { ...options, renderItem });
   const facets = computeFacetCounts(state.plans, state.filters, state.savedKeys);
   const activeCount = listActiveFilterBadges(state.filters).length;
 
@@ -932,17 +1201,18 @@ export function renderTerminalView(state, now = Date.now()) {
   let bodyHtml = "";
   if (matched.length === 0) {
     bodyHtml = renderZeroResults(state);
-  } else if (state.layout === "grid") {
-    bodyHtml = `<div class="plan-grid" data-plan-grid>${visible.map((p, idx) => renderPlanCard(p, state, now, idx)).join("")}</div>`;
+  } else if (!options.table) {
+    bodyHtml = `<div class="virtual-card-list" data-plan-grid>${blocks}</div>`;
   } else {
     bodyHtml = `
       <div class="table-shell">
-        <table class="terminal-table" aria-label="实时库存套餐列表">
+        <table class="terminal-table" aria-label="实时库存套餐列表" aria-rowcount="${matched.length + 1}">
           <thead>
             <tr>
-              <th class="col-plan">套餐型号 / 商家 / 地区</th>
-              <th class="col-net">节点定位与线路</th>
-              <th class="col-hw">硬件规格</th>
+              <th class="col-plan">定位 / 商家与型号</th>
+              <th class="col-loc">机房位置</th>
+              <th class="col-net">回程线路 · 三网明细</th>
+              <th class="col-hw">核心配置</th>
               <th class="col-bw">带宽 / 流量</th>
               <th class="col-price col-num">
                 <button type="button" class="th-sort-btn ${priceSorted ? "is-sorted" : ""}" data-action="sort-col" data-sort-col="price">
@@ -957,38 +1227,24 @@ export function renderTerminalView(state, now = Date.now()) {
               <th class="col-act col-num">操作</th>
             </tr>
           </thead>
-          <tbody>
-            ${visible.map((p, idx) => renderTableRow(p, state, now, idx)).join("")}
-          </tbody>
+          ${blocks}
         </table>
-      </div>
-      <div class="mobile-cards-list" aria-label="移动端套餐卡片列表">
-        ${visible.map((p, idx) => renderPlanCard(p, state, now, idx)).join("")}
       </div>
     `;
   }
 
-  const pagerHtml =
-    matched.length > visible.length
-      ? `<div class="pager-bar">
-          <span>当前展示 1–${visible.length} / 共 ${matched.length} 款方案${state.filters.sort === "recommended" ? "（常用商家优先，各商家套餐交替展示）" : ""}</span>
-          <div style="display:flex;gap:8px">
-            <button type="button" class="btn btn-sm btn-soft" data-action="load-more">加载更多 (+60)</button>
-            <button type="button" class="btn btn-sm btn-ghost" data-action="load-all">展开全部 (${matched.length})</button>
-          </div>
-        </div>`
-      : matched.length > 0
-        ? `<div class="pager-bar">
-            <span>已展示全部 ${matched.length} 款匹配方案 · 诊断型/受阻源共 ${state.diagnostics.length} 条已独立收纳于「商家名录」</span>
-            <button type="button" class="btn btn-xs btn-ghost" data-nav-view="providers">查看受阻源诊断 →</button>
-          </div>`
-        : "";
+  const pagerHtml = matched.length > 0
+    ? `<div class="pager-bar">
+        <span>共 ${matched.length} 款匹配方案 · 连续滚动浏览全部 · 诊断型/受阻源共 ${state.diagnostics.length} 条已独立收纳于「商家名录」</span>
+        <button type="button" class="btn btn-xs btn-ghost" data-nav-view="providers">查看受阻源诊断 →</button>
+      </div>`
+    : "";
 
   return `
     <div class="terminal-shell">
       ${renderLiveTickerRibbon(state, matched, activeCount)}
       ${mobileQuickBar}
-      ${renderTopFacetMatrixCard(state, facets, matched.length, visible.length, now)}
+      ${renderTopFacetMatrixCard(state, facets, matched.length, matched.length, now)}
       ${renderMobileFilterSheet(state, facets, matched.length, now)}
       <div class="terminal-canvas" data-terminal-canvas>
         ${bodyHtml}

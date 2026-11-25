@@ -1,6 +1,15 @@
 import { renderAnnouncements } from "./announcements.js";
 import {
+  renderBandwidthCell,
+  renderLocationCell,
+  renderRouteHierarchyCell,
+  routeChipClass,
+  shortProviderLabel
+} from "./terminal.js";
+import {
   MACRO_REGIONS,
+  describeLocation,
+  describeRouteProfile,
   escapeHtml,
   formatClockTime,
   formatDateTime,
@@ -8,10 +17,48 @@ import {
   formatEventDelta,
   formatPriceLabel,
   macroRegionsFor,
+  monitorFreshness,
   normalizeSearch,
   plain,
   safeUrl
 } from "../domain/format.js";
+
+function renderEventRouteCell(ev, livePlan) {
+  if (livePlan) return renderRouteHierarchyCell(livePlan);
+  const nameText = plain(ev.name);
+  const isRes = /家宽|家寬|住宅|residential|\bdual[- ]?isp\b|双\s*isp|雙\s*isp|\bat&t\b|\bverizon\b|\bfrontier\b|\bcomcast\b|\bhinet\b/i.test(nameText);
+  const isDual = /\bdual[- ]?isp\b|双\s*isp|雙\s*isp/i.test(nameText);
+  const isNat = /\bnat\b|共享\s*ip/i.test(nameText);
+  const rp = describeRouteProfile(ev, { isResidential: isRes, isDualIsp: isDual, isNat });
+  const hasExplicitRoute = rp.headlineTone !== "intl" || rp.chips.some((ch) => ch.label !== "国际无优化");
+  if (hasExplicitRoute) {
+    return `<div class="route-cell-stack" title="${escapeHtml(nameText)}">
+      <div class="route-headline-row">
+        <span class="route-headline is-${escapeHtml(rp.headlineTone)}">${escapeHtml(rp.headline)}</span>
+      </div>
+      <div class="route-chips-row">
+        ${rp.chips.slice(0, 3).map((ch) => `<span class="${routeChipClass(ch.tone)}">${escapeHtml(ch.label)}</span>`).join("")}
+      </div>
+    </div>`;
+  }
+  return `<div class="route-cell-stack">
+    <span class="spec-line is-missing" title="原套餐快照已下线，历史事件未单独留档回程明细">下线未留档</span>
+  </div>`;
+}
+
+function renderEventBandwidthCell(ev, livePlan) {
+  if (livePlan) return renderBandwidthCell(livePlan);
+  const nameText = plain(ev.name);
+  const explicitSpeed = nameText.match(/\b(\d+(?:\.\d+)?)\s*(Gbps|Mbps)\b/i);
+  if (explicitSpeed) {
+    return `<div class="bw-stack">
+      <span class="bw-highlight num">${escapeHtml(`${explicitSpeed[1]} ${explicitSpeed[2]}`)}</span>
+    </div>`;
+  }
+  return `<div class="bw-stack">
+    <span class="spec-line is-missing" title="原套餐快照已下线，历史事件未单独留档带宽与流量">下线未留档</span>
+  </div>`;
+}
 
 const WINDOW_HOURS = {
   "24h": 24,
@@ -21,7 +68,7 @@ const WINDOW_HOURS = {
 
 export function renderRadarView(state, now = Date.now()) {
   if (state.loadState === "loading") {
-    return `<div class="skeleton-stack"><span class="skel" style="height:28px;width:45%"></span><span class="skel" style="height:90px;width:100%"></span><span class="skel" style="height:220px;width:100%"></span></div>`;
+    return `<div class="skeleton-stack"><span class="skel" style="height:28px;width:45%"></span><span class="skel" style="height:64px;width:100%"></span><span class="skel" style="height:320px;width:100%"></span></div>`;
   }
   if (state.loadState === "error") {
     return `<section class="empty-state-card is-error">
@@ -36,7 +83,6 @@ export function renderRadarView(state, now = Date.now()) {
   const cutoffMs = now - (WINDOW_HOURS[r.window] || 168) * 3600 * 1000;
   const cutoff24 = now - 24 * 3600 * 1000;
 
-  // Compute genuine live market structure from real state.plans
   let availCount = 0;
   let homeAvail = 0;
   let cnOptAvail = 0;
@@ -58,8 +104,7 @@ export function renderRadarView(state, now = Date.now()) {
     .map((m) => ({ ...m, count: regionAvailMap.get(m.value) || 0 }))
     .filter((m) => m.count > 0)
     .sort((a, b) => b.count - a.count)
-    .slice(0, 6);
-  const maxRegionCount = Math.max(1, topRegions[0]?.count || 1);
+    .slice(0, 5);
 
   let totalAll = 0;
   let restockAll = 0;
@@ -98,7 +143,20 @@ export function renderRadarView(state, now = Date.now()) {
       if (!macros.includes(r.region)) return false;
     }
     if (query) {
-      const hay = normalizeSearch([ev.provider, ev.name, ev.region, ev.price, ev.previousPrice].map(plain).join(" "));
+      const hay = normalizeSearch(
+        [
+          ev.provider,
+          ev.name,
+          ev.region,
+          ev.price,
+          ev.previousPrice,
+          livePlan?.route,
+          livePlan?._classify?.routeProfile?.headline,
+          livePlan?.bandwidth
+        ]
+          .map(plain)
+          .join(" ")
+      );
       if (!hay.includes(query)) return false;
     }
     return true;
@@ -111,161 +169,135 @@ export function renderRadarView(state, now = Date.now()) {
     groups.get(day).push(ev);
   }
 
+  const total24 = restock24 + soldout24 + price24;
   const tracking = state.payload?.eventTracking;
-  const trackingNote = tracking
+  const trackingTitle = tracking
     ? `保守观测口径 · 起始 ${formatDateTime(tracking.startedAt)} · 保留 ${tracking.retentionDays} 天（上限 ${tracking.limit} 条）`
     : "仅基于连续快照唯一身份比对记录真实库存与同周期同币种价格异动";
 
   return `
-    <div class="workspace-head">
-      <div>
-        <h1 class="workspace-title">全网实时大盘 · 现货分布与补货变价雷达</h1>
-        <p class="workspace-sub">${escapeHtml(trackingNote)}。新接入监控源与第三方快照永不伪造补货。</p>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button type="button" class="btn btn-sm btn-soft" data-nav-view="terminal">← 返回现货选机</button>
-        <button type="button" class="btn btn-sm" data-action="copy-share-url">分享大盘链接</button>
-      </div>
-    </div>
-
-    ${renderAnnouncements(state.payload?.announcements)}
-
-    <!-- 全网现货横截面概览（100% 真实快照实时聚合） -->
-    <section class="market-board-grid" aria-label="全网实时现货结构">
-      <div class="market-board-card" style="--stagger-i:0">
-        <div class="market-board-head">
-          <span class="radar-head-badge">
-            <span class="radar-scanner-dial" aria-hidden="true">
-              <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
-                <circle cx="14" cy="14" r="10.5" stroke="currentColor" stroke-opacity="0.24" stroke-width="1.4" style="color:var(--home-fg)"/>
-                <circle cx="14" cy="14" r="5.5" stroke="currentColor" stroke-opacity="0.34" stroke-width="1.2" style="color:var(--home-fg)"/>
-                <g class="radar-dial-sweep">
-                  <path d="M14 14 L14 3.5 A10.5 10.5 0 0 1 22.8 8.2 Z" fill="var(--ok-dot)" fill-opacity="0.28"/>
-                  <line x1="14" y1="14" x2="21.5" y2="6.5" stroke="var(--ok-dot)" stroke-width="1.6" stroke-linecap="round"/>
-                </g>
-                <circle cx="14" cy="14" r="2" fill="var(--ok-dot)"/>
-              </svg>
-            </span>
-            <strong>全网在售现货大盘</strong>
+    <section class="radar-deck" aria-label="全网实时大盘指挥台">
+      <div class="radar-deck-top">
+        <div class="radar-deck-brand">
+          <span class="radar-scanner-dial" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
+              <circle cx="14" cy="14" r="10.5" stroke="currentColor" stroke-opacity="0.24" stroke-width="1.4" style="color:var(--home-fg)"/>
+              <circle cx="14" cy="14" r="5.5" stroke="currentColor" stroke-opacity="0.34" stroke-width="1.2" style="color:var(--home-fg)"/>
+              <g class="radar-dial-sweep">
+                <path d="M14 14 L14 3.5 A10.5 10.5 0 0 1 22.8 8.2 Z" fill="var(--ok-dot)" fill-opacity="0.28"/>
+                <line x1="14" y1="14" x2="21.5" y2="6.5" stroke="var(--ok-dot)" stroke-width="1.6" stroke-linecap="round"/>
+              </g>
+              <circle cx="14" cy="14" r="2" fill="var(--ok-dot)"/>
+            </svg>
           </span>
-          <span class="mono" style="font-size:11px;color:var(--ink-muted)">点击直达对应选机视图</span>
+          <h1 class="radar-deck-title" title="${escapeHtml(trackingTitle)}">全网实时异动大盘</h1>
         </div>
-        <div class="market-stat-row">
-          <button type="button" class="market-mini-stat" data-action="quick-stat" data-stat="available">
-            <span class="market-mini-lbl">在售总现货</span>
-            <strong class="market-mini-val num" style="color:var(--accent)">${availCount}</strong>
+
+        <div class="radar-deck-metrics" aria-label="实时现货横截面快跳">
+          <button type="button" class="deck-stat-chip" data-action="quick-stat" data-stat="available" title="点击筛选全部在售现货">
+            <span>在售现货</span><strong class="market-mini-val num" style="color:var(--accent)">${availCount}</strong>
           </button>
-          <button type="button" class="market-mini-stat" data-action="quick-stat" data-stat="home">
-            <span class="market-mini-lbl">真家宽 / 双ISP</span>
-            <strong class="market-mini-val num" style="color:var(--home-fg)">${homeAvail}</strong>
+          <button type="button" class="deck-stat-chip" data-action="quick-stat" data-stat="home" title="点击仅看真家宽 / 双ISP">
+            <span>真家宽</span><strong class="market-mini-val num" style="color:var(--home-fg)">${homeAvail}</strong>
           </button>
-          <button type="button" class="market-mini-stat" data-action="market-jump-cnopt">
-            <span class="market-mini-lbl">回国优化线路</span>
-            <strong class="market-mini-val num" style="color:var(--purple-fg)">${cnOptAvail}</strong>
+          <button type="button" class="deck-stat-chip" data-action="market-jump-cnopt" title="点击筛选回国优化线路">
+            <span>CN优化</span><strong class="market-mini-val num" style="color:var(--purple-fg)">${cnOptAvail}</strong>
           </button>
-          <button type="button" class="market-mini-stat" data-action="quick-stat" data-stat="exact">
-            <span class="market-mini-lbl">精确库存现货</span>
-            <strong class="market-mini-val num" style="color:var(--ok-fg)">${exactAvail}</strong>
+          <button type="button" class="deck-stat-chip" data-action="quick-stat" data-stat="exact" title="点击仅看精确库存">
+            <span>精确库存</span><strong class="market-mini-val num" style="color:var(--ok-fg)">${exactAvail}</strong>
           </button>
+          <span class="deck-vsep" aria-hidden="true"></span>
+          <div class="deck-region-pills" aria-label="热门地区现货快跳">
+            ${topRegions
+              .map(
+                (reg) => `<button type="button" class="deck-reg-pill" data-action="market-jump-region" data-region="${reg.value}" title="前往选机查看 ${escapeHtml(reg.label)} ${reg.count} 款现货">
+                  <span>${escapeHtml(reg.value === "APAC" ? "AP" : reg.value)}</span>
+                  <strong class="num">${reg.count}</strong>
+                </button>`
+              )
+              .join("")}
+          </div>
         </div>
-        ${
-          totalAll > 0
-            ? `<div class="velocity-strip">
-                <div class="velocity-head">
-                  <span>近 7 天真实观测异动结构</span>
-                  <span class="mono num">补货 ${restockAll} · 变价 ${priceAll} · 售罄 ${soldoutAll}</span>
-                </div>
-                <div class="velocity-bar" aria-hidden="true">
-                  ${restockAll ? `<span class="velocity-seg is-restock" style="width:${((restockAll / totalAll) * 100).toFixed(1)}%"></span>` : ""}
-                  ${priceAll ? `<span class="velocity-seg is-price" style="width:${((priceAll / totalAll) * 100).toFixed(1)}%"></span>` : ""}
-                  ${soldoutAll ? `<span class="velocity-seg is-soldout" style="width:${((soldoutAll / totalAll) * 100).toFixed(1)}%"></span>` : ""}
-                </div>
-              </div>`
-            : ""
-        }
+
+        <div class="radar-deck-actions">
+          ${
+            totalAll > 0
+              ? `<div class="velocity-strip is-inline" title="近 7 天真实观测构成：补货 ${restockAll} · 变价 ${priceAll} · 售罄 ${soldoutAll}">
+                  <div class="velocity-bar" aria-hidden="true">
+                    ${restockAll ? `<span class="velocity-seg is-restock" style="width:${((restockAll / totalAll) * 100).toFixed(1)}%"></span>` : ""}
+                    ${priceAll ? `<span class="velocity-seg is-price" style="width:${((priceAll / totalAll) * 100).toFixed(1)}%"></span>` : ""}
+                    ${soldoutAll ? `<span class="velocity-seg is-soldout" style="width:${((soldoutAll / totalAll) * 100).toFixed(1)}%"></span>` : ""}
+                  </div>
+                </div>`
+              : ""
+          }
+          <button type="button" class="btn btn-xs btn-soft" data-nav-view="terminal">← 选机</button>
+          <button type="button" class="btn btn-xs" data-action="copy-share-url">分享</button>
+        </div>
       </div>
 
-      <div class="market-board-card" style="--stagger-i:1">
-        <div class="market-board-head">
-          <strong>热门地区在售现货分布 Top 6</strong>
-          <span class="mono" style="font-size:11px;color:var(--ink-muted)">点击按地区选机</span>
+      <div class="radar-deck-bar">
+        <div class="radar-type-tabs" role="group" aria-label="按异动类型快捷筛选">
+          <button type="button" class="radar-type-btn ${r.type === "all" ? "is-active" : ""}" data-action="set-radar-type" data-radar-type="all">
+            <span>全部异动</span>
+            <strong class="kpi-val num">${totalAll}</strong>
+            ${total24 > 0 ? `<span class="type-24h num" title="近 24h 新增">+${total24}</span>` : ""}
+          </button>
+          <button type="button" class="radar-type-btn is-ok ${r.type === "restock" ? "is-active" : ""}" data-action="set-radar-type" data-radar-type="restock">
+            <span>↑ 补货上架</span>
+            <strong class="kpi-val num">${restockAll}</strong>
+          </button>
+          <button type="button" class="radar-type-btn is-danger ${r.type === "soldout" ? "is-active" : ""}" data-action="set-radar-type" data-radar-type="soldout">
+            <span>↓ 售罄下架</span>
+            <strong class="kpi-val num">${soldoutAll}</strong>
+          </button>
+          <button type="button" class="radar-type-btn is-price ${r.type === "price" ? "is-active" : ""}" data-action="set-radar-type" data-radar-type="price">
+            <span>⇄ 同周期变价</span>
+            <strong class="kpi-val num">${priceAll}</strong>
+          </button>
         </div>
-        <div class="region-bars-grid">
-          ${topRegions
-            .map(
-              (reg) => `<button type="button" class="region-bar-item" data-action="market-jump-region" data-region="${reg.value}">
-                <div class="region-bar-top">
-                  <span><strong>${escapeHtml(reg.value === "APAC" ? "AP" : reg.value)}</strong> ${escapeHtml(reg.label)}</span>
-                  <span class="mono num">${reg.count} 款</span>
-                </div>
-                <div class="region-bar-track"><span class="region-bar-fill" style="width:${Math.max(6, Math.round((reg.count / maxRegionCount) * 100))}%"></span></div>
-              </button>`
-            )
-            .join("")}
+
+        <div class="radar-filter-cluster">
+          <div class="input-wrap radar-compact-search">
+            <input type="search" class="input-field" style="height:28px" data-radar-search value="${escapeHtml(r.q)}" placeholder="搜商家 / 套餐 / 地区 / 线路…" aria-label="搜索异动事件" />
+          </div>
+          <div class="view-toggle radar-window-toggle" role="group" aria-label="时间窗口">
+            ${[
+              ["24h", "24h"],
+              ["72h", "72h"],
+              ["7d", "7天"]
+            ]
+              .map(
+                ([val, lbl]) => `<button type="button" class="view-toggle-btn ${r.window === val ? "is-active" : ""}" data-action="set-radar-window" data-window="${val}">${lbl}</button>`
+              )
+              .join("")}
+          </div>
+          <select class="select-field mini-select" style="min-width:106px" data-radar-select="region" aria-label="按地区筛选异动">
+            ${MACRO_REGIONS.map(
+              (m) => `<option value="${m.value}" ${r.region === m.value ? "selected" : ""}>${m.value === "all" ? "全部地区" : `${m.value === "MULTI" ? "GL" : m.value === "APAC" ? "AP" : m.value} ${m.label}`}</option>`
+            ).join("")}
+          </select>
+          <label class="q-toggle ${r.savedOnly ? "is-on-accent" : ""}" style="cursor:pointer">
+            <input type="checkbox" style="margin:0;width:12px;height:12px" data-radar-toggle="savedOnly" ${r.savedOnly ? "checked" : ""} />
+            <span>★ 收藏</span>
+          </label>
+          ${
+            r.type !== "all" || r.window !== "7d" || r.region !== "all" || r.savedOnly || r.q
+              ? `<button type="button" class="btn btn-xs btn-ghost" data-action="reset-radar">重置</button>`
+              : ""
+          }
+          <span class="radar-hit-count num">命中 <strong>${filtered.length}</strong></span>
         </div>
       </div>
     </section>
 
-    <div class="kpi-grid" role="group" aria-label="按异动类型快捷筛选">
-      <button type="button" class="kpi-tile ${r.type === "all" ? "is-active" : ""}" style="--stagger-i:2" data-action="set-radar-type" data-radar-type="all">
-        <span class="kpi-label">7 天全部真实异动</span>
-        <span class="kpi-val num">${totalAll}</span>
-        <span class="kpi-sub num">近 24h 新增 ${restock24 + soldout24 + price24} 条</span>
-      </button>
-      <button type="button" class="kpi-tile ${r.type === "restock" ? "is-active" : ""}" style="--stagger-i:3" data-action="set-radar-type" data-radar-type="restock">
-        <span class="kpi-label" style="color:var(--ok-fg)">补货上架（Restock）</span>
-        <span class="kpi-val num" style="color:var(--ok-fg)">${restockAll}</span>
-        <span class="kpi-sub num">近 24h 补货 ${restock24} 次</span>
-      </button>
-      <button type="button" class="kpi-tile ${r.type === "soldout" ? "is-active" : ""}" style="--stagger-i:4" data-action="set-radar-type" data-radar-type="soldout">
-        <span class="kpi-label" style="color:var(--danger-fg)">售罄下架（Soldout）</span>
-        <span class="kpi-val num" style="color:var(--danger-fg)">${soldoutAll}</span>
-        <span class="kpi-sub num">近 24h 售罄 ${soldout24} 次</span>
-      </button>
-      <button type="button" class="kpi-tile ${r.type === "price" ? "is-active" : ""}" style="--stagger-i:5" data-action="set-radar-type" data-radar-type="price">
-        <span class="kpi-label" style="color:var(--accent)">同周期变价（Price）</span>
-        <span class="kpi-val num">${priceAll}</span>
-        <span class="kpi-sub num">近 24h 变价 ${price24} 次</span>
-      </button>
-    </div>
-
-    <div class="radar-controls">
-      <div class="input-wrap controls-search">
-        <input type="search" class="input-field" data-radar-search value="${escapeHtml(r.q)}" placeholder="搜索异动商家、套餐或地区…" aria-label="搜索异动事件" />
-      </div>
-      <div class="facet-wrap" role="group" aria-label="时间窗口">
-        ${[
-          ["24h", "近 24h"],
-          ["72h", "近 72h"],
-          ["7d", "近 7 天"]
-        ]
-          .map(
-            ([val, lbl]) => `<button type="button" class="btn btn-sm ${r.window === val ? "is-active" : ""}" data-action="set-radar-window" data-window="${val}">${lbl}</button>`
-          )
-          .join("")}
-      </div>
-      <select class="select-field" style="width:auto;min-width:128px" data-radar-select="region" aria-label="按地区筛选异动">
-        ${MACRO_REGIONS.map(
-          (m) => `<option value="${m.value}" ${r.region === m.value ? "selected" : ""}>${m.value === "all" ? m.label : `${m.value === "MULTI" ? "GL" : m.value === "APAC" ? "AP" : m.value} ${m.label}`}</option>`
-        ).join("")}
-      </select>
-      <label class="btn btn-sm ${r.savedOnly ? "is-active" : ""}" style="cursor:pointer">
-        <input type="checkbox" style="margin:0" data-radar-toggle="savedOnly" ${r.savedOnly ? "checked" : ""} />
-        <span>仅看已收藏</span>
-      </label>
-      ${
-        r.type !== "all" || r.window !== "7d" || r.region !== "all" || r.savedOnly || r.q
-          ? `<button type="button" class="btn btn-sm btn-ghost" data-action="reset-radar">重置</button>`
-          : ""
-      }
-      <span style="margin-left:auto;font-size:var(--text-xs);color:var(--ink-muted)" class="num">命中 ${filtered.length} 条</span>
-    </div>
+    ${renderAnnouncements(state.payload?.announcements)}
 
     ${
       filtered.length === 0
         ? `<section class="empty-state-card">
             <h2 class="empty-state-title">当前筛选条件下暂无异动事件</h2>
-            <p class="empty-state-desc">可以切回「近 7 天」窗口或重置筛选查看全部已观测到的补货、售罄与变价记录。</p>
+            <p class="empty-state-desc">可以切回「7天」窗口或重置筛选查看全部已观测到的补货、售罄与变价记录。</p>
             <div><button type="button" class="btn btn-primary" data-action="reset-radar">显示全部 7 天异动</button></div>
           </section>`
         : [...groups.entries()]
@@ -273,77 +305,127 @@ export function renderRadarView(state, now = Date.now()) {
               ([day, items]) => `<section class="tape-day-group">
                 <div class="tape-day-heading">
                   <span>${escapeHtml(day)}</span>
-                  <span class="pill">${items.length} 条</span>
+                  <span class="pill num">${items.length} 条记录</span>
                 </div>
                 <div class="tape-list">
-                  ${items
-                    .map((ev, idx) => {
-                      const livePlan = planById.get(ev.productId);
-                      const delta = formatEventDelta(ev);
-                      const orderHref = safeUrl(ev.orderUrl || livePlan?.orderUrl);
-                      const rowTone =
-                        ev.type === "restock"
-                          ? "is-restock"
-                          : ev.type === "soldout"
-                            ? "is-soldout"
-                            : delta?.direction === "down"
-                              ? "is-price-down"
-                              : "is-price-up";
+                  <table class="radar-tape-table" aria-label="${escapeHtml(day)} 异动记录表">
+                    <thead>
+                      <tr>
+                        <th scope="col" class="col-tape-time">观测时间</th>
+                        <th scope="col" class="col-tape-event">异动类型</th>
+                        <th scope="col" class="col-tape-plan">商家与套餐型号</th>
+                        <th scope="col" class="col-tape-loc">机房位置</th>
+                        <th scope="col" class="col-tape-net">回程线路 · 三网明细</th>
+                        <th scope="col" class="col-tape-bw">带宽 / 流量</th>
+                        <th scope="col" class="col-tape-price">异动价格</th>
+                        <th scope="col" class="col-tape-status">当前状态</th>
+                        <th scope="col" class="col-tape-act">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${items
+                        .map((ev, idx) => {
+                          const livePlan = planById.get(ev.productId);
+                          const delta = formatEventDelta(ev);
+                          const orderHref = safeUrl(ev.orderUrl || livePlan?.orderUrl);
+                          const ageInfo = monitorFreshness(ev.at, now);
+                          const fallbackLoc = describeLocation({ region: ev.region, name: ev.name });
+                          const rowTone =
+                            ev.type === "restock"
+                              ? "is-restock"
+                              : ev.type === "soldout"
+                                ? "is-soldout"
+                                : delta?.direction === "down"
+                                  ? "is-price-down"
+                                  : "is-price-up";
 
-                      const typeBadge =
-                        ev.type === "restock"
-                          ? `<span class="pill pill-ok">↑ 补货上架</span>`
-                          : ev.type === "soldout"
-                            ? `<span class="pill pill-danger">↓ 售罄下架</span>`
-                            : delta?.direction === "down"
-                              ? `<span class="pill pill-ok num">↓ 降价 ${escapeHtml(delta.label)}</span>`
-                              : `<span class="pill pill-danger num">↑ 涨价 ${escapeHtml(delta?.label || "")}</span>`;
+                          const typeBadge =
+                            ev.type === "restock"
+                              ? `<span class="pill pill-ok tape-event-pill">↑ 补货上架</span>`
+                              : ev.type === "soldout"
+                                ? `<span class="pill pill-danger tape-event-pill">↓ 售罄下架</span>`
+                                : delta?.direction === "down"
+                                  ? `<span class="pill pill-ok tape-event-pill num">↓ 降价 ${escapeHtml(delta.label)}</span>`
+                                  : `<span class="pill pill-danger tape-event-pill num">↑ 涨价 ${escapeHtml(delta?.label || "")}</span>`;
 
-                      const liveStatusHint = livePlan
-                        ? livePlan.status === "available"
-                          ? `<span class="pill pill-ok">当前仍可购${livePlan._isExactStock ? ` · 余${livePlan.stockCount}` : ""}</span>`
-                          : livePlan.status === "unavailable"
-                            ? `<span class="pill pill-neutral">当前已售罄</span>`
-                            : `<span class="pill pill-neutral">当前状态未公开</span>`
-                        : `<span class="pill pill-neutral">快照已下线</span>`;
+                          const liveStatusHint = livePlan
+                            ? livePlan.status === "available"
+                              ? `<span class="pill pill-ok tape-status-pill num"><span class="radar-ping-dot" style="width:6px;height:6px" aria-hidden="true"></span>仍可购${livePlan._isExactStock ? ` · 余${livePlan.stockCount}` : ""}</span>`
+                              : livePlan.status === "unavailable"
+                                ? `<span class="pill pill-neutral tape-status-pill">已售罄</span>`
+                                : `<span class="pill pill-neutral tape-status-pill">状态未公开</span>`
+                            : `<span class="pill pill-neutral pill-outline tape-status-pill" title="该套餐已从商家公开目录移除，此处保留历史异动快照">快照已下线</span>`;
 
-                      const priceHtml =
-                        ev.type === "price" && ev.previousPrice
-                          ? `<span class="price-old" title="${escapeHtml(plain(ev.previousPrice))}">${escapeHtml(formatPriceLabel({ ...ev, price: ev.previousPrice, priceValue: ev.previousPriceValue }))}</span><strong title="${escapeHtml(plain(ev.price))}">${escapeHtml(formatPriceLabel(ev))}</strong>`
-                          : `<strong title="${escapeHtml(plain(ev.price))}">${escapeHtml(formatPriceLabel(ev))}</strong>${
-                              ev.type === "restock" && Number.isInteger(ev.stockCount)
-                                ? `<div style="font-size:10.5px;color:var(--ok-fg)">观测库存 ${ev.stockCount}</div>`
-                                : ""
-                            }`;
+                          const cnyEquiv =
+                            livePlan &&
+                            livePlan._pricing?.cnyTone === "ok" &&
+                            plain(ev.price) === plain(livePlan.price)
+                              ? `折合 ${livePlan._pricing.cnyLabel.replace(/^≈\s*/, "").replace(/\s*\(按[^)]+分摊\)/, "")}`
+                              : "";
 
-                      return `<div class="tape-row ${rowTone}" style="--stagger-i:${Math.min(idx, 14)}">
-                        <time class="tape-time" datetime="${escapeHtml(ev.at)}" title="${escapeHtml(formatDateTime(ev.at))}">${escapeHtml(formatClockTime(ev.at))}</time>
-                        <div>${typeBadge}</div>
-                        <div class="tape-main">
-                          <div class="tape-title" title="${escapeHtml(plain(ev.name))}">${escapeHtml(plain(ev.name))}</div>
-                          <div class="tape-meta">
-                            <strong style="color:var(--ink-secondary)">${escapeHtml(plain(ev.provider))}</strong>
-                            <span>·</span>
-                            <span>${escapeHtml(plain(ev.region) || "地区未标明")}</span>
-                            ${liveStatusHint}
-                          </div>
-                        </div>
-                        <div class="tape-price">${priceHtml}</div>
-                        <div class="row-actions">
-                          ${
-                            livePlan
-                              ? `<button type="button" class="btn btn-xs btn-soft" data-action="inspect-plan" data-product-id="${escapeHtml(livePlan.id)}">查证据</button>`
-                              : ""
-                          }
-                          ${
-                            orderHref
-                              ? `<a class="btn-buy-cta" style="height:25px;padding:0 8px;font-size:11px" href="${escapeHtml(orderHref)}" target="_blank" rel="nofollow noopener noreferrer">官网 ↗</a>`
-                              : ""
-                          }
-                        </div>
-                      </div>`;
-                    })
-                    .join("")}
+                          const priceSubHtml =
+                            ev.type === "price" && ev.previousPrice
+                              ? `<span class="tape-price-prev">原 <span class="price-old num" title="${escapeHtml(plain(ev.previousPrice))}">${escapeHtml(formatPriceLabel({ ...ev, price: ev.previousPrice, priceValue: ev.previousPriceValue }))}</span></span>`
+                              : ev.type === "restock" && Number.isInteger(ev.stockCount)
+                                ? `<span class="tape-stock-note num">观测余 ${ev.stockCount}</span>`
+                                : cnyEquiv
+                                  ? `<span class="price-sub num">${escapeHtml(cnyEquiv)}</span>`
+                                  : "";
+
+                          const isCurrentlyUnavailable = !livePlan || livePlan.status === "unavailable";
+
+                          return `<tr class="tape-row ${rowTone} ${livePlan ? "is-clickable" : "is-offline"} ${isCurrentlyUnavailable ? "is-currently-unavailable" : ""}" style="--stagger-i:${Math.min(idx, 14)}" ${livePlan ? `data-action="inspect-plan" data-product-id="${escapeHtml(livePlan.id)}"` : ""}>
+                            <td class="col-tape-time">
+                              <div class="tape-time-stack">
+                                <time class="tape-time num" datetime="${escapeHtml(ev.at)}" title="${escapeHtml(formatDateTime(ev.at))}">${escapeHtml(formatClockTime(ev.at))}</time>
+                                <span class="tape-age">${escapeHtml(ageInfo.label)}</span>
+                              </div>
+                            </td>
+                            <td class="col-tape-event">${typeBadge}</td>
+                            <td class="col-tape-plan">
+                              <div class="tape-plan-stack">
+                                <div class="plan-vendor-row">
+                                  <strong class="provider-brand" title="${escapeHtml(plain(ev.provider))}">${escapeHtml(shortProviderLabel(livePlan?._providerName || ev.provider))}</strong>
+                                  ${
+                                    livePlan?._classify?.isResidential
+                                      ? `<span class="net-micro-tag is-home">真家宽</span>`
+                                      : livePlan?._classify?.isNativeIp
+                                        ? `<span class="net-micro-tag is-native">原生IP</span>`
+                                        : ""
+                                  }
+                                </div>
+                                <div class="tape-plan-title" title="${escapeHtml(plain(ev.name))}">${escapeHtml(plain(ev.name))}</div>
+                              </div>
+                            </td>
+                            <td class="col-tape-loc">${renderLocationCell(livePlan, fallbackLoc)}</td>
+                            <td class="col-tape-net">${renderEventRouteCell(ev, livePlan)}</td>
+                            <td class="col-tape-bw">${renderEventBandwidthCell(ev, livePlan)}</td>
+                            <td class="col-tape-price">
+                              <div class="tape-price-stack num">
+                                <strong class="tape-price-curr" title="${escapeHtml(plain(ev.price))}">${escapeHtml(formatPriceLabel(ev))}</strong>
+                                ${priceSubHtml}
+                              </div>
+                            </td>
+                            <td class="col-tape-status">${liveStatusHint}</td>
+                            <td class="col-tape-act">
+                              <div class="row-actions" data-stop-row>
+                                ${
+                                  livePlan
+                                    ? `<button type="button" class="btn btn-xs btn-soft" data-action="inspect-plan" data-product-id="${escapeHtml(livePlan.id)}">证据</button>`
+                                    : ""
+                                }
+                                ${
+                                  orderHref
+                                    ? `<a class="btn-buy-cta" style="height:26px;padding:0 9px;font-size:11px" href="${escapeHtml(orderHref)}" target="_blank" rel="nofollow noopener noreferrer">直达 ↗</a>`
+                                    : `<span class="spec-line is-missing">—</span>`
+                                }
+                              </div>
+                            </td>
+                          </tr>`;
+                        })
+                        .join("")}
+                    </tbody>
+                  </table>
                 </div>
               </section>`
             )

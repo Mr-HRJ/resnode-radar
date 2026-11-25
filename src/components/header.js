@@ -1,5 +1,7 @@
 import { providers } from "../../providers.js";
+import { evaluateProviderTags } from "../domain/catalog.js";
 import { MAX_COMPARE } from "../state/store.js";
+import { renderPlanTagBadge, renderShopTagBadge } from "./tag-icons.js";
 import {
   escapeHtml,
   formatClockTime,
@@ -65,13 +67,27 @@ function computeHeadlineStats(state, now = Date.now()) {
 
 export function formatLiveClockText(now = new Date()) {
   const pad = (n) => String(n).padStart(2, "0");
-  return `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const time = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  return `${time} ${date}`;
 }
 
 export function computeSyncProgressRatio(state, intervalMs = 5 * 60 * 1000, now = Date.now()) {
   if (!state.lastFetchAt || state.loadState !== "ready") return 0.08;
   const elapsed = Math.max(0, now - state.lastFetchAt);
   return Math.min(1, Math.max(0.04, elapsed / intervalMs));
+}
+
+function renderVisitStatBadge(visitStats) {
+  if (!visitStats || visitStats.todayPv <= 1000) return "";
+  const { todayPv } = visitStats;
+  return `
+    <span class="tele-stat tele-stat-visits" data-visit-stat aria-label="${escapeHtml(`今日访问 ${todayPv} 次`)}">
+      <span class="visit-label">今日访问:</span>
+      <span class="visit-num-stage"><strong class="num" data-stat-visits>${todayPv}</strong></span>
+      <span class="visit-unit">次</span>
+    </span>
+  `;
 }
 
 export function renderHeader(state, now = Date.now()) {
@@ -99,21 +115,6 @@ export function renderHeader(state, now = Date.now()) {
     teleLabel = `实时快照 · ${freshness.label}`;
     isLiveFresh = true;
   }
-
-  const fxPillClass = !fx
-    ? "tele-pill"
-    : fx.valid
-      ? "tele-pill"
-      : "tele-pill is-warn";
-  const fxText = state.loadState === "loading"
-    ? "汇率加载中"
-    : !fx
-      ? "汇率不可用"
-      : fx.valid
-        ? fx.label
-        : fx.expired
-          ? `汇率超7天 (${fx.date})`
-          : fx.label;
 
   const navItems = [
     {
@@ -226,18 +227,14 @@ export function renderHeader(state, now = Date.now()) {
     <div class="telemetry-strip" aria-label="实时数据遥测与全网大盘">
       <div class="telemetry-inner">
         <div class="telemetry-left">
-          <span class="${telePillClass}" title="${escapeHtml(state.payload?.generatedAt ? `快照生成时间: ${formatDateTime(state.payload.generatedAt)}` : "等待快照响应")}">
+          <button type="button" class="${telePillClass} tele-pill-btn" data-action="refresh-snapshot" ${state.refreshing ? "disabled" : ""} title="${escapeHtml(state.payload?.generatedAt ? `快照生成时间: ${formatDateTime(state.payload.generatedAt)}${fx?.valid ? ` · 折算基准: ${fx.label}` : ""} · 点击立即同步（每 5 分钟自动刷新）` : "点击重新读取已发布的最新快照")}">
             <span class="${teleDotClass}" aria-hidden="true"></span>
-            <span data-telemetry-label class="${isLiveFresh ? "live-shimmer" : ""}">${escapeHtml(teleLabel)}</span>
-          </span>
-          <span class="live-clock-pill" title="本地实时时间">
+            <span data-telemetry-label class="${isLiveFresh ? "live-shimmer" : ""}">${escapeHtml(state.refreshing ? "同步快照中…" : teleLabel)}</span>
+          </button>
+          <span class="live-clock-pill" title="本地实时时间与日期">
             <span class="num" data-live-clock>${formatLiveClockText(new Date(now))}</span>
           </span>
-          <button type="button" class="btn btn-xs btn-ghost" data-action="refresh-snapshot" ${state.refreshing ? "disabled" : ""} title="重新读取已发布的最新快照（不触发后端抓取）">
-            <span class="sync-icon ${isSyncBusy ? "is-spinning" : ""}" aria-hidden="true">↻</span>
-            <span>${state.refreshing ? "读取中…" : "刷新"}</span>
-          </button>
-          <span class="${fxPillClass} tele-fx-chip" data-fx-pill title="参考人民币折算基于欧洲央行（ECB）每日参考汇率">${escapeHtml(fxText)}</span>
+          ${renderVisitStatBadge(state.visitStats)}
         </div>
 
         <div class="telemetry-center">
@@ -341,6 +338,11 @@ export function renderCommandPalette(state) {
     .slice(0, 6);
 
   const quickCommands = [
+    { id: "preset-blockbuster", label: "口碑爆款精选（搬瓦工限量 / 头部商家经典特惠）", sub: "精选亮点" },
+    { id: "preset-generous", label: "便宜量大精选（低价大流量 / 不限流量 / 高配大盘）", sub: "精选亮点" },
+    { id: "preset-annual", label: "年付特惠精选（折合低月均长周期实惠款）", sub: "精选亮点" },
+    { id: "preset-home-opt", label: "家宽直连精选（真家宽 / 双 ISP 叠加回国优化免中转）", sub: "精选亮点" },
+    { id: "preset-scarce", label: "紧俏余量精选（实测精确余量仅剩 1–5 台）", sub: "精选亮点" },
     { id: "preset-us-home", label: "美区真家宽（排除 NAT 共享 / 仅看现货）", sub: "场景直达" },
     { id: "preset-cn2", label: "电信 CN2 GIA 优化回程（仅看现货）", sub: "场景直达" },
     { id: "go-radar", label: "进入全网大盘（实时补货 / 售罄 / 变价流）", sub: "工作区" },
@@ -380,12 +382,17 @@ export function renderCommandPalette(state) {
             ? `<div>
                 <div class="palette-group-label">匹配商家</div>
                 ${matchedProviders
-                  .map(
-                    (p) => `<button type="button" class="palette-item" data-action="palette-provider" data-provider-id="${escapeHtml(p.id)}">
-                      <span><strong>${escapeHtml(p.name)}</strong></span>
+                  .map((p) => {
+                    const pPlans = (state.plans || []).filter((pl) => pl._providerId === p.id);
+                    const { primaryTag } = evaluateProviderTags(p, pPlans);
+                    return `<button type="button" class="palette-item" data-action="palette-provider" data-provider-id="${escapeHtml(p.id)}">
+                      <span class="palette-provider-label">
+                        ${primaryTag ? renderShopTagBadge(primaryTag) : ""}
+                        <strong>${escapeHtml(p.name)}</strong>
+                      </span>
                       <span class="palette-item-sub">查看该商家全部方案 ↵</span>
-                    </button>`
-                  )
+                    </button>`;
+                  })
                   .join("")}
               </div>`
             : ""
@@ -397,9 +404,10 @@ export function renderCommandPalette(state) {
                 ${matchedPlans
                   .map(
                     (p) => `<button type="button" class="palette-item" data-action="palette-plan" data-product-id="${escapeHtml(p.id)}">
-                      <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-                        <span class="pill ${p._classify.isResidential ? "pill-home" : "pill-vps"}" style="margin-right:6px">${p._classify.isResidential ? "家宽" : "机房"}</span>
-                        ${escapeHtml(plain(p.name))}
+                      <span class="palette-plan-label">
+                        ${p._primaryPlanTag ? renderPlanTagBadge(p._primaryPlanTag, { compact: true }) : ""}
+                        <span class="pill ${p._classify.isResidential ? "pill-home" : "pill-vps"}">${p._classify.isResidential ? "家宽" : "机房"}</span>
+                        <span class="palette-plan-title">${escapeHtml(plain(p.name))}</span>
                       </span>
                       <span class="palette-item-sub mono">${escapeHtml(p._providerName)} · ${escapeHtml(p._pricing.displayLabel)}</span>
                     </button>`

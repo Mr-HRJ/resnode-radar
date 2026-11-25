@@ -1,10 +1,34 @@
 import { loadSaved, saveSaved } from "../../saved.js";
-import { DEFAULT_FILTERS } from "../domain/catalog.js";
+import { DEFAULT_FILTERS, PLAN_TAG_ORDER, SHOP_TAG_ORDER } from "../domain/catalog.js";
+import { isValidVisitStats, visitStatsDay } from "../services/visits.js";
 
 export const VALID_VIEWS = ["terminal", "radar", "providers", "guide"];
 export const MAX_COMPARE = 4;
 export const PAGE_STEP = 60;
 const THEME_KEY = "resnode-radar:theme:v4";
+const VISIT_SESSION_KEY = "resnode-radar:visit-stats:v1";
+
+function loadSessionVisitStats() {
+  try {
+    const raw = globalThis.sessionStorage?.getItem(VISIT_SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (isValidVisitStats(parsed) && parsed.day === visitStatsDay()) {
+      return parsed;
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return null;
+}
+
+function saveSessionVisitStats(stats) {
+  try {
+    globalThis.sessionStorage?.setItem(VISIT_SESSION_KEY, JSON.stringify(stats));
+  } catch {
+    // ignore storage errors
+  }
+}
 
 export const DEFAULT_RADAR_FILTERS = Object.freeze({
   type: "all",
@@ -18,6 +42,7 @@ export const DEFAULT_PROVIDER_FILTERS = Object.freeze({
   q: "",
   region: "all",
   feature: "all",
+  tag: "all",
   health: "all"
 });
 
@@ -34,9 +59,13 @@ export function parseUrlState(href = globalThis.window?.location?.href || "https
   const statusRaw = p.get("status") || DEFAULT_FILTERS.status;
   const status = ["available", "all", "unavailable", "unknown"].includes(statusRaw) ? statusRaw : DEFAULT_FILTERS.status;
 
+  const dealRaw = p.get("deal") || "all";
+  const deal = dealRaw === "all" || dealRaw === "any" || PLAN_TAG_ORDER.includes(dealRaw) ? dealRaw : "all";
+
   const filters = {
     track,
     opt: p.get("opt") || "all",
+    deal,
     status,
     exactOnly: p.get("exact") === "1",
     noNat: p.get("noNat") === "1",
@@ -69,10 +98,12 @@ export function parseUrlState(href = globalThis.window?.location?.href || "https
     q: p.get("radarQ") || ""
   };
 
+  const provTagRaw = p.get("provTag") || "all";
   const providersFilter = {
     q: p.get("provQ") || "",
     region: p.get("provRegion") || "all",
     feature: p.get("provFeature") || "all",
+    tag: provTagRaw === "all" || SHOP_TAG_ORDER.includes(provTagRaw) ? provTagRaw : "all",
     health: p.get("provHealth") || "all"
   };
 
@@ -103,6 +134,7 @@ export function serializeUrlState(state, baseHref = globalThis.window?.location?
   const f = state.filters || DEFAULT_FILTERS;
   if (f.track !== DEFAULT_FILTERS.track) p.set("track", f.track);
   if (f.opt && f.opt !== "all") p.set("opt", f.opt);
+  if (f.deal && f.deal !== "all") p.set("deal", f.deal);
   if (f.status !== DEFAULT_FILTERS.status) p.set("status", f.status);
   if (f.exactOnly) p.set("exact", "1");
   if (f.noNat) p.set("noNat", "1");
@@ -135,6 +167,7 @@ export function serializeUrlState(state, baseHref = globalThis.window?.location?
   if (pv.q && pv.q.trim()) p.set("provQ", pv.q.trim());
   if (pv.region !== "all") p.set("provRegion", pv.region);
   if (pv.feature !== "all") p.set("provFeature", pv.feature);
+  if (pv.tag && pv.tag !== "all") p.set("provTag", pv.tag);
   if (pv.health !== "all") p.set("provHealth", pv.health);
 
   for (const key of (state.compareKeys || []).slice(0, MAX_COMPARE)) {
@@ -187,6 +220,7 @@ export function createStore(initialUrl) {
     events: [],
     eventIndex: { byProduct: new Map(), byProvider: new Map() },
     lastFetchAt: null,
+    visitStats: loadSessionVisitStats(),
 
     // View & filter state
     view: fromUrl.view,
@@ -206,6 +240,10 @@ export function createStore(initialUrl) {
     mobileRailOpen: false,
     shopsExpanded: false,
     shopQuery: "",
+    shopTab: "all",
+    providersSort: "recommended",
+    guideRouteTab: "all",
+    guideChecked: new Set(),
     specsExpanded: true,
     paletteOpen: false,
     paletteQuery: "",
@@ -239,6 +277,23 @@ export function createStore(initialUrl) {
       } else {
         state.refreshing = true;
       }
+      notify();
+    },
+    setVisitStats(visitStats) {
+      if (!visitStats) return;
+      const prev = state.visitStats;
+      if (
+        prev &&
+        prev.day === visitStats.day &&
+        prev.todayPv === visitStats.todayPv &&
+        prev.todayUv === visitStats.todayUv &&
+        prev.totalPv === visitStats.totalPv &&
+        prev.totalUv === visitStats.totalUv
+      ) {
+        return;
+      }
+      state.visitStats = visitStats;
+      saveSessionVisitStats(visitStats);
       notify();
     },
     setSnapshotReady({ payload, allRecords, plans, diagnostics, events, eventIndex }) {
@@ -304,7 +359,12 @@ export function createStore(initialUrl) {
     },
     resetProviders() {
       state.providersFilter = { ...DEFAULT_PROVIDER_FILTERS };
+      state.providersSort = "recommended";
       notify({ syncUrl: true });
+    },
+    setProvidersSort(sort) {
+      state.providersSort = sort || "recommended";
+      notify();
     },
     toggleSaved(key) {
       if (!key) return false;
@@ -371,11 +431,30 @@ export function createStore(initialUrl) {
     },
     toggleShopsExpanded() {
       state.shopsExpanded = !state.shopsExpanded;
-      if (!state.shopsExpanded) state.shopQuery = "";
+      if (!state.shopsExpanded) {
+        state.shopQuery = "";
+        state.shopTab = "all";
+      }
       notify();
     },
     setShopQuery(query) {
       state.shopQuery = query;
+      notify();
+    },
+    setShopTab(tab) {
+      state.shopTab = tab || "all";
+      notify();
+    },
+    setGuideRouteTab(tab) {
+      state.guideRouteTab = tab || "all";
+      notify();
+    },
+    toggleGuideCheck(id) {
+      if (!id) return;
+      const next = new Set(state.guideChecked);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      state.guideChecked = next;
       notify();
     },
     toggleSpecsExpanded() {

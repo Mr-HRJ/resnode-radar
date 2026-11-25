@@ -1,5 +1,7 @@
 # Cloudflare 部署
 
+> 历史部署文档。当前正式站为 https://vpsld.com/，发布请遵循 [VPS 部署](vps-deployment.md)。GitHub 采集已停用，生产不依赖此 Worker。
+
 网站地址：https://resnode-radar.haorenjie1997.workers.dev/
 
 此部署基于 [ResNode Radar](https://github.com/majiayu000/resnode-radar)，保留原项目 MIT 许可证。

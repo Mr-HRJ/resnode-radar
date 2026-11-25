@@ -6,7 +6,10 @@ import { loadSaved, saveSaved, savedKey } from "../saved.js";
 import {
   DEFAULT_FILTERS,
   classifyProduct,
+  computeFacetCounts,
   diagnoseZeroResults,
+  evaluatePlanTags,
+  evaluateProviderTags,
   isHotProvider,
   matchesFilters,
   matchesHardwareSpecs,
@@ -103,6 +106,29 @@ test("true residential / dual-ISP classification never conflates plain datacente
   });
   assert.equal(natHome.isResidential, true);
   assert.equal(natHome.delivery, "nat");
+});
+
+test("route profiles preserve the declared CN2 tier and do not infer China routing from generic optimization", () => {
+  for (const [route, headline] of [
+    ["AS4809", "电信 CN2"],
+    ["CN2 GT / AS4809", "电信 CN2 GT"],
+    ["CN2 GIA / AS4809", "电信 CN2 GIA"]
+  ]) assert.equal(classifyProduct({ route }).routeProfile.headline, headline);
+
+  const standard = classifyProduct({ route: "AS4809 / 9929 / CMIN2" });
+  assert.equal(standard.routeProfile.headline, "三网回程优化");
+  assert.equal(classifyProduct({ route: "CN2 GIA / 9929 / CMIN2" }).routeProfile.headline, "三网精品优化");
+
+  for (const route of ["WAN Latency Optimized", "GTT直连优化"]) {
+    const c = classifyProduct({ route, category: "vps" });
+    assert.equal(c.hasCnOpt, false);
+    assert.doesNotMatch(c.routeProfile.headline, /大陆|直连优化|回国/);
+    assert.doesNotMatch(c.routeProfile.chips.map((chip) => chip.label).join(" "), /国际无优化|回国/);
+  }
+  const explicit = normalizeProduct({ route: "CN 优化", category: "vps", status: "available" }, 0);
+  assert.equal(explicit._classify.hasCnOpt, true);
+  assert.equal(matchesFilters(explicit, { ...DEFAULT_FILTERS, opt: "opt" }), true);
+  assert.equal(matchesFilters(explicit, { ...DEFAULT_FILTERS, opt: "intl" }), false);
 });
 
 test("dual-layer pricing preserves original quotes and refuses to estimate base-only or expired FX", () => {
@@ -400,4 +426,534 @@ test("current catalog saved identities remain unique across all records", () => 
   const storage = { map: new Map(), getItem(k) { return this.map.get(k) ?? null; }, setItem(k, v) { this.map.set(k, v); } };
   assert.equal(saveSaved(new Set([keys[0]]), storage), true);
   assert.deepEqual(loadSaved(storage), new Set([keys[0]]));
+});
+
+test("normalized route text preserves raw route filtering without reparsing source fields", () => {
+  for (const raw of [
+    { route: "CN2 GIA / 9929 / CMIN2" },
+    { raw: { features: { network: "Softbank HiNet BGP" } } },
+    { name: "Plain VPS", note: "No CN2 route promised" }
+  ]) {
+    const plan = normalizeProduct({ id: "routes", status: "available", ...raw }, 0);
+    for (const { value } of ROUTE_OPTIONS) assert.equal(matchesRoute(plan, value), matchesRoute(raw, value));
+    Object.defineProperty(plan, "route", { get() { throw new Error("source route should not be reparsed"); } });
+    for (const { value } of ROUTE_OPTIONS) assert.doesNotThrow(() => matchesRoute(plan, value));
+  }
+});
+
+test("evaluateProviderTags distinguishes hot, value, budget, NAT-only, ordinary, and stale-FX shops honestly", () => {
+  const fx = { base: "CNY", date: "2026-11-24", rates: { CNY: 1, USD: 7.0 } };
+  const staleFx = { base: "CNY", date: "2026-01-01", rates: { CNY: 1, USD: 7.0 } };
+  const now = Date.parse("2026-11-24T12:00:00Z");
+  const mk = (overrides, idx = 0, rates = fx) => normalizeProduct({
+    id: `p-${idx}`,
+    category: "vps",
+    status: "available",
+    name: "KVM Plan",
+    region: "美国",
+    hardware: "1 vCPU / 1 GB RAM / 20 GB SSD",
+    bandwidth: "1 Gbps / 1 TB",
+    price: "CNY 50/月",
+    priceValue: 50,
+    currency: "CNY",
+    ...overrides
+  }, idx, rates, new Map(), now);
+
+  // 1. Flagship hot vendor with 1 cheap promo + high median earns hot/veteran/line, primary "热门" (never "budget" or "value")
+  const bwhPlans = [
+    mk({ providerId: "bwh", price: "USD 39/year", priceValue: 39, currency: "USD", route: "CN2 GIA" }, 1),
+    mk({ providerId: "bwh", price: "USD 169/year", priceValue: 169, currency: "USD", route: "CN2 GIA" }, 2),
+    mk({ providerId: "bwh", price: "USD 1200/year", priceValue: 1200, currency: "USD", route: "CN2 GIA" }, 3)
+  ];
+  const bwhTags = evaluateProviderTags("bwh", bwhPlans);
+  assert.deepEqual(bwhTags.tags.map((t) => t.key), ["hot", "veteran", "line"]);
+  assert.equal(bwhTags.primaryTag?.shortLabel, "热门");
+
+  // 2. High-spec non-NAT shop qualifies for value + budget, displaying "性价比" as primary
+  const dpnetPlans = [
+    mk({ providerId: "dpnet", hardware: "2 vCPU / 4 GB RAM / 50 GB SSD", price: "USD 2.00/month", priceValue: 2.0, currency: "USD" }, 10),
+    mk({ providerId: "dpnet", hardware: "4 vCPU / 8 GB RAM / 90 GB SSD", price: "USD 4.79/month", priceValue: 4.79, currency: "USD" }, 11),
+    mk({ providerId: "dpnet", hardware: "4 vCPU / 8 GB RAM / 90 GB SSD", price: "USD 7.99/month", priceValue: 7.99, currency: "USD" }, 12)
+  ];
+  const dpnetTags = evaluateProviderTags("dpnet", dpnetPlans);
+  assert.deepEqual(dpnetTags.tags.map((t) => t.key), ["value", "budget"]);
+  assert.equal(dpnetTags.primaryTag?.shortLabel, "性价比");
+
+  // 3. Ultra-low-price independent-IPv4 shop (<= CNY 10.5/mo) displays "低价" as primary
+  const dedirockPlans = [
+    mk({ providerId: "dedirock", hardware: "1 vCPU / 1 GB RAM / 10 GB SSD", price: "USD 10.88/year", priceValue: 10.88, currency: "USD" }, 20),
+    mk({ providerId: "dedirock", hardware: "1 vCPU / 2 GB RAM / 20 GB SSD", price: "USD 17.88/year", priceValue: 17.88, currency: "USD" }, 21)
+  ];
+  const dedirockTags = evaluateProviderTags("dedirock", dedirockPlans);
+  assert.equal(dedirockTags.primaryTag?.key, "budget");
+  assert.equal(dedirockTags.primaryTag?.shortLabel, "低价");
+  assert.ok(dedirockTags.tags.some((t) => t.key === "value"));
+
+  // 4. CN-optimized specialist shop with >= 25% share (or <=¥65 median) of affordable CN-opt plans earns "优线" + "性价比"
+  const akkoPlans = [
+    mk({ providerId: "akko", route: "电信 CN2 GIA", price: "CNY 449/year", priceValue: 449, currency: "CNY" }, 30),
+    mk({ providerId: "akko", route: "电信 CN2 GIA", price: "CNY 449/year", priceValue: 449, currency: "CNY" }, 31),
+    mk({ providerId: "akko", route: "电信 CN2 GIA", price: "CNY 699/year", priceValue: 699, currency: "CNY" }, 32)
+  ];
+  const akkoTags = evaluateProviderTags("akko", akkoPlans);
+  assert.deepEqual(akkoTags.tags.map((t) => t.key), ["line", "value"]);
+  assert.equal(akkoTags.primaryTag?.shortLabel, "优线");
+  assert.match(akkoTags.tags.find((t) => t.key === "value").reason, /平价 CN 优化/);
+
+  // 4a. Expensive CN-opt catalog with only 3 cheap CN-opt promos out of 35 plans (8.6%, median ¥699.99) earns "line" ONLY, NEVER "value"
+  const akkoDilutedOpt = [
+    ...Array.from({ length: 3 }, (_, i) => mk({ providerId: "akko", route: "电信 CN2 GIA", price: "CNY 449/year", priceValue: 449, currency: "CNY" }, 330 + i)),
+    ...Array.from({ length: 32 }, (_, i) => mk({ providerId: "akko", route: "电信 CN2 GIA", price: "CNY 699.99/月", priceValue: 699.99, currency: "CNY" }, 340 + i))
+  ];
+  assert.deepEqual(evaluateProviderTags("akko", akkoDilutedOpt).tags.map((t) => t.key), ["line"]);
+
+  // 4a-2. Mainland cities (北京/上海/广州/深圳/杭州) and null/unknown regions NEVER qualify for shop tags
+  for (const invalidRegion of ["北京", "上海", "广州", "深圳", "中国", "Beijing", "Shanghai", null, "", "未知待定"]) {
+    const nonCrossBorderShop = Array.from({ length: 6 }, (_, i) => mk({
+      providerId: "dpnet",
+      region: invalidRegion,
+      hardware: "4 vCPU AMD EPYC 7763 / 8 GB RAM / 80 GB NVMe",
+      bandwidth: "10000 Mbps / 5 TB",
+      price: "CNY 15/月",
+      priceValue: 15,
+      currency: "CNY"
+    }, 700 + i));
+    assert.deepEqual(evaluateProviderTags("dpnet", nonCrossBorderShop).tags, [], `Expected [] shop tags for region=${invalidRegion}`);
+  }
+
+  // 4b. Big-port / Ryzen specialist shop (>=6 plans & >=44% share) earns "高配"; diluted giant catalog (JDIDC pattern) stays untagged
+  const hostdzirePlans = Array.from({ length: 6 }, (_, i) => mk({
+    providerId: "hostdzire",
+    hardware: "4 vCPU AMD EPYC 7763 / 8 GB RAM / 80 GB NVMe",
+    bandwidth: "10000 Mbps / 5 TB",
+    price: "USD 12/month",
+    priceValue: 12,
+    currency: "USD"
+  }, 100 + i));
+  const hdTags = evaluateProviderTags("hostdzire", hostdzirePlans);
+  assert.equal(hdTags.primaryTag?.key, "perf");
+  assert.equal(hdTags.primaryTag?.shortLabel, "高配");
+
+  const dilutedCatalog = [
+    mk({ providerId: "jdidc", hardware: "2 vCPU / 4 GB RAM / 40 GB SSD", price: "CNY 25/月", priceValue: 25, currency: "CNY" }, 200),
+    mk({ providerId: "jdidc", hardware: "2 vCPU / 4 GB RAM / 40 GB SSD", price: "CNY 25/月", priceValue: 25, currency: "CNY" }, 201),
+    ...Array.from({ length: 20 }, (_, i) => mk({ providerId: "jdidc", price: "CNY 150/月", priceValue: 150, currency: "CNY" }, 210 + i))
+  ];
+  assert.deepEqual(evaluateProviderTags("jdidc", dilutedCatalog).tags, []);
+
+  // 4c. 4 cheap qualified plans + 200 expensive low-quota plans (<500GB) MUST compute whole-shop median (¥500) and earn NEITHER value NOR budget
+  const skewedLowQuotaShop = [
+    ...Array.from({ length: 4 }, (_, i) => mk({ providerId: "lamhosting", hardware: "1 vCPU / 1 GB RAM / 20 GB SSD", bandwidth: "1 Gbps / 1 TB", price: "CNY 15/月", priceValue: 15, currency: "CNY" }, 300 + i)),
+    ...Array.from({ length: 200 }, (_, i) => mk({ providerId: "lamhosting", hardware: "2 vCPU / 2 GB RAM / 40 GB SSD", bandwidth: "100 Mbps / 100 GB", price: "CNY 500/月", priceValue: 500, currency: "CNY" }, 310 + i))
+  ];
+  const skewedTags = evaluateProviderTags("lamhosting", skewedLowQuotaShop);
+  assert.deepEqual(skewedTags.tags, []);
+  assert.equal(skewedTags.metrics.medCny, 500);
+
+  // 4d. Starting-price (baseOnly), unknown-cycle, or expired-FX 10Gbps/residential/CN-opt plans NEVER enter live shop tag counts
+  const teaserPerfPlans = Array.from({ length: 6 }, (_, i) => mk({
+    providerId: "hostdzire",
+    hardware: "4 vCPU AMD EPYC 7763 / 8 GB RAM / 80 GB NVMe",
+    bandwidth: "10000 Mbps / 5 TB",
+    price: "USD 12/month起",
+    priceValue: 12,
+    currency: "USD"
+  }, 600 + i));
+  const stalePerfPlans = Array.from({ length: 6 }, (_, i) => mk({
+    providerId: "hostdzire",
+    hardware: "4 vCPU AMD EPYC 7763 / 8 GB RAM / 80 GB NVMe",
+    bandwidth: "10000 Mbps / 5 TB",
+    price: "USD 12/month",
+    priceValue: 12,
+    currency: "USD"
+  }, 610 + i, staleFx));
+  const unknownCycleResPlans = Array.from({ length: 6 }, (_, i) => mk({
+    providerId: "cstonecloud",
+    category: "home",
+    name: "CUII-ISP-A 住宅双ISP",
+    route: "联通 9929",
+    bandwidth: "100 Mbps / 1 TB",
+    price: "¥55.00 CNY",
+    priceValue: 55,
+    currency: "CNY"
+  }, 620 + i));
+  assert.deepEqual(evaluateProviderTags("hostdzire", teaserPerfPlans).tags, []);
+  assert.deepEqual(evaluateProviderTags("hostdzire", stalePerfPlans).tags, []);
+  assert.deepEqual(evaluateProviderTags("cstonecloud", unknownCycleResPlans).tags, []);
+
+  // 5. NAT-only ultra-cheap shop NEVER falsely receives independent-VPS "低价" or "性价比"
+  const natPlans = [
+    mk({ providerId: "lazycat", name: "UK NAT Mini", price: "CNY 3/月", priceValue: 3, riskTags: [{ value: "nat-shared", label: "NAT 共享", severity: "medium" }] }, 40),
+    mk({ providerId: "lazycat", name: "UK NAT Basic", price: "CNY 5/月", priceValue: 5, riskTags: [{ value: "nat-shared", label: "NAT 共享", severity: "medium" }] }, 41)
+  ];
+  const natTags = evaluateProviderTags("lazycat", natPlans);
+  assert.deepEqual(natTags.tags, []);
+  assert.equal(natTags.primaryTag, null);
+
+  // 6. Ordinary high-priced vendor stays neutrally untagged
+  const expensivePlans = [
+    mk({ providerId: "neburst", price: "USD 29.9/month", priceValue: 29.9, currency: "USD" }, 50),
+    mk({ providerId: "neburst", price: "USD 59.9/month", priceValue: 59.9, currency: "USD" }, 51)
+  ];
+  assert.deepEqual(evaluateProviderTags("neburst", expensivePlans).tags, []);
+
+  // 7. Expired ECB FX (>7d) stops live CNY-based tagging on foreign-currency plans (including netcup/racknerd: never falls back to value/budget)
+  const staleDpnet = [
+    mk({ providerId: "dpnet", hardware: "2 vCPU / 4 GB RAM / 50 GB SSD", price: "USD 2.19/month", priceValue: 2.19, currency: "USD" }, 60, staleFx),
+    mk({ providerId: "dpnet", hardware: "4 vCPU / 8 GB RAM / 90 GB SSD", price: "USD 4.79/month", priceValue: 4.79, currency: "USD" }, 61, staleFx)
+  ];
+  const staleNetcup = [
+    mk({ providerId: "netcup", hardware: "4 vCPU / 8 GB RAM / 256 GB SSD", price: "USD 5.99/month", priceValue: 5.99, currency: "USD" }, 62, staleFx),
+    mk({ providerId: "netcup", hardware: "4 vCPU / 8 GB RAM / 256 GB SSD", price: "USD 7.99/month", priceValue: 7.99, currency: "USD" }, 63, staleFx)
+  ];
+  const staleRacknerd = [
+    mk({ providerId: "racknerd", hardware: "1 vCPU / 1 GB RAM / 20 GB SSD", price: "USD 10.99/year", priceValue: 10.99, currency: "USD" }, 64, staleFx),
+    mk({ providerId: "racknerd", hardware: "2 vCPU / 2 GB RAM / 40 GB SSD", price: "USD 17.99/year", priceValue: 17.99, currency: "USD" }, 65, staleFx)
+  ];
+  assert.deepEqual(evaluateProviderTags("dpnet", staleDpnet).tags, []);
+  assert.deepEqual(evaluateProviderTags("netcup", staleNetcup).tags.map((t) => t.key), ["veteran"]);
+  assert.deepEqual(evaluateProviderTags("racknerd", staleRacknerd).tags.map((t) => t.key), ["veteran"]);
+
+  // 8. Offline veteran benchmark brand keeps ONLY brand-history "veteran" (never price-class "value" or "budget" without live quotes)
+  const netcupOffline = evaluateProviderTags("netcup", []);
+  assert.deepEqual(netcupOffline.tags.map((t) => t.key), ["veteran"]);
+  assert.equal(netcupOffline.primaryTag?.key, "veteran");
+  assert.equal(netcupOffline.primaryTag?.basis, "editorial");
+});
+
+test("evaluatePlanTags marks genuine blockbusters, generous plans, value lines, and low-entry VPS while excluding NAT, small pipes, sold-out, and stale FX", () => {
+  const fx = { base: "CNY", date: "2026-11-24", rates: { CNY: 1, USD: 7.0 } };
+  const staleFx = { base: "CNY", date: "2026-01-01", rates: { CNY: 1, USD: 7.0 } };
+  const now = Date.parse("2026-11-24T12:00:00Z");
+  const mk = (overrides, idx = 0, rates = fx) => normalizeProduct({
+    id: `plan-${idx}`,
+    category: "vps",
+    status: "available",
+    name: "Standard KVM",
+    region: "美国",
+    hardware: "1 vCPU / 1 GB RAM / 20 GB SSD",
+    bandwidth: "1 Gbps / 1 TB",
+    price: "CNY 50/月",
+    priceValue: 50,
+    currency: "CNY",
+    ...overrides
+  }, idx, rates, new Map(), now);
+
+  // 1. BWH limited-edition Amsterdam Plan earns 爆款 + 年付惠 + 性价比; ordinary BWH high-tier plan stays untagged
+  const bwhLimited = mk({
+    sourceId: "bwh-limited-pids",
+    providerId: "bwh",
+    name: "The Amsterdam Plan",
+    route: "CN2 GIA / 9929 / CMIN2",
+    price: "USD 39/year",
+    priceValue: 39,
+    currency: "USD"
+  }, 1);
+  const bwhRegular = mk({
+    sourceId: "catalog-bwh",
+    providerId: "bwh",
+    name: "SPECIAL 40G KVM PROMO V5 - CN2 GIA ECOMMERCE VPS",
+    route: "CN2 GIA",
+    price: "USD 89.99/quarter",
+    priceValue: 89.99,
+    currency: "USD"
+  }, 2);
+  assert.equal(bwhLimited._primaryPlanTag?.key, "blockbuster");
+  assert.deepEqual(bwhLimited._planTags.map((t) => t.key), ["blockbuster", "annual", "value"]);
+  assert.deepEqual(bwhRegular._planTags, []);
+
+  // 2. DPNET 2C/4G 1Gbps unlimited at $2/mo earns 便宜量大 + 性价比 + 低价
+  const dpnetGenerous = mk({
+    providerId: "dpnet",
+    name: "2 CPU / 4 GB RAM",
+    hardware: "2 vCPU / 4 GB RAM / 50 GB SSD",
+    bandwidth: "1000 Mbps / Unlimited",
+    price: "USD 2.00/month",
+    priceValue: 2.0,
+    currency: "USD"
+  }, 3);
+  assert.equal(dpnetGenerous._primaryPlanTag?.key, "generous");
+  assert.deepEqual(dpnetGenerous._planTags.map((t) => t.key), ["generous", "value", "budget"]);
+
+  // 3. HostDare BGSSD1 1Gbps / 10TB at $39.99/yr earns 便宜量大 + 年付惠 (not 爆款, since BGSSD1 is standard Bulgaria BGP)
+  const hostdare10T = mk({
+    providerId: "hostdare",
+    name: "BGSSD1",
+    hardware: "1 vCPU / 1 GB RAM / 25 GB SSD",
+    bandwidth: "1000 Mbps / 10000 GB",
+    price: "USD 39.99/year",
+    priceValue: 39.99,
+    currency: "USD"
+  }, 4);
+  assert.equal(hostdare10T._primaryPlanTag?.key, "generous");
+  assert.deepEqual(hostdare10T._planTags.map((t) => t.key), ["generous", "annual"]);
+  assert.match(hostdare10T._planTags.find((t) => t.key === "generous").reason, /10TB/);
+
+  // 4. Small pipes (10M BGP & 20M CN2), 1C/1G 10Gbps entry plans, 256MB toy containers, baremetal E5, and $399/mo slices NEVER get sloppy tags
+  const tinyPipe = mk({
+    providerId: "jdidc",
+    name: "新加坡BGP 2核 2GB",
+    hardware: "2 vCPU / 2 GB RAM / 60 GB SSD",
+    bandwidth: "10 Mbps / Unlimited",
+    price: "CNY 20/月",
+    priceValue: 20,
+    currency: "CNY"
+  }, 5);
+  const tinyCn2Pipe = mk({
+    providerId: "jdidc",
+    name: "香港3区CN2 2H1G",
+    route: "CN2",
+    hardware: "2 vCPU / 1 GB RAM / 30 GB SSD",
+    bandwidth: "20 Mbps / 500 GB",
+    price: "CNY 16/月",
+    priceValue: 16,
+    currency: "CNY"
+  }, 50);
+  const entry1C1G10G = mk({
+    providerId: "greencloud",
+    name: "KVMTX-1",
+    hardware: "1 vCPU / 1 GB RAM / 15 GB SSD",
+    bandwidth: "10000 Mbps / 1536 GB",
+    price: "USD 6.00/month",
+    priceValue: 6.0,
+    currency: "USD"
+  }, 51);
+  const toyCrumb = mk({
+    providerId: "breadcloud",
+    name: "Crumb",
+    hardware: "0.5 vCPU / 256 MB RAM / 3 GB SSD",
+    bandwidth: "1000 Mbps / 500 GB",
+    price: "USD 1.10/month",
+    priceValue: 1.1,
+    currency: "USD",
+    stockCount: 3,
+    evidenceLevel: { value: "stock-count", label: "精确库存", rank: 1 }
+  }, 52);
+  const baremetalMisclassified = mk({
+    providerId: "yunyoo",
+    category: "home",
+    name: "洛杉矶C.Std-E5-2680v4",
+    route: "CMIN2 / 9929",
+    hardware: "Dual Xeon E5-2680v4 / 256 GB RAM / 3840 GB SSD",
+    bandwidth: "100 Mbps / 10 TB",
+    price: "CNY 3699.99/月",
+    priceValue: 3699.99,
+    currency: "CNY"
+  }, 53);
+  const expensiveSlice = mk({
+    providerId: "rivencloud",
+    name: "Max VPS",
+    route: "CN2 GIA / CMIN2",
+    hardware: "8 vCPU / 16 GB RAM / 160 GB SSD",
+    bandwidth: "1000 Mbps / 4096 GB",
+    price: "USD 399.95/month",
+    priceValue: 399.95,
+    currency: "USD",
+    stockCount: 1,
+    evidenceLevel: { value: "stock-count", label: "精确库存", rank: 1 }
+  }, 54);
+  assert.deepEqual(tinyPipe._planTags, []);
+  assert.deepEqual(tinyCn2Pipe._planTags, []);
+  assert.deepEqual(entry1C1G10G._planTags, []);
+  assert.deepEqual(toyCrumb._planTags, []);
+  assert.deepEqual(baremetalMisclassified._planTags, []);
+  assert.deepEqual(expensiveSlice._planTags, []);
+
+  // 5. NAT-only, shared-port residential, and sold-out limited SKU never receive active deal tags
+  const natBox = mk({
+    providerId: "lazycat",
+    name: "UK NAT Mini",
+    price: "CNY 3/月",
+    priceValue: 3,
+    riskTags: [{ value: "nat-shared", label: "NAT 共享", severity: "medium" }]
+  }, 6);
+  const sharedResBox = mk({
+    providerId: "miraigrid",
+    category: "home",
+    name: "日本 软银 住宅共享 VPS 2T",
+    route: "SoftBank 住宅网络",
+    bandwidth: "500 Mbps / 2 TB / IPv4 入站： 包含 10 个端口",
+    price: "USD 7.99/month",
+    priceValue: 7.99,
+    currency: "USD"
+  }, 7);
+  const soldOutLimited = mk({
+    sourceId: "bwh-limited-pids",
+    providerId: "bwh",
+    status: "unavailable",
+    name: "The Amsterdam Plan",
+    price: "USD 39/year",
+    priceValue: 39,
+    currency: "USD"
+  }, 8);
+  assert.deepEqual(natBox._planTags, []);
+  assert.deepEqual(sharedResBox._planTags, []);
+  assert.deepEqual(soldOutLimited._planTags, []);
+
+  // 6. Expired ECB FX (>7d), baseOnly teaser quotes, or unknown cycles stop ALL product tags (including BWH limited blockbuster)
+  const staleGenerous = mk({
+    providerId: "dpnet",
+    name: "2 CPU / 4 GB RAM",
+    hardware: "2 vCPU / 4 GB RAM / 50 GB SSD",
+    bandwidth: "1000 Mbps / Unlimited",
+    price: "USD 2.00/month",
+    priceValue: 2.0,
+    currency: "USD"
+  }, 9, staleFx);
+  const staleBwhLimited = mk({
+    sourceId: "bwh-limited-pids",
+    providerId: "bwh",
+    name: "The Amsterdam Plan",
+    route: "CN2 GIA / 9929 / CMIN2",
+    price: "USD 39/year",
+    priceValue: 39,
+    currency: "USD"
+  }, 90, staleFx);
+  const teaserBwhLimited = mk({
+    sourceId: "bwh-limited-pids",
+    providerId: "bwh",
+    name: "The Amsterdam Plan",
+    route: "CN2 GIA / 9929 / CMIN2",
+    price: "USD 39/year起",
+    priceValue: 39,
+    currency: "USD"
+  }, 91);
+  const unknownCycleBwhLimited = mk({
+    sourceId: "bwh-limited-pids",
+    providerId: "bwh",
+    name: "The Amsterdam Plan",
+    route: "CN2 GIA / 9929 / CMIN2",
+    price: "USD 39",
+    priceValue: 39,
+    currency: "USD"
+  }, 92);
+  assert.deepEqual(staleGenerous._planTags, []);
+  assert.deepEqual(evaluatePlanTags(staleGenerous).tags, []);
+  assert.deepEqual(staleBwhLimited._planTags, []);
+  assert.deepEqual(teaserBwhLimited._planTags, []);
+  assert.deepEqual(unknownCycleBwhLimited._planTags, []);
+
+  // 7. New dimensions: 家宽直连 (home-opt), 性能高配 (perf), 紧俏余量 (scarce), 年付特惠 (annual) + strict bw/quota checks on perf
+  const homeDirect = mk({
+    providerId: "wepc",
+    category: "home",
+    name: "美国洛杉矶Cogent_9929_家宽直播",
+    route: "联通 9929 双ISP住宅",
+    bandwidth: "200 Mbps / 1 TB",
+    price: "USD 15.9/month",
+    priceValue: 15.9,
+    currency: "USD"
+  }, 10);
+  assert.equal(homeDirect._primaryPlanTag?.key, "home-opt");
+  assert.deepEqual(homeDirect._planTags.map((t) => t.key), ["home-opt"]);
+
+  const perfEpyc = mk({
+    providerId: "hostdzire",
+    name: "Singapore VPS #2 AMD EPYC 7763",
+    hardware: "2 vCPU AMD EPYC 7763 / 4 GB RAM / 40 GB NVMe",
+    bandwidth: "Storage/Network 40 GB NVMe Storage 10Gbit Port ( Shared ) - With 2TB Bandwidth",
+    price: "USD 6.99/month",
+    priceValue: 6.99,
+    currency: "USD"
+  }, 11);
+  assert.equal(perfEpyc._numSpecs.trafficGb, 2048);
+  assert.equal(perfEpyc._primaryPlanTag?.key, "perf");
+  assert.match(perfEpyc._primaryPlanTag.reason, /EPYC 7763/);
+  assert.match(perfEpyc._primaryPlanTag.reason, /10Gbps/);
+
+  const perfMissingBw = mk({
+    providerId: "terabix",
+    name: "CVM-4GB-Milan",
+    hardware: "2 vCPU AMD EPYC Milan / 4 GB RAM / 50 GB NVMe",
+    bandwidth: "",
+    price: "USD 6.00/month",
+    priceValue: 6.0,
+    currency: "USD"
+  }, 111);
+  const perfMissingTraffic = mk({
+    providerId: "terabix",
+    name: "CVM-4GB-Milan-PortOnly",
+    hardware: "2 vCPU AMD EPYC Milan / 4 GB RAM / 50 GB NVMe",
+    bandwidth: "10 Gbps",
+    price: "USD 6.00/month",
+    priceValue: 6.0,
+    currency: "USD"
+  }, 112);
+  const perfLowQuota = mk({
+    providerId: "terabix",
+    name: "CVM-4GB-Milan-LowQuota",
+    hardware: "2 vCPU AMD EPYC Milan / 4 GB RAM / 50 GB NVMe",
+    bandwidth: "10 Gbps / 200 GB",
+    price: "USD 6.00/month",
+    priceValue: 6.0,
+    currency: "USD"
+  }, 113);
+  assert.deepEqual(perfMissingBw._planTags, []);
+  assert.deepEqual(perfMissingTraffic._planTags, []);
+  assert.deepEqual(perfLowQuota._planTags, []);
+
+  // 7b. Mainland China cities (北京/上海/广州) and null/empty/unknown regions (including TOT K11) NEVER earn any product tags
+  for (const badRegion of ["北京", "上海", "广州", "杭州", "中国", "Beijing", "Shanghai", null, "", "未知机房"]) {
+    const domesticOrUnknown = mk({
+      providerId: "tothost",
+      name: badRegion === null ? "TOT K11" : `Node-${badRegion}`,
+      region: badRegion,
+      hardware: "2 vCPU AMD Ryzen 9950X / 4 GB RAM / 50 GB NVMe",
+      bandwidth: "1000 Mbps / Unlimited",
+      price: "CNY 15/月",
+      priceValue: 15,
+      currency: "CNY"
+    }, 800);
+    assert.deepEqual(domesticOrUnknown._planTags, [], `Expected [] plan tags for region=${badRegion}`);
+  }
+  // Whereas "中国香港" is recognized as Hong Kong cross-border and tagged normally
+  const hkCrossBorder = mk({
+    providerId: "dpnet",
+    region: "中国香港",
+    hardware: "2 vCPU / 4 GB RAM / 50 GB SSD",
+    bandwidth: "1000 Mbps / Unlimited",
+    price: "CNY 15/月",
+    priceValue: 15,
+    currency: "CNY"
+  }, 801);
+  assert.ok(hkCrossBorder._planTags.some((t) => t.key === "generous"));
+
+  const scarceBoil = mk({
+    providerId: "boil",
+    name: "HKT 300Mbps VPS",
+    bandwidth: "300 Mbps / 5 TB",
+    price: "USD 22/month",
+    priceValue: 22,
+    currency: "USD",
+    stockCount: 2,
+    evidenceLevel: { value: "stock-count", label: "精确库存", rank: 1 }
+  }, 12);
+  assert.equal(scarceBoil._primaryPlanTag?.key, "scarce");
+  assert.match(scarceBoil._primaryPlanTag.reason, /仅剩 2 台/);
+
+  // 8. Deal filter, facet counts, URL sync, and zero-result relaxation
+  const all = [bwhLimited, bwhRegular, dpnetGenerous, hostdare10T, tinyPipe, natBox, homeDirect, perfEpyc, scarceBoil];
+  assert.equal(matchesFilters(bwhLimited, { ...DEFAULT_FILTERS, deal: "blockbuster" }), true);
+  assert.equal(matchesFilters(bwhRegular, { ...DEFAULT_FILTERS, deal: "blockbuster" }), false);
+  assert.equal(matchesFilters(homeDirect, { ...DEFAULT_FILTERS, deal: "home-opt" }), true);
+  assert.equal(matchesFilters(perfEpyc, { ...DEFAULT_FILTERS, deal: "perf" }), true);
+  assert.equal(matchesFilters(scarceBoil, { ...DEFAULT_FILTERS, deal: "scarce" }), true);
+  const facets = computeFacetCounts(all, DEFAULT_FILTERS, new Set());
+  assert.equal(facets.deals.get("blockbuster"), 1);
+  assert.equal(facets.deals.get("generous"), 2);
+  assert.equal(facets.deals.get("annual"), 2);
+  assert.equal(facets.deals.get("value"), 2);
+  assert.equal(facets.deals.get("home-opt"), 1);
+  assert.equal(facets.deals.get("perf"), 1);
+  assert.equal(facets.deals.get("scarce"), 1);
+  assert.equal(facets.deals.get("budget"), 1);
+
+  const diag = diagnoseZeroResults(all, { ...DEFAULT_FILTERS, provider: "jdidc", deal: "blockbuster" });
+  assert.ok(diag.suggestions.some((s) => s.keys.includes("deal")));
+
+  for (const dealKey of ["generous", "annual", "home-opt", "perf", "scarce"]) {
+    const url = serializeUrlState({ view: "terminal", layout: "table", filters: { ...DEFAULT_FILTERS, deal: dealKey } });
+    assert.match(url, new RegExp(`deal=${dealKey}`));
+    assert.equal(parseUrlState(url).filters.deal, dealKey);
+  }
 });

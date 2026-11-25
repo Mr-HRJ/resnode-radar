@@ -1,0 +1,33 @@
+[Unit]
+Description=ResNode Radar local visit stats service
+After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=resnode-radar
+Group=resnode-radar
+WorkingDirectory=/opt/resnode-radar/current
+Environment=NODE_ENV=production
+Environment=STATS_HOST=127.0.0.1
+Environment=STATS_PORT=18920
+Environment=STATS_DB=/var/lib/resnode-radar/state/visits.sqlite
+ExecStart=/opt/resnode-radar/node/bin/node scripts/visit-stats-server.mjs
+Restart=always
+RestartSec=3
+TimeoutStopSec=10
+KillMode=control-group
+MemoryMax=128M
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/resnode-radar
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=resnode-radar-stats
+
+[Install]
+WantedBy=multi-user.target

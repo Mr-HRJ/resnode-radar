@@ -1,4 +1,5 @@
 import { RISK_EXPLANATIONS } from "../domain/catalog.js";
+import { renderPlanTagBadge } from "./tag-icons.js";
 import {
   escapeHtml,
   featureEntries,
@@ -41,6 +42,7 @@ export function renderInspectorDrawer(state, now = Date.now()) {
   const features = featureEntries(plan).filter(([k, v]) => k || v);
   const attempts = Array.isArray(plan.raw?.attempts) ? plan.raw.attempts : [];
   const riskTags = Array.isArray(plan.riskTags) ? plan.riskTags.filter(Boolean) : [];
+  const planTags = Array.isArray(plan._planTags) ? plan._planTags : [];
   const skuEvents = plan._events || [];
   const relatedEvents = skuEvents.length ? skuEvents : (state.eventIndex?.byProvider?.get(plan._providerId) || []).slice(0, 5);
 
@@ -57,6 +59,7 @@ export function renderInspectorDrawer(state, now = Date.now()) {
       <div class="drawer-head">
         <div style="min-width:0">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+            ${planTags.map((t) => renderPlanTagBadge(t)).join("")}
             <span class="pill ${plan._classify.isResidential ? "pill-home" : "pill-vps"}">${escapeHtml(plan._classify.ipTier.label)}</span>
             ${plan._classify.isNat ? `<span class="pill pill-warn">NAT / 共享</span>` : `<span class="pill">IP 独享性未核验</span>`}
             ${
@@ -98,6 +101,28 @@ export function renderInspectorDrawer(state, now = Date.now()) {
                   ${caveats.map((c) => `<span>• ${escapeHtml(c)}</span>`).join("")}
                 </div>
               </div>`
+            : ""
+        }
+
+        ${
+          planTags.length
+            ? `<section class="insp-card" data-inspector-plan-tags>
+                <h3 class="insp-card-title">
+                  <span>商品亮点标签与核验依据（${planTags.length}）</span>
+                  <span class="pill pill-ok">排除 NAT 核验</span>
+                </h3>
+                <div class="risk-audit-list">
+                  ${planTags
+                    .map(
+                      (t) => `<div class="risk-audit-item is-tag-audit-row">
+                        ${renderPlanTagBadge(t, { fullLabel: true })}
+                        <span style="color:var(--ink-secondary);line-height:1.45;flex:1;min-width:0">${escapeHtml(t.reason)}</span>
+                        <button type="button" class="btn btn-xs btn-ghost tag-audit-jump" data-action="jump-deal-from-inspector" data-deal="${escapeHtml(t.key)}">同款 →</button>
+                      </div>`
+                    )
+                    .join("")}
+                </div>
+              </section>`
             : ""
         }
 

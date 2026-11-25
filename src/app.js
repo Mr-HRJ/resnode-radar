@@ -1,6 +1,7 @@
 import { DEFAULT_FILTERS } from "./domain/catalog.js";
 import { escapeHtml, monitorFreshness } from "./domain/format.js";
 import { REFRESH_INTERVAL_MS, fetchSnapshot } from "./services/snapshot.js";
+import { fetchVisitStats } from "./services/visits.js";
 import { applyTheme, createStore } from "./state/store.js";
 import { renderCompareDock, renderCompareModal } from "./components/compare.js";
 import { renderGuideView } from "./components/guide.js";
@@ -9,18 +10,26 @@ import { renderInspectorDrawer } from "./components/inspector.js";
 import { renderProvidersView } from "./components/providers.js";
 import { renderRadarView } from "./components/radar.js";
 import { renderSavedDrawer } from "./components/saved-drawer.js";
-import { renderTerminalView } from "./components/terminal.js";
+import { renderPlanCard, renderTableRow, renderTerminalView, selectTerminalPlans, terminalListOptions } from "./components/terminal.js";
+import { renderTagSvg } from "./components/tag-icons.js";
+import { mountVirtualList } from "./components/virtual-list.js";
 
 const PRESETS = {
   "us-home-dedicated": { ...DEFAULT_FILTERS, track: "home", region: "US", noNat: true, status: "available" },
   "cn2-opt": { ...DEFAULT_FILTERS, route: "cn2", status: "available" },
   "budget-monthly": { ...DEFAULT_FILTERS, budget: "60", cycle: "monthly", fixedPriceOnly: true, status: "available" },
-  "exact-stock": { ...DEFAULT_FILTERS, exactOnly: true, status: "available" }
+  "exact-stock": { ...DEFAULT_FILTERS, exactOnly: true, status: "available" },
+  "deal-blockbuster": { ...DEFAULT_FILTERS, deal: "blockbuster", status: "available" },
+  "deal-generous": { ...DEFAULT_FILTERS, deal: "generous", status: "available" },
+  "deal-annual": { ...DEFAULT_FILTERS, deal: "annual", status: "available" },
+  "deal-home-opt": { ...DEFAULT_FILTERS, deal: "home-opt", status: "available" },
+  "deal-scarce": { ...DEFAULT_FILTERS, deal: "scarce", status: "available" }
 };
 
 export function mountApp(options = {}) {
   const doc = globalThis.document;
   const endpoint = options.endpoint || "data/products.json";
+  const statsEndpoint = options.statsEndpoint ?? "api/stats";
   const store = createStore(globalThis.window?.location?.href);
   applyTheme(store.getState().theme);
 
@@ -36,13 +45,24 @@ export function mountApp(options = {}) {
   const elSaved = doc.querySelector("[data-saved-backdrop]");
   const elPalette = doc.querySelector("[data-palette-backdrop]");
   const elSheetBackdrop = doc.querySelector("[data-sheet-backdrop]");
+  const elTagHud = doc.querySelector("[data-tag-hud]");
   const elToast = doc.querySelector("[data-toast-region]");
 
   let lastFocusBeforeOverlay = null;
   let toastTimer = null;
+  let tagHudTimer = null;
+  let activeTagTipEl = null;
   let pendingRefresh = null;
   let refreshController = null;
+  let statsTimer = null;
+  let statsController = null;
+  let pendingStats = null;
   let disposed = false;
+  let capsuleStep = 0;
+  let terminalList = null;
+  let terminalInputs = [];
+  let terminalWidth = 0;
+  let resizeFrame = 0;
 
   // Motion & non-flicker transition tracking
   let prevView = null;
@@ -55,6 +75,9 @@ export function mountApp(options = {}) {
   let prevPaletteOpen = false;
   let prevDockVisible = false;
   const prevNumericMap = new Map();
+  let lastAnimatedVisitPv = store.getState().visitStats?.todayPv ?? null;
+  let liveVisitStatsSynced = false;
+  let visitTweenRaf = 0;
   const activeNumberTweens = new Set();
 
   function cancelNumberTweens() {
@@ -63,6 +86,78 @@ export function mountApp(options = {}) {
       for (const id of activeNumberTweens) cancelRaf(id);
     }
     activeNumberTweens.clear();
+  }
+
+  function cancelVisitTween() {
+    const cancelRaf = globalThis.window?.cancelAnimationFrame;
+    if (visitTweenRaf && typeof cancelRaf === "function") {
+      cancelRaf(visitTweenRaf);
+    }
+    visitTweenRaf = 0;
+  }
+
+  function animateVisitCounter(state) {
+    const node = doc.querySelector("[data-stat-visits]");
+    if (!node) {
+      cancelVisitTween();
+      lastAnimatedVisitPv = null;
+      return;
+    }
+    if (!liveVisitStatsSynced || !state.visitStats) return;
+    const targetVal = Number(state.visitStats.todayPv);
+    if (!Number.isFinite(targetVal)) return;
+    if (lastAnimatedVisitPv === targetVal) return;
+
+    const startVal = lastAnimatedVisitPv !== null ? lastAnimatedVisitPv : targetVal;
+    lastAnimatedVisitPv = targetVal;
+    cancelVisitTween();
+    const reducedMotion = Boolean(globalThis.window?.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches);
+    if (targetVal <= 0 || reducedMotion) {
+      node.textContent = String(targetVal);
+      return;
+    }
+
+    node.classList?.remove?.("is-visit-num-pop");
+    void node.offsetWidth;
+    node.classList?.add?.("is-visit-num-pop");
+
+    if (typeof node.animate === "function") {
+      try {
+        node.animate(
+          [
+            { transform: "scale(1)", offset: 0 },
+            { transform: "scale(1.14)", color: "#4f46e5", offset: 0.45 },
+            { transform: "scale(1)", offset: 1 }
+          ],
+          { duration: 420, easing: "cubic-bezier(0.4, 0, 0.2, 1)" }
+        );
+      } catch {
+        // ignore WAAPI errors in restricted environments
+      }
+    }
+
+    const raf = globalThis.window?.requestAnimationFrame;
+    if (typeof raf === "function" && startVal !== targetVal) {
+      const duration = 260;
+      let startTs = null;
+      const step = (ts) => {
+        visitTweenRaf = 0;
+        if (disposed) return;
+        if (startTs === null) startTs = ts;
+        const progress = Math.min(1, (ts - startTs) / duration);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const cur = Math.round(startVal + (targetVal - startVal) * eased);
+        node.textContent = String(cur);
+        if (progress < 1) {
+          visitTweenRaf = raf(step);
+        } else {
+          node.textContent = String(targetVal);
+        }
+      };
+      visitTweenRaf = raf(step);
+    } else {
+      node.textContent = String(targetVal);
+    }
   }
 
   function animateTelemetryCounters(justLoaded) {
@@ -189,7 +284,55 @@ export function mountApp(options = {}) {
     }
   }
 
+  function terminalViewportTop() {
+    return Math.max(0, elHeader?.getBoundingClientRect?.().bottom || 0) + 8;
+  }
+
+  function captureTerminalAnchor() {
+    const viewportTop = terminalViewportTop();
+    for (const row of elTerminal.querySelectorAll("tr[data-product-id], article[data-product-id]")) {
+      const rect = row.getBoundingClientRect?.();
+      if (rect && rect.bottom > viewportTop && rect.top < globalThis.window.innerHeight) {
+        return { id: row.getAttribute("data-product-id"), top: rect.top };
+      }
+    }
+    return null;
+  }
+
+  function updateTerminalSelection(state) {
+    for (const button of elTerminal.querySelectorAll("[data-action='toggle-save'], [data-action='toggle-compare']")) {
+      const save = button.getAttribute("data-action") === "toggle-save";
+      const key = button.getAttribute("data-key");
+      const active = save ? state.savedKeys.has(key) : state.compareKeys.includes(key);
+      const label = save ? (active ? "取消收藏" : "收藏套餐") : (active ? "移出对比" : "加入对比");
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", String(active));
+      button.setAttribute("aria-label", label);
+      button.setAttribute("title", label);
+    }
+    for (const row of elTerminal.querySelectorAll("tr[data-product-id], article[data-product-id]")) {
+      row.classList.toggle("is-inspected", row.getAttribute("data-product-id") === state.inspectId);
+    }
+    const count = elTerminal.querySelector("[data-terminal-saved-count]");
+    if (count) count.textContent = `★ 收藏 (${state.savedKeys.size})`;
+  }
+
+  function onResize() {
+    const win = globalThis.window;
+    if (resizeFrame || typeof win?.requestAnimationFrame !== "function") return;
+    resizeFrame = win.requestAnimationFrame(() => {
+      resizeFrame = 0;
+      if (disposed || store.getState().view !== "terminal") return;
+      const width = elTerminal?.clientWidth || win.innerWidth;
+      if (width !== terminalWidth) {
+        terminalInputs = [];
+        render(store.getState());
+      }
+    });
+  }
+
   function render(state) {
+    hideTagHud();
     const inputSnap = captureActiveInput();
     const now = Date.now();
     const viewChanged = prevView !== null && prevView !== state.view;
@@ -200,7 +343,10 @@ export function mountApp(options = {}) {
       !enterView && state.view === "terminal" && state.loadState === "ready" && prevFilterSig !== "" && prevFilterSig !== filterSig;
     const specsJustOpened = !prevSpecsExpanded && state.specsExpanded;
 
-    if (elHeader) elHeader.innerHTML = renderHeader(state, now);
+    if (elHeader) {
+      elHeader.innerHTML = renderHeader(state, now);
+      capsuleStep = 0;
+    }
 
     if (elBanner) {
       const bannerHtml = renderStatusBanner(state, now);
@@ -212,13 +358,49 @@ export function mountApp(options = {}) {
       elTerminal.hidden = state.view !== "terminal";
       elTerminal.classList?.toggle?.("is-view-entering", state.view === "terminal" && enterView);
       if (state.view === "terminal") {
-        elTerminal.innerHTML = renderTerminalView(state, now);
-        if (filtersChangedInTerminal) {
-          elTerminal.querySelector?.("[data-terminal-canvas]")?.classList?.add?.("is-refreshing");
+        const inputs = [state.loadState, state.errorDetail, state.payload, state.plans, state.filters,
+          state.layout, state.shopsExpanded, state.shopQuery, state.shopTab, state.specsExpanded,
+          state.mobileRailOpen, state.filters.savedOnly ? state.savedKeys : null];
+        const rebuild = enterView || inputs.some((value, index) => value !== terminalInputs[index]);
+        if (rebuild) {
+          const canvasTop = elTerminal.querySelector("[data-terminal-canvas]")?.getBoundingClientRect?.().top;
+          const filtersChanged = terminalInputs[4] && terminalInputs[4] !== state.filters;
+          const anchor = !filtersChanged && captureTerminalAnchor();
+          terminalList?.dispose();
+          const items = state.loadState === "ready" ? selectTerminalPlans(state) : [];
+          terminalWidth = elTerminal.clientWidth || globalThis.window?.innerWidth || 1280;
+          const options = terminalListOptions(state, terminalWidth);
+          elTerminal.innerHTML = renderTerminalView(state, now, { items, options });
+          terminalList = mountVirtualList(elTerminal, {
+            items, ...options,
+            renderItem: (plan, index) => (options.table ? renderTableRow : renderPlanCard)(plan, store.getState(), Date.now(), index)
+          });
+          terminalInputs = inputs;
+          if (anchor) {
+            const index = items.findIndex(plan => plan.id === anchor.id);
+            if (index >= 0) {
+              terminalList.reveal(index);
+              const node = Array.from(elTerminal.querySelectorAll("tr[data-product-id], article[data-product-id]"))
+                .find(row => row.getAttribute("data-product-id") === anchor.id);
+              if (node?.getBoundingClientRect) globalThis.window?.scrollBy?.({ top: node.getBoundingClientRect().top - anchor.top, behavior: "instant" });
+            }
+          } else if (filtersChanged && canvasTop < terminalViewportTop()) {
+            const top = elTerminal.querySelector("[data-terminal-canvas]")?.getBoundingClientRect?.().top;
+            if (Number.isFinite(top)) globalThis.window?.scrollBy?.({ top: top - terminalViewportTop(), behavior: "instant" });
+          }
+          if (filtersChangedInTerminal) {
+            elTerminal.querySelector?.("[data-terminal-canvas]")?.classList?.add?.("is-refreshing");
+          }
+          if (specsJustOpened) {
+            elTerminal.querySelector?.("[data-specs-panel]")?.classList?.add?.("is-unfurling");
+          }
         }
-        if (specsJustOpened) {
-          elTerminal.querySelector?.("[data-specs-panel]")?.classList?.add?.("is-unfurling");
-        }
+        updateTerminalSelection(state);
+      } else {
+        terminalList?.dispose();
+        terminalList = null;
+        elTerminal.innerHTML = "";
+        terminalInputs = [];
       }
     }
     if (elRadar) {
@@ -234,7 +416,7 @@ export function mountApp(options = {}) {
     if (elGuide) {
       elGuide.hidden = state.view !== "guide";
       elGuide.classList?.toggle?.("is-view-entering", state.view === "guide" && enterView);
-      if (state.view === "guide") elGuide.innerHTML = renderGuideView();
+      if (state.view === "guide") elGuide.innerHTML = renderGuideView(state);
     }
 
     const isDockVisible = Boolean(state.compareKeys.length > 0 && !state.compareOpen);
@@ -303,11 +485,43 @@ export function mountApp(options = {}) {
     prevSpecsExpanded = state.specsExpanded;
 
     animateTelemetryCounters(justBecameReady);
+    animateVisitCounter(state);
     restoreActiveInput(inputSnap);
     restoreFocusIfClear(state);
+    hideTagHud();
   }
 
   const unsubscribe = store.subscribe(render);
+
+  function refreshVisitStats(record = false) {
+    if (disposed || !statsEndpoint) return Promise.resolve(null);
+    if (pendingStats) return pendingStats;
+    const ctrl = new AbortController();
+    statsController = ctrl;
+    pendingStats = fetchVisitStats(statsEndpoint, { record, signal: ctrl.signal })
+      .then((stats) => {
+        if (!disposed && !ctrl.signal.aborted && stats) {
+          liveVisitStatsSynced = true;
+          store.setVisitStats(stats);
+        }
+        return stats;
+      })
+      .finally(() => {
+        if (statsController === ctrl) {
+          statsController = null;
+          pendingStats = null;
+        }
+      });
+    return pendingStats;
+  }
+
+  function scheduleVisitStatsAfterRefresh(record = false) {
+    if (statsTimer) clearTimeout(statsTimer);
+    statsTimer = setTimeout(() => {
+      statsTimer = null;
+      refreshVisitStats(record);
+    }, 45);
+  }
 
   function refresh(isInitial = false) {
     if (disposed) return Promise.resolve();
@@ -401,7 +615,9 @@ export function mountApp(options = {}) {
         store.resetFilters();
         break;
       case "refresh-snapshot":
-        refresh(store.getState().loadState !== "ready");
+        refresh(store.getState().loadState !== "ready").finally(() => {
+          if (!disposed) scheduleVisitStatsAfterRefresh(true);
+        });
         break;
       case "toggle-theme":
         store.toggleTheme();
@@ -449,6 +665,11 @@ export function mountApp(options = {}) {
         store.setPaletteOpen(false);
         if (cmd === "preset-us-home") applyPreset("us-home-dedicated");
         else if (cmd === "preset-cn2") applyPreset("cn2-opt");
+        else if (cmd === "preset-blockbuster") applyPreset("deal-blockbuster");
+        else if (cmd === "preset-generous") applyPreset("deal-generous");
+        else if (cmd === "preset-annual") applyPreset("deal-annual");
+        else if (cmd === "preset-home-opt") applyPreset("deal-home-opt");
+        else if (cmd === "preset-scarce") applyPreset("deal-scarce");
         else if (cmd === "go-radar") store.setView("radar");
         else if (cmd === "go-providers") store.setView("providers");
         else if (cmd === "copy-share") copyShareLink();
@@ -500,6 +721,12 @@ export function mountApp(options = {}) {
         const o = actNode.getAttribute("data-opt") || "all";
         const cur = store.getState().filters.opt;
         store.patchFilters({ opt: o !== "all" && cur === o ? "all" : o });
+        break;
+      }
+      case "set-deal": {
+        const d = actNode.getAttribute("data-deal") || "all";
+        const cur = store.getState().filters.deal;
+        store.patchFilters({ deal: d !== "all" && cur === d ? "all" : d });
         break;
       }
       case "set-spec": {
@@ -590,12 +817,6 @@ export function mountApp(options = {}) {
         break;
       case "set-layout":
         store.setLayout(actNode.getAttribute("data-layout"));
-        break;
-      case "load-more":
-        store.loadMore(false);
-        break;
-      case "load-all":
-        store.loadMore(true);
         break;
       case "inspect-plan":
       case "inspect-event": {
@@ -695,8 +916,59 @@ export function mountApp(options = {}) {
       case "set-prov-health":
         store.patchProviders({ health: actNode.getAttribute("data-health") || "all" });
         break;
+      case "set-prov-region": {
+        const reg = actNode.getAttribute("data-prov-region") || "all";
+        const cur = store.getState().providersFilter.region;
+        store.patchProviders({ region: reg !== "all" && cur === reg ? "all" : reg });
+        break;
+      }
+      case "filter-prov-tag": {
+        const tg = actNode.getAttribute("data-prov-tag") || "all";
+        const cur = store.getState().providersFilter.tag;
+        store.patchProviders({ tag: tg !== "all" && cur === tg ? "all" : tg });
+        break;
+      }
+      case "jump-deal-from-inspector": {
+        const d = actNode.getAttribute("data-deal") || "all";
+        store.setInspectId(null);
+        store.setView("terminal");
+        store.patchFilters({ deal: d, status: "available" });
+        break;
+      }
       case "reset-providers":
         store.resetProviders();
+        break;
+      case "set-shop-tab":
+        store.setShopTab(actNode.getAttribute("data-shop-tab") || "all");
+        break;
+      case "set-guide-route-tab":
+        store.setGuideRouteTab(actNode.getAttribute("data-route-tab") || "all");
+        break;
+      case "toggle-guide-check":
+        store.toggleGuideCheck(actNode.getAttribute("data-check-id"));
+        break;
+      case "guide-jump-route": {
+        const rt = actNode.getAttribute("data-route") || "all";
+        store.setView("terminal");
+        store.patchFilters({ ...DEFAULT_FILTERS, route: rt, status: "available" });
+        break;
+      }
+      case "guide-jump-track": {
+        const tr = actNode.getAttribute("data-track") || "all";
+        store.setView("terminal");
+        store.patchFilters({ ...DEFAULT_FILTERS, track: tr, status: "available" });
+        break;
+      }
+      case "guide-jump-opt": {
+        const opt = actNode.getAttribute("data-opt") || "all";
+        const track = actNode.getAttribute("data-track") || "all";
+        store.setView("terminal");
+        store.patchFilters({ ...DEFAULT_FILTERS, opt, track, status: "available" });
+        break;
+      }
+      case "guide-jump-nonat":
+        store.setView("terminal");
+        store.patchFilters({ ...DEFAULT_FILTERS, noNat: true, status: "available" });
         break;
       default:
         break;
@@ -741,6 +1013,11 @@ export function mountApp(options = {}) {
     const provSelect = target.getAttribute("data-provider-select");
     if (provSelect) {
       store.patchProviders({ [provSelect]: target.value });
+      return;
+    }
+
+    if (target.hasAttribute?.("data-provider-sort")) {
+      store.setProvidersSort(target.value);
     }
   }
 
@@ -773,10 +1050,167 @@ export function mountApp(options = {}) {
     }
   }
 
+  let activeHudDescribedEl = null;
+
+  function clearHudAriaDescribedBy() {
+    if (!activeHudDescribedEl) return;
+    const hudId = elTagHud?.id || "radar-tag-hud";
+    const cur = activeHudDescribedEl.getAttribute?.("aria-describedby") || "";
+    const next = cur
+      .split(/\s+/)
+      .filter((token) => token && token !== hudId)
+      .join(" ");
+    if (next) activeHudDescribedEl.setAttribute?.("aria-describedby", next);
+    else activeHudDescribedEl.removeAttribute?.("aria-describedby");
+    activeHudDescribedEl = null;
+  }
+
+  function bindHudAriaDescribedBy(hostEl) {
+    if (!hostEl || !elTagHud) return;
+    if (!elTagHud.id) elTagHud.id = "radar-tag-hud";
+    if (activeHudDescribedEl && activeHudDescribedEl !== hostEl) {
+      clearHudAriaDescribedBy();
+    }
+    const cur = hostEl.getAttribute?.("aria-describedby") || "";
+    const tokens = cur.split(/\s+/).filter(Boolean);
+    if (!tokens.includes(elTagHud.id)) tokens.push(elTagHud.id);
+    hostEl.setAttribute?.("aria-describedby", tokens.join(" "));
+    activeHudDescribedEl = hostEl;
+  }
+
+  function resolveTagTipFromFocus(node) {
+    if (!node || typeof node.closest !== "function") return null;
+    const directTip = node.closest("[data-tag-tip]");
+    if (directTip) return { tipEl: directTip, hostEl: node };
+    const tagName = node.tagName?.toLowerCase() || "";
+    const isFocusableHost =
+      tagName === "button" ||
+      tagName === "a" ||
+      Boolean(node.hasAttribute?.("tabindex")) ||
+      node.getAttribute?.("role") === "button";
+    if (isFocusableHost && typeof node.querySelector === "function") {
+      const nestedTip = node.querySelector("[data-tag-tip]");
+      if (nestedTip) return { tipEl: nestedTip, hostEl: node };
+    }
+    return null;
+  }
+
+  function hideTagHud() {
+    if (tagHudTimer) {
+      clearTimeout(tagHudTimer);
+      tagHudTimer = null;
+    }
+    activeTagTipEl = null;
+    clearHudAriaDescribedBy();
+    if (elTagHud && !elTagHud.hidden) {
+      elTagHud.hidden = true;
+      elTagHud.setAttribute?.("aria-hidden", "true");
+      elTagHud.innerHTML = "";
+    }
+  }
+
+  function showTagHud(tipEl, hostEl = tipEl) {
+    if (!elTagHud || !tipEl) return;
+    const tone = tipEl.getAttribute("data-tag-tip") || "value";
+    const title = tipEl.getAttribute("data-tag-tip-title") || "";
+    const kind = tipEl.getAttribute("data-tag-tip-kind") || "客观核验依据";
+    const reason = tipEl.getAttribute("data-tag-tip-reason") || "";
+    const hint = tipEl.getAttribute("data-tag-tip-hint") || "";
+    if (!title && !reason) return;
+
+    elTagHud.innerHTML = `
+      <div class="tag-hud-card is-tone-${escapeHtml(tone)}">
+        <div class="tag-hud-head">
+          <span class="tag-hud-badge is-${escapeHtml(tone)}">${renderTagSvg(tone)}<span>${escapeHtml(title)}</span></span>
+          <span class="tag-hud-kind">${escapeHtml(kind)}</span>
+        </div>
+        ${reason ? `<div class="tag-hud-reason">${escapeHtml(reason)}</div>` : ""}
+        ${hint ? `<div class="tag-hud-hint">${escapeHtml(hint)}</div>` : ""}
+      </div>
+    `;
+    elTagHud.hidden = false;
+    elTagHud.setAttribute?.("aria-hidden", "false");
+    bindHudAriaDescribedBy(hostEl || tipEl);
+
+    const rect =
+      typeof tipEl.getBoundingClientRect === "function"
+        ? tipEl.getBoundingClientRect()
+        : { top: 120, bottom: 142, left: 120, width: 64, height: 22 };
+    const hudRect = elTagHud.getBoundingClientRect?.() || { width: 280, height: 84 };
+    const hudW = hudRect.width > 0 ? hudRect.width : 280;
+    const hudH = hudRect.height > 0 ? hudRect.height : 84;
+    const vw = globalThis.window?.innerWidth || 1440;
+    const vh = globalThis.window?.innerHeight || 900;
+    const placeBelow = rect.top < hudH + 18 && vh - rect.bottom > hudH + 12;
+    const top = placeBelow ? rect.bottom + 8 : rect.top - hudH - 8;
+    const rawLeft = rect.left + rect.width / 2 - hudW / 2;
+    const left = Math.max(10, Math.min(vw - hudW - 10, rawLeft));
+    const topPx = Math.round(Math.max(8, top));
+    const leftPx = Math.round(left);
+    if (elTagHud.style) {
+      elTagHud.style.top = `${topPx}px`;
+      elTagHud.style.left = `${leftPx}px`;
+    } else {
+      elTagHud.setAttribute?.("style", `top:${topPx}px;left:${leftPx}px`);
+    }
+  }
+
+  function onTagPointerOver(event) {
+    if (!elTagHud) return;
+    const tipEl = event.target?.closest?.("[data-tag-tip]");
+    if (!tipEl) {
+      if (activeTagTipEl) hideTagHud();
+      return;
+    }
+    if (tipEl === activeTagTipEl) return;
+    if (tagHudTimer) clearTimeout(tagHudTimer);
+    activeTagTipEl = tipEl;
+    tagHudTimer = setTimeout(() => {
+      tagHudTimer = null;
+      if (!disposed && activeTagTipEl === tipEl) showTagHud(tipEl, tipEl);
+    }, 75);
+  }
+
+  function onTagPointerOut(event) {
+    if (!activeTagTipEl) return;
+    const nextTip = event.relatedTarget?.closest?.("[data-tag-tip]");
+    if (nextTip === activeTagTipEl) return;
+    hideTagHud();
+  }
+
+  function onTagFocusIn(event) {
+    if (!elTagHud) return;
+    const match = resolveTagTipFromFocus(event.target);
+    if (!match) {
+      if (activeTagTipEl) hideTagHud();
+      return;
+    }
+    if (tagHudTimer) {
+      clearTimeout(tagHudTimer);
+      tagHudTimer = null;
+    }
+    activeTagTipEl = match.tipEl;
+    showTagHud(match.tipEl, match.hostEl);
+  }
+
+  function onTagFocusOut(event) {
+    if (!activeTagTipEl) return;
+    const nextMatch = resolveTagTipFromFocus(event.relatedTarget);
+    if (nextMatch?.tipEl === activeTagTipEl) return;
+    hideTagHud();
+  }
+
   function onKeydown(event) {
     const key = event.key;
-    const tag = document.activeElement?.tagName?.toLowerCase() || "";
+    const activeEl = document.activeElement;
+    const tag = activeEl?.tagName?.toLowerCase() || "";
     const inEditable = tag === "input" || tag === "textarea" || tag === "select";
+
+    if ((key === "Enter" || key === " ") && !inEditable && activeEl?.getAttribute?.("role") === "button" && activeEl?.hasAttribute?.("data-action")) {
+      event.preventDefault?.();
+      activeEl.click?.();
+      return;
+    }
 
     if ((event.metaKey || event.ctrlKey) && key?.toLowerCase() === "k") {
       event.preventDefault?.();
@@ -807,6 +1241,10 @@ export function mountApp(options = {}) {
     }
 
     if (key === "Escape") {
+      if (elTagHud && !elTagHud.hidden) {
+        hideTagHud();
+        return;
+      }
       const s = store.getState();
       if (s.paletteOpen) store.setPaletteOpen(false);
       else if (s.compareOpen) store.setCompareOpen(false);
@@ -849,11 +1287,19 @@ export function mountApp(options = {}) {
     });
   }
 
+  globalThis.window?.addEventListener?.("resize", onResize);
+  globalThis.window?.addEventListener?.("scroll", hideTagHud, { passive: true, capture: true });
   doc.addEventListener("click", onClick);
   doc.addEventListener("change", onChange);
   doc.addEventListener("input", onInput);
   doc.addEventListener("keydown", onKeydown);
   doc.addEventListener("visibilitychange", onVisibilityChange);
+  if (elTagHud) {
+    doc.addEventListener("pointerover", onTagPointerOver, { passive: true });
+    doc.addEventListener("pointerout", onTagPointerOut, { passive: true });
+    doc.addEventListener("focusin", onTagFocusIn);
+    doc.addEventListener("focusout", onTagFocusOut);
+  }
   if (typeof globalThis.window?.requestAnimationFrame === "function") {
     doc.addEventListener("pointermove", onPointerMove, { passive: true });
   }
@@ -861,12 +1307,12 @@ export function mountApp(options = {}) {
   const pollTimer = setInterval(() => {
     if (doc.visibilityState === "visible") {
       refresh(false);
+      refreshVisitStats(false);
     }
   }, REFRESH_INTERVAL_MS);
 
   // Lightweight 1s live clock + sync progress bar + 15s freshness age + 3s live event capsule ticker
   let capsuleTick = 0;
-  let capsuleStep = 0;
   const liveTickerTimer = setInterval(() => {
     if (doc.visibilityState !== "visible") return;
     const nowMs = Date.now();
@@ -881,6 +1327,9 @@ export function mountApp(options = {}) {
     }
 
     capsuleTick += 1;
+    if (capsuleTick % 12 === 0) {
+      refreshVisitStats(false);
+    }
     if (capsuleTick % 15 === 0 && curState.loadState === "ready" && curState.payload?.generatedAt) {
       const teleNode = doc.querySelector("[data-telemetry-label]");
       if (teleNode) {
@@ -902,20 +1351,31 @@ export function mountApp(options = {}) {
     }
   }, 1000);
 
-  // Initial synchronous skeleton render + live snapshot fetch
+  // Initial synchronous skeleton render + live snapshot fetch, then non-colliding visit hit
   render(store.getState());
-  refresh(true);
+  refresh(true).finally(() => {
+    if (!disposed) scheduleVisitStatsAfterRefresh(true);
+  });
 
   return {
     store,
     refresh,
+    refreshVisitStats,
     dispose() {
       disposed = true;
       refreshController?.abort();
+      if (statsTimer) clearTimeout(statsTimer);
+      statsController?.abort();
+      cancelVisitTween();
       cancelNumberTweens();
       if (spotlightRaf && typeof globalThis.window?.cancelAnimationFrame === "function") {
         globalThis.window.cancelAnimationFrame(spotlightRaf);
       }
+      terminalList?.dispose();
+      hideTagHud();
+      if (resizeFrame) globalThis.window?.cancelAnimationFrame?.(resizeFrame);
+      globalThis.window?.removeEventListener?.("resize", onResize);
+      globalThis.window?.removeEventListener?.("scroll", hideTagHud, { capture: true });
       unsubscribe();
       clearInterval(pollTimer);
       clearInterval(liveTickerTimer);
@@ -925,6 +1385,12 @@ export function mountApp(options = {}) {
       doc.removeEventListener("input", onInput);
       doc.removeEventListener("keydown", onKeydown);
       doc.removeEventListener("visibilitychange", onVisibilityChange);
+      if (elTagHud) {
+        doc.removeEventListener("pointerover", onTagPointerOver);
+        doc.removeEventListener("pointerout", onTagPointerOut);
+        doc.removeEventListener("focusin", onTagFocusIn);
+        doc.removeEventListener("focusout", onTagFocusOut);
+      }
       if (typeof globalThis.window?.requestAnimationFrame === "function") {
         doc.removeEventListener("pointermove", onPointerMove);
       }

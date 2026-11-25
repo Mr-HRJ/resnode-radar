@@ -88,9 +88,15 @@ export async function fetchSnapshot(endpoint = "data/products.json", { signal, t
   const now = Date.now();
   const events = [...(payload.events || [])].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
   const eventIndex = buildEventIndex(events);
-  const allRecords = payload.products.map((raw, idx) =>
-    normalizeProduct(raw, idx, payload.exchangeRates, eventIndex, now)
-  );
+  const allRecords = [];
+  for (let idx = 0; idx < payload.products.length; idx += 1) {
+    // Large snapshots must leave the browser time to paint and handle input.
+    if (idx > 0 && idx % 128 === 0 && typeof globalThis.window?.setTimeout === "function") {
+      await new Promise(resolve => globalThis.window.setTimeout(resolve, 0));
+    }
+    if (requestSignal.aborted) throw requestError(requestSignal.reason, requestSignal);
+    allRecords.push(normalizeProduct(payload.products[idx], idx, payload.exchangeRates, eventIndex, now));
+  }
   const plans = [];
   const diagnostics = [];
   for (const rec of allRecords) {

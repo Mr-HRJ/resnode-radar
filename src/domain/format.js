@@ -30,6 +30,8 @@ export const MACRO_REGIONS = [
 
 export const OPT_OPTIONS = [
   { value: "all", label: "不限优化" },
+  { value: "3net", label: "三网优化" },
+  { value: "2net", label: "双网+优化" },
   { value: "opt", label: "⚡ 有回国优化" },
   { value: "intl", label: "🌐 纯国际/无优化" },
   { value: "native", label: "🛡 原生/双ISP" }
@@ -209,7 +211,7 @@ export function monitorFreshness(generatedAt, now = Date.now()) {
         : minutes < 1440
           ? `${Math.floor(minutes / 60)} 小时前`
           : `${Math.floor(minutes / 1440)} 天前`;
-  // The collector runs every 10 minutes; three missed cycles mark the snapshot stale.
+  // Allow a ten-minute grace period beyond the twenty-minute collection interval.
   return { stale: age > STALE_AFTER_MINUTES * 60000, ageMinutes: minutes, label };
 }
 
@@ -360,9 +362,9 @@ export function featureEntries(product) {
 }
 
 const routePatterns = {
-  cn2: /\b(?:cn\s*2(?=$|[^a-z0-9]|gia|gt)|as\s*4809\b)/i,
+  cn2: /\b(?:cn\s*2(?=$|[^a-z0-9]|gia|gt)|ctggia|as\s*4809\b)/i,
   "9929": /(?:\b(?:as\s*)?9929\b|\bcuii\b|\bcu2\b)/i,
-  cmin2: /\b(?:cmi\s*n\s*2|as\s*58807)\b/i,
+  cmin2: /(?:\bcmi\s*n\s*2\b|\bcmi\s*2\b|\bas\s*58807\b)/i,
   "4837": /\b(?:as\s*)?4837\b/i,
   iij_sb: /(?:\biij\b|\bsoftbank\b|软银|軟銀)/i,
   hinet: /\bhinet\b/i,
@@ -388,7 +390,7 @@ export function declaredRouteText(product) {
 
 export function matchesRoute(product, value) {
   if (value === "all") return true;
-  const declared = declaredRouteText(product);
+  const declared = product?._declaredRouteText ?? declaredRouteText(product);
   if (value === "other") return !coreRouteKeys.some((key) => routePatterns[key].test(declared));
   return Object.hasOwn(routePatterns, value) && routePatterns[value].test(declared);
 }
@@ -406,6 +408,141 @@ export function detectedRoutes(product) {
   return found;
 }
 
+const residentialIspPatterns = [
+  ["AT&T", /\bat\s*&\s*t\b|\batt\b/i],
+  ["Verizon", /\bverizon\b/i],
+  ["Frontier", /\bfrontier\b/i],
+  ["Comcast", /\bcomcast\b|\bxfinity\b/i],
+  ["RCN", /\brcn\b/i],
+  ["SoftBank", /softbank|软银|軟銀/i],
+  ["HiNet", /\bhinet\b/i],
+  ["NTT", /\bntt\b/i],
+  ["Sky", /\bsky\s*(?:uk|broadband)?\b/i],
+  ["Virgin", /\bvirgin\b/i],
+  ["KT", /\bkt\b/i]
+];
+
+export function describeRouteProfile(product, { isResidential = false, isDualIsp = false, isNativeIp = false, isNat = false } = {}) {
+  const declared = declaredRouteText(product);
+
+  let ct = null;
+  if (/cn\s*2\s*gia|ctggia/i.test(declared)) {
+    ct = { carrier: "电信", short: "电·CN2 GIA", full: "电信 CN2 GIA", premium: true, tone: "cn2" };
+  } else if (/cn\s*2\s*gt/i.test(declared)) {
+    ct = { carrier: "电信", short: "电·CN2 GT", full: "电信 CN2 GT", premium: false, tone: "cn2" };
+  } else if (routePatterns.cn2.test(declared)) {
+    ct = { carrier: "电信", short: "电·CN2", full: "电信 CN2", premium: false, tone: "cn2" };
+  } else if (/电信(?:直连|优化|精品|回程)|\bchina\s*telecom\s*(?:direct|optimized)/i.test(declared)) {
+    ct = { carrier: "电信", short: "电·直连", full: "电信直连优化", premium: false, tone: "cn2" };
+  }
+
+  let cu = null;
+  if (routePatterns["9929"].test(declared)) {
+    cu = { carrier: "联通", short: "联·9929", full: "联通 9929", premium: true, tone: "9929" };
+  } else if (routePatterns["4837"].test(declared)) {
+    cu = { carrier: "联通", short: "联·4837", full: "联通 4837", premium: false, tone: "4837" };
+  } else if (/\b(?:as\s*)?10099\b|\bcug\b/i.test(declared)) {
+    cu = { carrier: "联通", short: "联·10099", full: "联通 10099", premium: false, tone: "9929" };
+  } else if (/联通(?:直连|优化|精品|回程)|\bchina\s*unicom\s*(?:direct|optimized)/i.test(declared)) {
+    cu = { carrier: "联通", short: "联·直连", full: "联通直连优化", premium: false, tone: "4837" };
+  }
+
+  let cm = null;
+  if (routePatterns.cmin2.test(declared)) {
+    cm = { carrier: "移动", short: "移·CMIN2", full: "移动 CMIN2", premium: true, tone: "cmin2" };
+  } else if (/(?:\bcmi\b|\bas\s*58453\b|china\s*mobile\s*(?:direct|optimized)|移动(?:直连|优化|精品|回程))/i.test(declared)) {
+    cm = { carrier: "移动", short: "移·CMI", full: "移动 CMI 直连", premium: false, tone: "cmin2" };
+  }
+
+  const cnCarriers = [ct, cu, cm].filter(Boolean);
+  const explicitThreeNet = /三网(?:直连|优化|回程|精品|cmi|gia|4837|9929)|三網(?:直連|優化|回程|精品)|three[- ]?net\s*optimized/i.test(declared);
+  const explicitTwoNet = /双网(?:直连|优化|回程)|雙網/i.test(declared);
+  const netCount = explicitThreeNet || cnCarriers.length === 3 ? 3 : explicitTwoNet || cnCarriers.length === 2 ? 2 : cnCarriers.length === 1 ? 1 : 0;
+
+  const hasSoftbank = /softbank|软银|軟銀/i.test(declared);
+  const hasIij = /\biij\b/i.test(declared);
+  const hasHinet = /\bhinet\b/i.test(declared);
+  const hasCnix = /\bcnix\b/i.test(declared);
+  const hasGenericCnOpt = /回国优化|回國優化|大陆优化|大陸優化|cn\s*优化|cn\s*優化|精品网|精品網/i.test(declared);
+  // Generic latency or transit claims do not identify an optimized destination.
+  const genericOptLabel = /wan\s*latency\s*optimized/i.test(declared)
+    ? "WAN 延迟优化（范围未注明）"
+    : /gtt\s*直连/i.test(declared) ? "GTT 直连（范围未注明）" : "";
+  const hasBgp = /\bbgp\b/i.test(declared);
+
+  const chips = [];
+  if (cnCarriers.length > 0) {
+    for (const c of cnCarriers) chips.push({ label: c.short, tone: c.tone });
+  } else if (explicitThreeNet) {
+    chips.push({ label: "电信直连", tone: "cn2" }, { label: "联通直连", tone: "9929" }, { label: "移动直连", tone: "cmin2" });
+  }
+
+  if (hasSoftbank) chips.push({ label: "软银", tone: "jp" });
+  else if (hasIij) chips.push({ label: "IIJ", tone: "jp" });
+  if (hasHinet) chips.push({ label: "HiNet", tone: "jp" });
+  if (hasCnix) chips.push({ label: "CNIX", tone: "bgp" });
+
+  let headline = "";
+  let headlineTone = "intl";
+  let scopeBadge = "";
+
+  if (netCount === 3) {
+    const allPremium = cnCarriers.length === 3 && cnCarriers.every((c) => c.premium);
+    headline = allPremium ? "三网精品优化" : "三网回程优化";
+    headlineTone = "opt-3";
+    scopeBadge = "三网";
+  } else if (netCount === 2) {
+    const pair = cnCarriers.length === 2 ? cnCarriers.map((c) => c.carrier[0]).join("+") : "";
+    headline = pair ? `双网优化 · ${pair}` : "双网回程优化";
+    headlineTone = "opt-2";
+    scopeBadge = "双网";
+  } else if (netCount === 1) {
+    headline = cnCarriers[0].full;
+    headlineTone = "opt-1";
+    scopeBadge = "单网";
+  } else if (hasSoftbank || hasIij || hasHinet) {
+    headline = hasSoftbank && hasIij ? "日本 软银/IIJ" : hasSoftbank ? "日本软银直连" : hasIij ? "日本 IIJ 直连" : "台湾 HiNet 宽带";
+    headlineTone = isResidential ? "home" : "opt-1";
+  } else if (hasGenericCnOpt) {
+    headline = "大陆直连优化";
+    headlineTone = "opt-1";
+    if (chips.length === 0) chips.push({ label: "回国优化", tone: "cn2" });
+  } else if (isResidential) {
+    const isp = residentialIspPatterns.find(([, re]) => re.test(declared))?.[0] || "";
+    headline = isp ? `${isp} 住宅宽带` : isDualIsp ? "双ISP 原生住宅" : "海外本土家宽";
+    headlineTone = "home";
+    if (isp && !chips.some((c) => c.label.toLowerCase() === isp.toLowerCase())) {
+      chips.push({ label: `${isp} 宿主`, tone: "home" });
+    }
+    if (isDualIsp) chips.push({ label: "双ISP", tone: "home" });
+    else if (chips.length === 0) chips.push({ label: "住宅ISP", tone: "home" });
+  } else {
+    headline = genericOptLabel || (hasBgp ? "BGP 国际互联" : isNativeIp ? "原生IP 国际互联" : "国际标准互联");
+    headlineTone = "intl";
+    if (genericOptLabel) chips.push({ label: "优化范围待核验", tone: "muted" });
+    else if (hasBgp) chips.push({ label: "BGP国际", tone: "bgp" });
+    else chips.push({ label: "国际无优化", tone: "muted" });
+  }
+
+  if (isDualIsp && !chips.some((c) => c.label === "双ISP")) {
+    chips.push({ label: "双ISP", tone: "home" });
+  } else if (isNativeIp && !isResidential && chips.length < 3) {
+    chips.push({ label: "原生IP", tone: "native" });
+  }
+  if (isNat) {
+    chips.push({ label: "NAT共享", tone: "warn" });
+  }
+
+  return {
+    netCount,
+    hasCnOpt: netCount > 0 || hasSoftbank || hasIij || hasHinet || hasGenericCnOpt,
+    headline,
+    headlineTone,
+    scopeBadge,
+    chips: chips.slice(0, 4)
+  };
+}
+
 const fieldNames = {
   cpu: /^(?:cpu|vcpu|processor|处理器|處理器)$/i,
   memory: /^(?:ram|memory|内存|內存)$/i,
@@ -421,8 +558,9 @@ const bareCapacity = new RegExp(`^${sizeRe}$`, "i");
 const cpuPattern = new RegExp(String.raw`${numRe}\s*(?:[x×*]\s*)?(?:v\s*(?:cpus?|cores?)|cpus?|cores?(?:\(s\))?|核(?:心)?)(?![a-z])`, "i");
 const modelCpuPattern = /\d+\s*[x×*]\s*(?:Intel|AMD|Xeon|EPYC|E\d)\b[^/|]*/i;
 const memoryPattern = new RegExp(`(${sizeRe})\\s*(?:DDR\\d*(?:@[^\\s]+)?\\s*)?(?:RAM\\b|memory\\b|[内內]存)|(${sizeRe})\\s*DDR\\d*`, "i");
-const diskPattern = new RegExp(`${sizeRe}\\s*(?:RAID[- ]?\\d+\\s*)?(?:SSD|NVMe|HDD|disk|storage|硬[盘盤]|磁[盘盤]|存[储儲])`, "i");
+const diskPattern = new RegExp(`${sizeRe}\\s*(?:RAID(?:[- ]?\\d+)?\\s*)?(?:SSD|NVMe|HDD|disk|storage|硬[盘盤]|磁[盘盤]|存[储儲])`, "i");
 const speedPattern = new RegExp(`(${numRe})\\s*([KMGT])(bps|bit(?:/s)?)(?![a-z])`, "i");
+const wordSpeedPattern = new RegExp(`(${numRe})\\s*(Giga|Mega|Tera|Kilo)bits?(?:/s)?(?![a-z])`, "i");
 const unlimitedPattern = /\bunlimited\b|\bunmetered\b|不限(?:制)?(?:流)?量|无限流量|無限流量|不计流量|不計流量/i;
 
 function segments(value) {
@@ -447,6 +585,11 @@ function labeled(segment) {
 function speed(value, shorthand = false) {
   const match = value.match(speedPattern);
   if (match) return `${match[1]} ${match[2].toUpperCase()}${match[3] === "Bps" ? "Bps" : "bps"}`;
+  const wordMatch = value.match(wordSpeedPattern);
+  if (wordMatch) {
+    const unitLetter = wordMatch[2][0].toUpperCase();
+    return `${wordMatch[1]} ${unitLetter}bps`;
+  }
   const bytes = value.match(new RegExp(`${numRe}\\s*[KMGT]B/s\\b`));
   if (bytes) return bytes[0];
   const short = shorthand && value.match(new RegExp(`^(${numRe})\\s*([KMGT])(?![a-z])`, "i"));
@@ -469,9 +612,10 @@ function networkTraffic(network) {
   for (const [key, value] of segments(network).map(labeled)) {
     if (fieldNames.bandwidth.test(key)) continue;
     if (unlimitedPattern.test(value)) return "不限流量";
-    const capacity = value.match(capacityPattern)?.[0];
-    if (capacity && (/[KMGT]i?B/i.test(capacity) || /流量|traffic|transfer|双向|雙向|in\+out/i.test(value))) {
-      const suffixMatch = value.slice(value.indexOf(capacity) + capacity.length).match(/^\((?:in\+out|双向|雙向)\)/i);
+    const withoutDisk = value.replace(new RegExp(diskPattern.source, "gi"), " ");
+    const capacity = withoutDisk.match(capacityPattern)?.[0];
+    if (capacity && (/[KMGT]i?B/i.test(capacity) || /流量|traffic|transfer|bandwidth|双向|雙向|in\+out/i.test(withoutDisk))) {
+      const suffixMatch = withoutDisk.slice(withoutDisk.indexOf(capacity) + capacity.length).match(/^\((?:in\+out|双向|雙向)\)/i);
       return suffixMatch ? `${capacity}${suffixMatch[0]}` : capacity;
     }
   }
@@ -543,7 +687,7 @@ export function parseNumericSpecs(product, specs = productSpecs(product)) {
   const cpuRaw = specs.cpu && specs.cpu !== "未标明" ? String(specs.cpu) : hwSegs[0];
   if (cpuRaw && !/\d\s*[-–~]\s*\d/.test(cpuRaw)) {
     const mUnit =
-      cpuRaw.match(/(\d+(?:\.\d+)?)\s*(?:[x×*]\s*)?(?:v\s*(?:cpus?|cores?)|cpus?|cores?|核(?:心)?|H\b)/i);
+      cpuRaw.match(/(\d+(?:\.\d+)?)\s*(?:[x×*]\s*)?(?:v\s*(?:cpus?|cores?)|cpus?|cores?|kerne?\b|核(?:心)?|H\b|C(?=@|\b))/i);
     if (mUnit) {
       const n = Number(mUnit[2] || mUnit[1]);
       if (Number.isFinite(n) && n > 0 && n <= 512) cpuCores = n;
@@ -644,6 +788,107 @@ export function productRegions(product) {
         .map((value) => value.trim())
     )
   ];
+}
+
+const cityHintsByCountry = [
+  ["US", "圣何塞", /圣何塞|聖荷西|\bsan\s*jose\b|\bsjc\d*\b/i],
+  ["US", "洛杉矶", /洛杉矶|洛杉磯|\blos\s*angeles\b|\blax\d*\b|\bkvmla\b|\bla[-_ ]?(?:pro|cn2|9929|4837|vps|\d)/i],
+  ["US", "达拉斯", /达拉斯|達拉斯|\bdallas\b|\bdalkvm\b|\bdal\d*\b|\bkvmtx\b/i],
+  ["US", "西雅图", /西雅图|西雅圖|\bseattle\b|\bsea\d*\b/i],
+  ["US", "纽约", /纽约|紐約|\bnew\s*york\b|\bnyc\d*\b/i],
+  ["US", "芝加哥", /芝加哥|\bchicago\b|\bord\d*\b/i],
+  ["US", "盐湖城", /盐湖城|鹽湖城|\bsalt\s*lake\b|\bslc\d*\b|\bkvmut\b/i],
+  ["US", "迈阿密", /迈阿密|邁阿密|\bmiami\b|\bmia\d*\b/i],
+  ["US", "硅谷", /硅谷|矽谷|\bsilicon\s*valley\b/i],
+  ["US", "华盛顿", /华盛顿|華盛頓|\bwashington\s*,?\s*dc\b|\biad\d*\b/i],
+  ["US", "堪萨斯", /堪萨斯|\bkansas\s*city\b|\bmci\d*\b/i],
+  ["US", "凤凰城", /凤凰城|鳳凰城|\bphoenix\b|\bphx\d*\b/i],
+  ["US", "加州", /加州|加利福尼亚|\bcalifornia\b/i],
+  ["JP", "东京", /东京|東京|\btokyo\b|\btyo\d*\b|\bnrt\d*\b/i],
+  ["JP", "大阪", /大阪|\bosaka\b|\bosa\d*\b|\bkix\d*\b/i],
+  ["HK", "将军澳", /将军澳|將軍澳|\btko\b/i],
+  ["HK", "新界", /新界|\bnew\s*territories\b/i],
+  ["TW", "台北", /台北|臺北|\btaipei\b|\btpe\d*\b/i],
+  ["TW", "彰化", /彰化|\bchanghua\b/i],
+  ["KR", "首尔", /首尔|首爾|\bseoul\b|\bicn\d*\b/i],
+  ["DE", "法兰克福", /法兰克福|法蘭克福|\bfrankfurt\b|\bfra[-_0-9]|\bfra\b/i],
+  ["NL", "阿姆斯特丹", /阿姆斯特丹|\bamsterdam\b|\bams[-_.0-9]|\bams\b/i],
+  ["GB", "伦敦", /伦敦|倫敦|\blondon\b|\blon\d*\b|\blhr\d*\b/i],
+  ["GB", "考文垂", /考文垂|\bcoventry\b/i],
+  ["FR", "巴黎", /巴黎|\bparis\b|\bcdg\d*\b/i],
+  ["CA", "多伦多", /多伦多|多倫多|\btoronto\b|\byyz\d*\b/i],
+  ["AU", "悉尼", /悉尼|雪梨|\bsydney\b|\bsyd\d*\b/i],
+  ["IS", "雷克雅未克", /雷克雅未克|\breykjavik\b/i],
+  ["AE", "迪拜", /迪拜|杜拜|\bdubai\b|\bdxb\d*\b/i]
+];
+
+const extraIsoPatterns = [
+  ["AE", /阿联酋|阿聯酋|迪拜|杜拜|\b(?:uae|dubai)\b/i],
+  ["IS", /冰岛|冰島|雷克雅未克|\b(?:iceland|reykjavik)\b/i],
+  ["CH", /瑞士|苏黎世|\b(?:switzerland|zurich)\b/i],
+  ["SE", /瑞典|斯德哥尔摩|\b(?:sweden|stockholm)\b/i],
+  ["IT", /意大利|米兰|\b(?:italy|milan)\b/i],
+  ["ES", /西班牙|马德里|\b(?:spain|madrid)\b/i],
+  ["PL", /波兰|华沙|\b(?:poland|warsaw)\b/i],
+  ["FI", /芬兰|赫尔辛基|\b(?:finland|helsinki)\b/i],
+  ["AT", /奥地利|维也纳|\b(?:austria|vienna)\b/i],
+  ["BR", /巴西|圣保罗|\b(?:brazil)\b/i],
+  ["TR", /土耳其|伊斯坦布尔|\b(?:turkey|istanbul)\b/i],
+  ["NZ", /新西兰|奥克兰|\b(?:new zealand|auckland)\b/i],
+  ["BG", /保加利亚|索非亚|\b(?:bulgaria|sofia)\b/i],
+  ["ID", /印尼|印度尼西亚|雅加达|\b(?:indonesia|jakarta)\b/i],
+  ["PH", /菲律宾|马尼拉|\b(?:philippines|manila)\b/i]
+];
+
+export function describeLocation(product) {
+  const regions = productRegions(product);
+  if (regions.length === 0) {
+    return { code: "--", primary: "待核验", sub: "", isPending: true, fullTitle: "官方页未单列机房地区，请以订购页为准" };
+  }
+
+  const first = plain(regions[0]);
+  if (/多地区|多地區|全球|多国|多國|global|worldwide|multiple/i.test(first)) {
+    const named = regions.slice(1).filter((r) => !/多地区|全球/i.test(r));
+    return {
+      code: "GL",
+      primary: "多机房可选",
+      sub: named.length ? named.slice(0, 2).join("/") + (named.length > 2 ? ` +${named.length - 2}` : "") : "下单自选",
+      isPending: false,
+      fullTitle: regions.join(" / ")
+    };
+  }
+
+  const cleaned = cleanRegionInput(first);
+  const code =
+    countryPatterns.find(([, pat]) => pat.test(cleaned))?.[0] ||
+    extraIsoPatterns.find(([, pat]) => pat.test(cleaned))?.[0] ||
+    (product._macroRegions?.[0] === "APAC" ? "AP" : product._macroRegions?.[0] === "MULTI" ? "GL" : product._macroRegions?.[0] || "GL");
+
+  const parts = first.split(/\s*[·\-/]\s*/).filter(Boolean);
+  let primary = parts.length > 1 ? parts[parts.length - 1] : first;
+  let sub = parts.length > 1 ? parts[0] : "";
+
+  if (!sub && code && code !== "GL") {
+    const hintText = `${first} ${plain(product?.name)} ${plain(product?.route)}`;
+    const cityMatch = cityHintsByCountry.find(([c, city, re]) => c === code && city !== first && re.test(hintText));
+    if (cityMatch) {
+      sub = first;
+      primary = cityMatch[1];
+    }
+  }
+
+  if (regions.length > 1) {
+    const extraCount = regions.length - 1;
+    sub = sub ? `${sub} +${extraCount}` : `+${extraCount} 机房`;
+  }
+
+  return {
+    code,
+    primary,
+    sub,
+    isPending: false,
+    fullTitle: regions.join(" / ")
+  };
 }
 
 export function macroRegionsFor(product) {

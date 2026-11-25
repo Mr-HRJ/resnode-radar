@@ -1,17 +1,17 @@
 # ResNode Radar
 
-This fork deploys to [Cloudflare](https://resnode-radar.haorenjie1997.workers.dev/)
-and runs its own scheduled collector. See [deployment instructions](docs/cloudflare-deployment.md).
+This fork runs at [vpsld.com](https://vpsld.com/) on an Ubuntu VPS
+with its own twenty-minute collector. See [production deployment instructions](docs/vps-deployment.md).
+The Cloudflare Worker is a legacy deployment; GitHub inventory collection is disabled.
 Based on [the original ResNode Radar](https://github.com/majiayu000/resnode-radar),
 with its MIT license and copyright notice retained.
 
 [![CI](https://github.com/Mr-HRJ/resnode-radar/actions/workflows/ci.yml/badge.svg)](https://github.com/Mr-HRJ/resnode-radar/actions/workflows/ci.yml)
-[![Monitor VPS Sources](https://github.com/Mr-HRJ/resnode-radar/actions/workflows/monitor.yml/badge.svg)](https://github.com/Mr-HRJ/resnode-radar/actions/workflows/monitor.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 VPS stock monitor and owner-run review site for Chinese cross-border operators.
 
-[Browse the live inventory](https://resnode-radar.haorenjie1997.workers.dev/) ·
+[Browse the live inventory](https://vpsld.com/) ·
 [Quick start](#quick-start) · [Monitoring contract](docs/monitoring-spec.md)
 
 ResNode Radar tracks provider-backed VPS availability, records parser evidence,
@@ -27,7 +27,8 @@ data-first: no fallback mock products are shown when live provider parsing fails
 - Serves a static frontend from `index.html`.
 - Separates ordinary VPS (`category: vps`) from residential/ISP-focused VPS (`category: home`). IP labels remain an independent filter; a native IP claim alone does not imply residential hosting.
 - Provides four complete views: plan discovery, provider directory, observed stock/price changes, and a buying guide.
-- Supports shareable region, route, provider, IP, currency, billing-cycle and availability filters; desktop tables/cards; responsive mobile cards; local bookmarks; and side-by-side comparison of up to four plans.
+- Supports shareable region, route, provider, 7-dimension provider tag (`热门顶流` / `老牌稳健` / `原生家宽` / `回国优线` / `大口高配` / `高性价比` / `低价入门`, via `?provTag=`), 8-dimension plan highlight tag (`口碑爆款` / `便宜量大` / `年付特惠` / `高性价比` / `家宽直连` / `性能高配` / `紧俏余量` / `低价入门`, via `?deal=`), IP, currency, billing-cycle and availability filters; desktop tables/cards; responsive mobile cards; local bookmarks; and side-by-side comparison of up to four plans.
+- Distinguishes both shop badges and per-plan highlight badges by explicit factual evidence: curated mainstream/veteran brands and scarce signature SKUs for `热门` / `老牌` / `爆款`, whole-shop catalog share and live non-NAT inventory metrics (specs, flagship CPUs, ≥2.5G/10Gbps ports, traffic, annual cycle cost, exact scarce stock, explicit residential+CN-optimized routing, and 7-day ECB FX fuse) for the remaining tags, with bespoke front-positioned animated vector icons, 1-click tag filtering, and live verification HUD popovers + inspector audit cards.
 - Preserves original bills and adds an optional CNY monthly estimate using dated ECB reference rates. Unknown cycles, configurable starting prices and unavailable/stale rates do not produce converted estimates.
 - Records changes between comparable collector observations, retaining up to 300 events for seven days. An initial observation establishes a baseline; a missing or blocked product does not become a sellout.
 
@@ -70,10 +71,10 @@ Open `http://127.0.0.1:4173/`.
 
 ## Public Site
 
-Cloudflare serves the website at <https://resnode-radar.haorenjie1997.workers.dev/>.
-The build uses `wrangler.json` to generate canonical URLs, `sitemap.xml`, and
-`robots.txt`. Inventory is loaded from this fork's scheduled collector without
-redeploying the website. See [Cloudflare deployment](docs/cloudflare-deployment.md).
+Nginx serves the website at <https://vpsld.com/> directly from the Ubuntu VPS.
+`npm run build:vps` generates production canonical URLs, `sitemap.xml`,
+`robots.txt`, and content-versioned assets. Inventory is loaded from the VPS
+collector without redeploying the website. See [VPS deployment](docs/vps-deployment.md).
 The unfinished review templates retain `noindex` until real test evidence is
 added. The committed preview is a screenshot, not a promise of current stock.
 
@@ -122,13 +123,11 @@ npm run monitor
 npm run monitor:validate
 ```
 
-Collection runs every 10 minutes. The Cloudflare Worker cron (`*/10 * * * *`)
-dispatches the `Monitor VPS Sources` workflow (requires the `GITHUB_DISPATCH_TOKEN`
-Worker secret); GitHub's own `*/10` schedule is only a fallback because it is often
-delayed by hours on public repositories, and a freshness guard skips duplicate runs.
-Each validated snapshot is force-published as a single commit on the `data` branch,
-which the Worker serves, so `main` history does not grow by ~150 data commits a day.
-Check actual Actions runs and the published collection timestamp; a configured
+Production collection runs every 20 minutes through `resnode-radar.service` on
+the VPS. Validated snapshots are atomically written to persistent storage and
+served by Nginx. GitHub's `monitor.yml` is intentionally disabled; production
+does not use the legacy Worker cron, `data` branch, or `GITHUB_DISPATCH_TOKEN`.
+Check the daemon status and published collection timestamp; a configured
 schedule alone does not prove a run occurred.
 
 The directory contains 121 unique providers: all 117 entries from the public

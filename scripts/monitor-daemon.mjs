@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { validateMonitorPayload } from "./validate-monitor-data.mjs";
 import { BROWSER_ASSET_ALLOWLIST } from "./build-cloudflare.mjs";
 import { publishSnapshot } from "./publish-snapshot.mjs";
+import { VisitStatsStore, createVisitStatsHandler } from "./visit-stats-server.mjs";
 
 const projectRoot = fileURLToPath(new URL("../", import.meta.url));
 
@@ -85,10 +86,26 @@ function fxNeedsRefresh(cwd, maxAgeMs = 12 * 60 * 60 * 1000) {
   }
 }
 
-export function createStaticServer(rootDir = projectRoot) {
+export function createStaticServer(rootDir = projectRoot, options = {}) {
   const safeRoot = realpathSync(rootDir);
+  const statsStore = new VisitStatsStore(options.statsDbPath ?? join(safeRoot, "data/visits.sqlite"));
+  const statsHandler = createVisitStatsHandler(statsStore);
   const allowed = [...BROWSER_ASSET_ALLOWLIST, "data/products.json", "data/fx.json", "data/daemon-status.json", "sitemap.xml", "robots.txt"];
-  return createServer((req, res) => {
+  const server = createServer((req, res) => {
+    let rawUrlPath = "/";
+    try {
+      rawUrlPath = new URL(req.url || "/", "http://127.0.0.1").pathname;
+    } catch {
+      res.writeHead(400);
+      res.end("Bad request");
+      return;
+    }
+
+    if (rawUrlPath === "/api/stats") {
+      statsHandler(req, res);
+      return;
+    }
+
     if (!["GET", "HEAD"].includes(req.method || "")) {
       res.writeHead(405, { allow: "GET, HEAD", "content-type": "text/plain; charset=utf-8" });
       res.end("Method not allowed");
@@ -97,7 +114,7 @@ export function createStaticServer(rootDir = projectRoot) {
 
     let pathname = "/";
     try {
-      pathname = decodeURIComponent(new URL(req.url || "/", "http://127.0.0.1").pathname);
+      pathname = decodeURIComponent(rawUrlPath);
       if (/[\x00-\x1f\\]/.test(pathname)) throw new Error("Invalid path");
     } catch {
       res.writeHead(400);
@@ -146,6 +163,14 @@ export function createStaticServer(rootDir = projectRoot) {
       res.end(status === 404 ? "Not found" : status === 403 ? "Forbidden" : "Asset read failed");
     }
   });
+  server.on("close", () => {
+    try {
+      statsStore.close();
+    } catch {
+      // ignore close errors
+    }
+  });
+  return server;
 }
 
 function runNodeScript(scriptPath, cwd, timeoutMs, onChild) {

@@ -32,6 +32,13 @@ test("VPS assets use the production origin and leave collection data outside the
     assert.equal(second.revision, first.revision, "origin changes do not invalidate unchanged assets");
     assert.match(readFileSync(join(output, "index.html"), "utf8"), /https:\/\/radar\.example\//);
     assert.throws(() => buildVps(output, "http://radar.example/"), /HTTPS origin/);
+
+    const nginxHttps = readFileSync(new URL("../deploy/vps/nginx-https.conf", import.meta.url), "utf8");
+    assert.match(nginxHttps, /location = \/api\/stats\b/);
+    assert.match(nginxHttps, /proxy_pass http:\/\/127\.0\.0\.1:18920;/);
+    const statsService = readFileSync(new URL("../deploy/vps/resnode-radar-stats.service", import.meta.url), "utf8");
+    assert.match(statsService, /scripts\/visit-stats-server\.mjs/);
+    assert.doesNotMatch(statsService, /STATS_BOOST/);
   } finally {
     rmSync(output, { recursive: true, force: true });
   }

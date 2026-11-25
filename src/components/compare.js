@@ -1,4 +1,5 @@
 import { MAX_COMPARE } from "../state/store.js";
+import { renderPlanTagBadge } from "./tag-icons.js";
 import { escapeHtml, plain, safeUrl } from "../domain/format.js";
 
 function resolveComparedPlans(state) {
@@ -37,8 +38,25 @@ export function renderCompareModal(state) {
 
   const validCnys = items.map((p) => p._pricing.cnyMonthly).filter((v) => Number.isFinite(v));
   const lowestCny = validCnys.length >= 2 ? Math.min(...validCnys) : null;
+  const anyPlanTags = items.some((p) => (p._planTags || []).length > 0);
 
   const rows = [
+    ...(anyPlanTags
+      ? [
+          {
+            label: "商品亮点标签",
+            values: items.map((p) => (p._planTags || []).map((t) => t.key).join(",") || "none"),
+            render: (p) => {
+              const pTags = p._planTags || [];
+              return pTags.length
+                ? `<div style="display:flex;gap:4px;flex-wrap:wrap">${pTags
+                    .map((t) => renderPlanTagBadge(t))
+                    .join("")}</div>`
+                : `<span style="color:var(--ink-muted)">常规款</span>`;
+            }
+          }
+        ]
+      : []),
     {
       label: "商家与地区",
       values: items.map((p) => `${p._providerName} · ${p._regions.join(" / ") || "未标明"}`),
