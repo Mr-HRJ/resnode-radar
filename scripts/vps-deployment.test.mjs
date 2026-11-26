@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFile, execFileSync, spawn } from "node:child_process";
+import { createServer, request as httpRequest } from "node:http";
 import { promisify } from "node:util";
+import { gunzipSync, gzipSync } from "node:zlib";
 
 const execFileAsync = promisify(execFile);
 import {
@@ -63,6 +65,11 @@ test("VPS assets use the production origin, stage immutable Vite chunks, and lea
 
     const nginxHttps = readFileSync(new URL("../deploy/vps/nginx-https.conf", import.meta.url), "utf8");
     assert.match(nginxHttps, /gzip_static on;/);
+    assert.match(
+      nginxHttps,
+      /location = \/data\/products\.json\s*\{[^}]*gzip_static off;[^}]*\}/s,
+      "Mutable /data/products.json must disable gzip_static so rollback never serves stale v2 .gz"
+    );
     assert.match(nginxHttps, /location = \/api\/v1\/pulse\b/);
     assert.match(nginxHttps, /location = \/api\/v1\/stats\b/);
     assert.match(nginxHttps, /location = \/api\/stats\b/);
@@ -621,6 +628,190 @@ esac
         // already exited
       }
     }
+    rmSync(sandbox, { recursive: true, force: true });
+  }
+});
+
+test("v2 cutover -> rollback -> legacy v1 continuous updates serve fresh batches for both gzip and identity requests", async () => {
+  const sandbox = mkdtempSync(join(tmpdir(), "resnode-rollback-gz-"));
+  let httpServer = null;
+  try {
+    const sharedData = join(sandbox, "var-lib/data");
+    const sharedStatic = join(sandbox, "var-lib/static");
+    const currentLink = join(sandbox, "opt/current");
+    const v1Release = join(sandbox, "opt/releases/v1-prev");
+    const v2Release = join(sandbox, "opt/releases/v2-new");
+    const mockBin = join(sandbox, "mock-bin");
+
+    mkdirSync(sharedData, { recursive: true });
+    mkdirSync(sharedStatic, { recursive: true });
+    mkdirSync(join(sandbox, "opt"), { recursive: true });
+    mkdirSync(v1Release, { recursive: true });
+    mkdirSync(mockBin, { recursive: true });
+
+    for (const rel of ["package.json", "scripts", "apps", "packages", "deploy"]) {
+      cpSync(join(repoRoot, rel), join(v2Release, rel), {
+        recursive: true,
+        filter: (src) => !src.includes("node_modules") && !src.includes("/dist")
+      });
+    }
+    symlinkSync(join(repoRoot, "node_modules"), join(v2Release, "node_modules"));
+    buildVps(join(v2Release, "dist"));
+    symlinkSync(v1Release, currentLink);
+
+    const makeBatch = (markerName, generatedAt) => ({
+      schemaVersion: 1,
+      generatedAt,
+      publishedAt: generatedAt,
+      sourceCount: 1,
+      summary: { total: 1, available: 1, unavailable: 0, unknown: 0, blocked: 0, error: 0 },
+      eventTracking: { startedAt: generatedAt, retentionDays: 7, limit: 300 },
+      events: [],
+      exchangeRates: {
+        base: "CNY",
+        date: "2026-11-25",
+        source: "ECB",
+        sourceUrl: "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml",
+        rates: { CNY: 1, USD: 7.2, EUR: 7.6 }
+      },
+      products: [
+        {
+          id: "rb-gz-sku-1",
+          sourceId: "src-1",
+          provider: "DMIT",
+          providerId: "dmit",
+          category: "vps",
+          adapter: "public_catalog",
+          sourceUrl: "https://www.dmit.io/",
+          fetchedAt: generatedAt,
+          status: "available",
+          statusLabel: "有货",
+          stockCount: 5,
+          price: "$36.90 / Year",
+          priceValue: 36.9,
+          currency: "USD",
+          name: markerName,
+          region: "Los Angeles",
+          orderUrl: "https://www.dmit.io/cart.php?a=add&pid=1",
+          evidence: "official",
+          evidenceLevel: { value: "stock-count", label: "精确库存 5", className: "is-count", rank: 1 },
+          riskTags: [{ value: "no-extra-risk", label: "未见额外风险", severity: "low" }]
+        }
+      ]
+    });
+
+    const mockSystemctl = join(mockBin, "systemctl");
+    writeFileSync(mockSystemctl, `#!/usr/bin/env bash\nexit 0\n`, { mode: 0o755 });
+    const mockNginx = join(mockBin, "nginx");
+    writeFileSync(mockNginx, `#!/usr/bin/env bash\nexit 0\n`, { mode: 0o755 });
+    const mockSudo = join(mockBin, "sudo");
+    writeFileSync(mockSudo, `#!/usr/bin/env bash\nif [[ "$1" == "-u" ]]; then shift 2; fi\nexec "$@"\n`, { mode: 0o755 });
+
+    const env = {
+      ...process.env,
+      PATH: `${mockBin}:${process.env.PATH || "/usr/bin:/bin"}`,
+      NODE_BIN: process.execPath,
+      SHARED_DATA: sharedData,
+      SHARED_STATIC: sharedStatic,
+      CURRENT_LINK: currentLink,
+      SYSTEMCTL_BIN: mockSystemctl,
+      NGINX_BIN: mockNginx
+    };
+
+    // HTTP server faithfully mirroring Nginx `gzip_static on; gzip on;` behavior for /data/products.json
+    httpServer = createServer((req, res) => {
+      if (req.url !== "/data/products.json") {
+        res.writeHead(404);
+        res.end("not found");
+        return;
+      }
+      const jsonPath = join(sharedData, "products.json");
+      const gzPath = `${jsonPath}.gz`;
+      const acceptsGzip = /\bgzip\b/i.test(String(req.headers["accept-encoding"] || ""));
+      if (acceptsGzip) {
+        const payload = existsSync(gzPath) ? readFileSync(gzPath) : gzipSync(readFileSync(jsonPath));
+        res.writeHead(200, {
+          "content-type": "application/json",
+          "content-encoding": "gzip",
+          "x-gz-source": existsSync(gzPath) ? "static" : "dynamic"
+        });
+        res.end(payload);
+        return;
+      }
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(readFileSync(jsonPath));
+    });
+    await new Promise((resolveListen) => httpServer.listen(0, "127.0.0.1", resolveListen));
+    const { port } = httpServer.address();
+
+    const fetchProducts = (acceptEncoding) =>
+      new Promise((resolveReq, rejectReq) => {
+        const req = httpRequest(
+          {
+            hostname: "127.0.0.1",
+            port,
+            path: "/data/products.json",
+            headers: { "accept-encoding": acceptEncoding }
+          },
+          (res) => {
+            const chunks = [];
+            res.on("data", (c) => chunks.push(c));
+            res.on("end", () => {
+              const raw = Buffer.concat(chunks);
+              const decoded =
+                res.headers["content-encoding"] === "gzip" ? gunzipSync(raw) : raw;
+              resolveReq({
+                status: res.statusCode,
+                gzSource: res.headers["x-gz-source"] || null,
+                json: JSON.parse(decoded.toString("utf8"))
+              });
+            });
+          }
+        );
+        req.on("error", rejectReq);
+        req.end();
+      });
+
+    // 1) Initial v2 cutover seeds products.json.gz alongside v2 snapshot
+    writeFileSync(
+      join(sharedData, "products.json"),
+      `${JSON.stringify(makeBatch("V2-CUTOVER-BATCH-1", "2026-11-25T10:00:00.000Z"))}\n`
+    );
+    await execFileAsync("bash", [join(v2Release, "deploy/vps/cutover.sh"), v2Release], {
+      cwd: sandbox,
+      env
+    });
+    assert.equal(existsSync(join(sharedData, "products.json.gz")), true);
+    const v2Gzip = await fetchProducts("gzip");
+    const v2Identity = await fetchProducts("identity");
+    assert.equal(v2Gzip.gzSource, "static");
+    assert.equal(v2Gzip.json.products[0].name, "V2-CUTOVER-BATCH-1");
+    assert.equal(v2Identity.json.products[0].name, "V2-CUTOVER-BATCH-1");
+
+    // 2) Rollback to v1 must invalidate products.json.gz before legacy collector resumes
+    await execFileAsync("bash", [join(v2Release, "deploy/vps/rollback.sh"), v1Release], {
+      cwd: sandbox,
+      env
+    });
+    assert.equal(existsSync(join(sharedData, "products.json.gz")), false);
+
+    // 3) Legacy v1 collector continuously updates ONLY products.json (never .gz) -> both gzip & identity see every new batch!
+    for (const [name, ts] of [
+      ["V1-LEGACY-UPDATE-BATCH-2", "2026-11-25T10:20:00.000Z"],
+      ["V1-LEGACY-UPDATE-BATCH-3", "2026-11-25T10:40:00.000Z"]
+    ]) {
+      const tmp = join(sharedData, "products.json.v1.tmp");
+      writeFileSync(tmp, `${JSON.stringify(makeBatch(name, ts))}\n`);
+      execFileSync("mv", ["-f", tmp, join(sharedData, "products.json")]);
+
+      const gzRes = await fetchProducts("gzip");
+      const idRes = await fetchProducts("identity");
+      assert.equal(gzRes.gzSource, "dynamic");
+      assert.equal(gzRes.json.products[0].name, name, `gzip request must return fresh ${name}`);
+      assert.equal(idRes.json.products[0].name, name, `identity request must return fresh ${name}`);
+    }
+  } finally {
+    if (httpServer) await new Promise((r) => httpServer.close(r));
     rmSync(sandbox, { recursive: true, force: true });
   }
 });

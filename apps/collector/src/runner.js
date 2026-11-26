@@ -245,7 +245,10 @@ export async function runCollection({
   }
   if (argv.includes("--v1-fallback")) {
     const dataDir = resolve(cwd, env.MONITOR_DATA_DIR || "data");
-    return writeV1FallbackPointer({ dataDir, logger });
+    const v1OutputPath = env.MONITOR_OUTPUT
+      ? resolve(cwd, env.MONITOR_OUTPUT)
+      : join(dataDir, "products.json");
+    return writeV1FallbackPointer({ dataDir, v1OutputPath, logger });
   }
 
   const configuredDataDir = resolve(cwd, env.MONITOR_DATA_DIR || "data");

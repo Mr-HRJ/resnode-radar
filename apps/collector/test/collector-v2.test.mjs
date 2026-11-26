@@ -450,16 +450,19 @@ test("publishBatch, reconcilePublishedState, non-empty corrupt dir .quarantine r
       []
     );
 
-    // Verify seed-v2-from-v1 & v1-fallback rollback pointer
-    await writeV1FallbackPointer({ dataDir, logger: silent });
+    // Verify v1-fallback rollback pointer invalidates products.json.gz inside .publish.lock
+    await writeV1FallbackPointer({ dataDir, v1OutputPath: v1Path, logger: silent });
     const fb = JSON.parse(readFileSync(join(dataDir, "v2/latest.json"), "utf8"));
     assert.equal(fb.mode, "v1-fallback");
-    // Reconcile respects intentional v1-fallback mode
+    assert.equal(existsSync(`${v1Path}.gz`), false, "writeV1FallbackPointer must invalidate stale products.json.gz");
+
+    // Reconcile respects intentional v1-fallback mode and purges any leftover .gz sidecar instead of recreating it
+    writeFileSync(`${v1Path}.gz`, Buffer.from("stale-leftover-gz"));
     const kept = await reconcilePublishedState({ dataDir, v1OutputPath: v1Path, logger: silent });
     assert.equal(kept.action, "v1_fallback_preserved");
+    assert.equal(existsSync(`${v1Path}.gz`), false, "reconcile in v1-fallback must not keep or recreate products.json.gz");
 
     // Seed restores v2 mode AND generates missing products.json.gz preserving original generatedAt
-    unlinkSync(`${v1Path}.gz`);
     assert.equal(existsSync(`${v1Path}.gz`), false);
     const seeded = await seedV2FromV1({ dataDir, v1OutputPath: v1Path, logger: silent });
     assert.equal(seeded.pointer.generatedAt, p1.generatedAt);

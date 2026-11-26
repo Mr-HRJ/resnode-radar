@@ -418,6 +418,22 @@ export async function reconcilePublishedState({
       return { action: "invalid_v1_baseline", errors: v1Errors };
     }
 
+    // Respect explicit v1-fallback rollback mode if set intentionally by rollback.sh.
+    // Never recreate products.json.gz while legacy v1 writer owns products.json, and
+    // purge any leftover .gz sidecar so gzip_static endpoints cannot serve stale v2 data.
+    const latestPath = join(dataDir, "v2/latest.json");
+    if (existsSync(latestPath)) {
+      try {
+        const rawLatest = JSON.parse(readFileSync(latestPath, "utf8"));
+        if (rawLatest?.mode === "v1-fallback") {
+          removeGzipSidecarIfExists(v1OutputPath);
+          return { action: "v1_fallback_preserved", baseline: v1Payload };
+        }
+      } catch {
+        // Corrupt latest.json -> proceed to repair below
+      }
+    }
+
     const mtimeDate = new Date(
       Date.parse(v1Payload.publishedAt || v1Payload.generatedAt) || Date.now()
     );
@@ -425,19 +441,6 @@ export async function reconcilePublishedState({
     if (!isGzipMatchingBytes(`${v1OutputPath}.gz`, v1Bytes)) {
       writeVerifiedGzipSidecar(v1OutputPath, v1Bytes, mtimeDate);
       repairedV1Gzip = true;
-    }
-
-    // Respect explicit v1-fallback rollback mode if set intentionally by rollback.sh
-    const latestPath = join(dataDir, "v2/latest.json");
-    if (existsSync(latestPath)) {
-      try {
-        const rawLatest = JSON.parse(readFileSync(latestPath, "utf8"));
-        if (rawLatest?.mode === "v1-fallback") {
-          return { action: "v1_fallback_preserved", baseline: v1Payload };
-        }
-      } catch {
-        // Corrupt latest.json -> proceed to repair below
-      }
     }
 
     const actualV1Sha256 = sha256Hex(v1Bytes);
@@ -736,13 +739,31 @@ export async function seedV2FromV1({
   });
 }
 
+function removeGzipSidecarIfExists(targetPath) {
+  const gzPath = resolve(`${targetPath}.gz`);
+  if (existsSync(gzPath)) {
+    unlinkSync(gzPath);
+    fsyncDir(dirname(gzPath));
+    return true;
+  }
+  return false;
+}
+
 /**
  * Used during rollback to v1 so any already-open v2 browser tabs immediately
  * switch their active transport back to `data/products.json`.
+ * Also invalidates `products.json.gz` inside `.publish.lock` before handing control
+ * back to the legacy v1 writer (which only updates `products.json`), preventing
+ * `gzip_static` from serving frozen v2 content after rollback.
  */
-export async function writeV1FallbackPointer({ dataDir = "data", logger = console } = {}) {
+export async function writeV1FallbackPointer({
+  dataDir = "data",
+  v1OutputPath = join(dataDir, "products.json"),
+  logger = console
+} = {}) {
   const lockPath = join(dataDir, ".publish.lock");
   return withPublishLock(lockPath, async () => {
+    const removedGz = removeGzipSidecarIfExists(v1OutputPath);
     const pointer = LatestPointerSchema.parse({
       schemaVersion: 2,
       mode: "v1-fallback",
@@ -750,7 +771,9 @@ export async function writeV1FallbackPointer({ dataDir = "data", logger = consol
       fallbackPath: "data/products.json"
     });
     atomicWriteAndSync(join(dataDir, "v2/latest.json"), `${JSON.stringify(pointer, null, 2)}\n`);
-    logger.log?.("[rollback] Wrote mode=v1-fallback to data/v2/latest.json");
+    logger.log?.(
+      `[rollback] Wrote mode=v1-fallback to data/v2/latest.json${removedGz ? " (removed stale v1 .gz)" : ""}`
+    );
     return pointer;
   });
 }

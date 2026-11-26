@@ -221,7 +221,23 @@ export function createStaticServer(rootDir = projectRoot, options = {}) {
         targetPath = safeWalkNoSymlink(safeRoot, parts);
       }
 
-      const body = req.method === "HEAD" ? null : readFileSync(targetPath);
+      const acceptsGzip = /\bgzip\b/i.test(String(req.headers["accept-encoding"] || ""));
+      let servedPath = targetPath;
+      let isGzipStatic = false;
+      if (acceptsGzip) {
+        const gzCandidate = `${targetPath}.gz`;
+        try {
+          const gzStat = lstatSync(gzCandidate);
+          if (!gzStat.isSymbolicLink() && gzStat.isFile()) {
+            servedPath = gzCandidate;
+            isGzipStatic = true;
+          }
+        } catch {
+          // No precompressed .gz sidecar available; serve uncompressed file
+        }
+      }
+
+      const body = req.method === "HEAD" ? null : readFileSync(servedPath);
       const cacheControl = rel.startsWith("data/snapshots/")
         ? "public, max-age=3600, immutable"
         : rel.startsWith("data/")
@@ -232,7 +248,8 @@ export function createStaticServer(rootDir = projectRoot, options = {}) {
       res.writeHead(200, {
         "content-type": MIME_TYPES[extname(targetPath).toLowerCase()] || "application/octet-stream",
         "cache-control": cacheControl,
-        "x-content-type-options": "nosniff"
+        "x-content-type-options": "nosniff",
+        ...(isGzipStatic ? { "content-encoding": "gzip", vary: "Accept-Encoding" } : {})
       });
       res.end(body);
     } catch (error) {
