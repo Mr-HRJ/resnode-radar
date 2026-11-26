@@ -38,7 +38,7 @@
     "monitor:daemon": "node scripts/monitor-daemon.mjs --interval 20",
     "start": "node scripts/monitor-daemon.mjs --serve --port 4173 --interval 20",
     "serve": "node scripts/monitor-daemon.mjs --serve --port 4173 --interval 20",
-    "serve:static": "python3 -m http.server 4173",
+    "serve:static": "node scripts/serve-static.mjs --port 4173",
     "service:install": "node scripts/macos-service.mjs install",
     "service:status": "node scripts/macos-service.mjs status",
     "service:uninstall": "node scripts/macos-service.mjs uninstall"

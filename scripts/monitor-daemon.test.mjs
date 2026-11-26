@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import { parseDaemonArgs, createStaticServer, startMonitorDaemon, writeAtomicJson } from "./monitor-daemon.mjs";
 import { buildLaunchAgentPlist } from "./macos-service.mjs";
+import { parseStaticArgs, startStaticPreview } from "./serve-static.mjs";
 import { publishBatch, validateV2PublishedData } from "../apps/collector/src/index.js";
 
 test("daemon CLI argument and environment parser enforces safe bounds", () => {
@@ -321,6 +324,113 @@ test("daemon retries transient startup reconciliation failure promptly during fr
     assert.equal(crawlCalls, 0);
   } finally {
     await handle?.stop();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("serve:static builds and serves Vue workbench, compiled modules, and existing inventory without starting collection", async () => {
+  const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  assert.match(pkg.scripts["serve:static"], /scripts\/serve-static\.mjs/);
+  assert.doesNotMatch(pkg.scripts["serve:static"], /http\.server/);
+
+  const parsed = parseStaticArgs(["--port", "4199", "--host", "127.0.0.1"], {});
+  assert.equal(parsed.port, 4199);
+  assert.equal(parsed.host, "127.0.0.1");
+
+  const root = mkdtempSync(join(tmpdir(), "resnode-serve-static-"));
+  const dataDir = join(root, "data");
+  const sampleInventory = JSON.stringify({
+    schemaVersion: 1,
+    generatedAt: "2026-11-25T10:00:00.000Z",
+    products: [{ id: "static-preview-1", name: "Preview Plan", status: "available" }]
+  });
+  let preview;
+  let cliProc;
+  try {
+    mkdirSync(dataDir, { recursive: true });
+    writeFileSync(join(dataDir, "products.json"), sampleInventory);
+    writeFileSync(join(root, ".env"), "SECRET=do-not-expose");
+
+    preview = await startStaticPreview(
+      { host: "127.0.0.1", port: 0, rootDir: root },
+      { logger: { log() {} } }
+    );
+
+    const htmlRes = await fetch(preview.url);
+    assert.equal(htmlRes.status, 200);
+    assert.match(htmlRes.headers.get("content-type"), /text\/html/);
+    const html = await htmlRes.text();
+    assert.match(html, /<div id="app"[\s>]/);
+    assert.doesNotMatch(html, /Directory listing for/);
+
+    const jsMatch = html.match(/src="(\.?\/?static\/[^"]+\.js)"/);
+    const cssMatch = html.match(/href="(\.?\/?static\/[^"]+\.css)"/);
+    assert.ok(jsMatch, "Built workbench HTML must reference compiled JS module");
+    assert.ok(cssMatch, "Built workbench HTML must reference compiled CSS bundle");
+
+    const jsRes = await fetch(new URL(jsMatch[1], preview.url));
+    assert.equal(jsRes.status, 200);
+    assert.match(jsRes.headers.get("content-type"), /text\/javascript/);
+    assert.ok((await jsRes.text()).length > 100);
+
+    const cssRes = await fetch(new URL(cssMatch[1], preview.url));
+    assert.equal(cssRes.status, 200);
+    assert.match(cssRes.headers.get("content-type"), /text\/css/);
+
+    const dataRes = await fetch(`${preview.url}data/products.json`);
+    assert.equal(dataRes.status, 200);
+    assert.equal(await dataRes.text(), sampleInventory);
+
+    const reviewRes = await fetch(`${preview.url}reviews/aaitr.html`);
+    assert.equal(reviewRes.status, 200);
+    assert.match(await reviewRes.text(), /noindex/i);
+
+    assert.equal((await fetch(`${preview.url}.env`)).status, 403);
+    assert.equal(existsSync(join(dataDir, "daemon-status.json")), false, "serve:static must never start collection daemon");
+
+    await preview.close();
+    preview = null;
+
+    // Also verify CLI entrypoint directly (`node scripts/serve-static.mjs --port 0 --root <root>`)
+    const serveStaticScript = fileURLToPath(new URL("./serve-static.mjs", import.meta.url));
+    cliProc = spawn(process.execPath, [serveStaticScript, "--port", "0", "--root", root], {
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    const cliUrl = await new Promise((resolveUrl, rejectUrl) => {
+      let stdout = "";
+      let stderr = "";
+      const timeout = setTimeout(() => rejectUrl(new Error(`serve-static CLI timeout: ${stderr}`)), 10_000);
+      cliProc.stdout.on("data", (chunk) => {
+        stdout += chunk.toString();
+        const m = stdout.match(/http:\/\/127\.0\.0\.1:\d+\//);
+        if (m) {
+          clearTimeout(timeout);
+          resolveUrl(m[0]);
+        }
+      });
+      cliProc.stderr.on("data", (chunk) => {
+        stderr += chunk.toString();
+      });
+      cliProc.once("exit", (code) => {
+        clearTimeout(timeout);
+        rejectUrl(new Error(`serve-static CLI exited early (${code}): ${stderr}`));
+      });
+    });
+
+    const cliRes = await fetch(cliUrl);
+    assert.equal(cliRes.status, 200);
+    assert.match(await cliRes.text(), /<div id="app"[\s>]/);
+    assert.equal(existsSync(join(dataDir, "daemon-status.json")), false);
+
+    const exitCode = await new Promise((resolveExit) => {
+      cliProc.once("exit", (code) => resolveExit(code));
+      cliProc.kill("SIGTERM");
+    });
+    assert.equal(exitCode, 0);
+    cliProc = null;
+  } finally {
+    await preview?.close();
+    if (cliProc) cliProc.kill("SIGKILL");
     rmSync(root, { recursive: true, force: true });
   }
 });
