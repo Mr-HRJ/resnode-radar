@@ -170,12 +170,13 @@ test("inventory reads the configured data branch and rejects unsafe branch names
   }
 });
 
-test("10-minute cadence is configured for the Cloudflare cron and the GitHub fallback schedule", () => {
+test("Cloudflare cron config and manual-only GitHub monitor workflow stay aligned", () => {
   const config = JSON.parse(readFileSync(new URL("../wrangler.json", import.meta.url), "utf8"));
   assert.deepEqual(config.triggers.crons, ["*/10 * * * *"]);
   assert.equal(config.vars.DATA_BRANCH, "data");
   const workflow = readFileSync(new URL("../.github/workflows/monitor.yml", import.meta.url), "utf8");
-  assert.match(workflow, /cron: "\*\/10 \* \* \* \*"/);
+  assert.match(workflow, /^\s*workflow_dispatch:/m);
+  assert.doesNotMatch(workflow, /^\s*schedule:/m);
   assert.match(workflow, /DATA_BRANCH: data/);
   assert.match(workflow, /timeout-minutes: 12/);
 });
