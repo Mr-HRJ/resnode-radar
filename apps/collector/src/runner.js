@@ -1558,13 +1558,28 @@ export async function runCollection({
       { total: 0, available: 0, unavailable: 0, unknown: 0, blocked: 0, error: 0 }
     );
 
+    const generatedAtMs = Date.parse(generatedAt);
+    const maxProductTimestampMs = products.reduce((maxMs, p) => {
+      for (const candidate of [
+        p?.observedAt,
+        p?.verification?.observedAt,
+        p?.verification?.attemptedAt,
+        p?.verification?.verifiedAt
+      ]) {
+        const ms = candidate ? Date.parse(candidate) : NaN;
+        if (Number.isFinite(ms) && ms > maxMs) maxMs = ms;
+      }
+      return maxMs;
+    }, generatedAtMs);
+    const publishedAt = new Date(Math.max(Date.now(), maxProductTimestampMs)).toISOString();
+
     const payload = {
       schemaVersion: 1,
       generatedAt,
-      publishedAt: new Date().toISOString(),
+      publishedAt,
       ...(collectionState ? { sourceHealth: collectionState.sourceHealth() } : {}),
       ...(collectionState && env.MONITOR_ANNOUNCEMENTS === "1"
-        ? { announcements: collectionState.announcementPayload(new Date().toISOString()) }
+        ? { announcements: collectionState.announcementPayload(publishedAt) }
         : {}),
       sourceCount: sources.length,
       summary,

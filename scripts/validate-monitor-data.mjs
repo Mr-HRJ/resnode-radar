@@ -24,7 +24,14 @@ if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.m
           .filter((s) => !only.size || only.has(s.id))
           .map((s) => s.id)
       }),
-      ...(!only.size ? validateV2PublishedData({ dataDir: dirname(resolve(outPath)), fullPayload: payload, v1Bytes }) : [])
+      ...(!only.size
+        ? validateV2PublishedData({
+            dataDir: dirname(resolve(outPath)),
+            fullPayload: payload,
+            v1Bytes,
+            v1OutputPath: resolve(outPath)
+          })
+        : [])
     ];
     for (const error of errors) console.error(error);
     if (errors.length) process.exitCode = 1;

@@ -1,10 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, openSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { gunzipSync } from "node:zlib";
 import {
   CollectionState,
   createOriginPacer,
@@ -398,6 +399,21 @@ test("publishBatch, reconcilePublishedState, non-empty corrupt dir .quarantine r
     });
 
     const v1Bytes = readFileSync(v1Path);
+    assert.equal(existsSync(`${v1Path}.gz`), true, "publishBatch must emit products.json.gz");
+    assert.equal(
+      gunzipSync(readFileSync(`${v1Path}.gz`)).equals(v1Bytes),
+      true,
+      "products.json.gz must decompress byte-identically to products.json"
+    );
+    assert.deepEqual(validateV2PublishedData({ dataDir, fullPayload: p1, v1Bytes }), []);
+
+    // Verify validateV2PublishedData catches stale/corrupt or missing products.json.gz, and reconcile restores it
+    writeFileSync(`${v1Path}.gz`, Buffer.from("stale-gz"));
+    const staleErrors = validateV2PublishedData({ dataDir, fullPayload: p1, v1Bytes });
+    assert.ok(staleErrors.length > 0, "Stale/corrupt products.json.gz must fail v2 validation");
+    const gzRepaired = await reconcilePublishedState({ dataDir, v1OutputPath: v1Path, logger: silent });
+    assert.equal(gzRepaired.action, "repaired");
+    assert.equal(gunzipSync(readFileSync(`${v1Path}.gz`)).equals(v1Bytes), true);
     assert.deepEqual(validateV2PublishedData({ dataDir, fullPayload: p1, v1Bytes }), []);
 
     // Inject non-empty corrupt snapshot directory + corrupt latest.json AND simulate crash right after quarantine!
@@ -442,10 +458,23 @@ test("publishBatch, reconcilePublishedState, non-empty corrupt dir .quarantine r
     const kept = await reconcilePublishedState({ dataDir, v1OutputPath: v1Path, logger: silent });
     assert.equal(kept.action, "v1_fallback_preserved");
 
-    // Seed restores v2 mode preserving original generatedAt
+    // Seed restores v2 mode AND generates missing products.json.gz preserving original generatedAt
+    unlinkSync(`${v1Path}.gz`);
+    assert.equal(existsSync(`${v1Path}.gz`), false);
     const seeded = await seedV2FromV1({ dataDir, v1OutputPath: v1Path, logger: silent });
     assert.equal(seeded.pointer.generatedAt, p1.generatedAt);
     assert.equal(seeded.pointer.mode, "v2");
+    assert.equal(existsSync(`${v1Path}.gz`), true, "seedV2FromV1 must generate missing products.json.gz");
+    assert.equal(gunzipSync(readFileSync(`${v1Path}.gz`)).equals(readFileSync(v1Path)), true);
+    assert.deepEqual(validateV2PublishedData({ dataDir, fullPayload: p1, v1Bytes: readFileSync(v1Path) }), []);
+
+    // Validate rejects missing products.json.gz in active v2 mode
+    unlinkSync(`${v1Path}.gz`);
+    const missingGzErrors = validateV2PublishedData({ dataDir, fullPayload: p1, v1Bytes: readFileSync(v1Path) });
+    assert.ok(missingGzErrors.some((e) => /products\.json\.gz/.test(e)), missingGzErrors.join("; "));
+    const restoredGz = await reconcilePublishedState({ dataDir, v1OutputPath: v1Path, logger: silent });
+    assert.equal(restoredGz.action, "repaired");
+    assert.equal(gunzipSync(readFileSync(`${v1Path}.gz`)).equals(readFileSync(v1Path)), true);
 
     // Publish 2 newer snapshots >24h later -> test crash interruptions at afterStage, afterSnapPublished, and afterV1Committed!
     const p2 = makePayload("2026-11-25T10:00:00.000Z", 4);
@@ -525,12 +554,34 @@ test("publishBatch, reconcilePublishedState, non-empty corrupt dir .quarantine r
     assert.deepEqual(validateV2PublishedData({ dataDir, fullPayload: p2, v1Bytes: readFileSync(v1Path) }), []);
     assert.equal(existsSync(join(dataDir, "snapshots", res1.snapshotId)), true, "Immediate predecessor res1 protected from 24h GC");
 
-    // Publishing p3 now safely GCs expired >24h res1 while keeping p2 and p3!
+    // Publishing p3 after interrupted write right between products.json and products.json.gz -> reconcile repairs BOTH!
     const p3 = makePayload("2026-11-25T10:20:00.000Z", 3);
-    const res3 = await publishBatch({ fullPayload: p3, dataDir, v1OutputPath: v1Path, logger: silent });
+    await assert.rejects(
+      () =>
+        publishBatch({
+          fullPayload: p3,
+          dataDir,
+          v1OutputPath: v1Path,
+          logger: silent,
+          hooks: {
+            afterV1PlainCommitted() {
+              throw new Error("Crash between products.json and products.json.gz");
+            }
+          }
+        }),
+      /Crash between products\.json and products\.json\.gz/
+    );
+    // products.json now holds p3 while products.json.gz still holds p2 -> reconcile must repair products.json.gz & latest.json!
+    assert.equal(gunzipSync(readFileSync(`${v1Path}.gz`)).equals(readFileSync(v1Path)), false);
+    const healedMidPhaseC = await reconcilePublishedState({ dataDir, v1OutputPath: v1Path, logger: silent });
+    assert.equal(healedMidPhaseC.action, "repaired");
+    const p3Bytes = readFileSync(v1Path);
+    assert.equal(gunzipSync(readFileSync(`${v1Path}.gz`)).equals(p3Bytes), true);
+    assert.deepEqual(validateV2PublishedData({ dataDir, fullPayload: p3, v1Bytes: p3Bytes }), []);
+
     assert.equal(existsSync(join(dataDir, "snapshots", res1.snapshotId)), false);
     assert.equal(existsSync(join(dataDir, "snapshots", expectedP2SnapId)), true);
-    assert.equal(existsSync(join(dataDir, "snapshots", res3.snapshotId)), true);
+    assert.equal(existsSync(join(dataDir, "snapshots", healedMidPhaseC.snapshotId)), true);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

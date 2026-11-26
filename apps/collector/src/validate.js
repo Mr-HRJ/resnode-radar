@@ -262,7 +262,12 @@ export function validateMonitorPayload(payload, { expectedSourceIds } = {}) {
  * Validates published v2 pointer, immutable snapshot directory, gzip round-trip
  * byte identity, audit shard completeness, and lossless business parity with v1.
  */
-export function validateV2PublishedData({ dataDir = "data", fullPayload, v1Bytes } = {}) {
+export function validateV2PublishedData({
+  dataDir = "data",
+  fullPayload,
+  v1Bytes,
+  v1OutputPath = join(dataDir, "products.json")
+} = {}) {
   const errors = [];
   const latestPath = join(dataDir, "v2/latest.json");
   if (!existsSync(latestPath)) return errors;
@@ -274,10 +279,24 @@ export function validateV2PublishedData({ dataDir = "data", fullPayload, v1Bytes
       return errors;
     }
 
-    const expectedSha = v1Bytes
-      ? createHash("sha256").update(v1Bytes).digest("hex")
+    const resolvedV1Bytes =
+      v1Bytes ?? (existsSync(v1OutputPath) ? readFileSync(v1OutputPath) : null);
+    const v1GzPath = `${v1OutputPath}.gz`;
+    if (resolvedV1Bytes) {
+      if (!existsSync(v1GzPath)) {
+        errors.push(`Missing v1 gzip file ${v1GzPath}`);
+      } else {
+        const v1Unz = gunzipSync(readFileSync(v1GzPath));
+        if (!resolvedV1Bytes.equals(v1Unz)) {
+          errors.push("products.json.gz decompression does not match products.json bytes");
+        }
+      }
+    }
+
+    const expectedSha = resolvedV1Bytes
+      ? createHash("sha256").update(resolvedV1Bytes).digest("hex")
       : latest.v1Sha256;
-    if (v1Bytes && latest.v1Sha256 !== expectedSha) {
+    if (resolvedV1Bytes && latest.v1Sha256 !== expectedSha) {
       errors.push(`v2 latest.v1Sha256 (${latest.v1Sha256}) !== products.json sha256 (${expectedSha})`);
     }
     if (fullPayload) {

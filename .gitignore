@@ -6,6 +6,7 @@ dist/
 data/daemon-status.json
 data/snapshots/
 data/v2/
+data/*.gz
 data/*.lock
 data/*.tmp
 data/*.sqlite*

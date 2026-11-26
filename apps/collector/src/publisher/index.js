@@ -45,11 +45,12 @@ export function fsyncDir(dirPath) {
   }
 }
 
-export function atomicWriteAndSync(targetPath, content) {
-  const dir = dirname(resolve(targetPath));
+export function atomicWriteAndSync(targetPath, content, mtimeDate = null) {
+  const resolvedTarget = resolve(targetPath);
+  const dir = dirname(resolvedTarget);
   mkdirSync(dir, { recursive: true });
   const bytes = Buffer.isBuffer(content) ? content : Buffer.from(String(content), "utf8");
-  const tmpPath = `${resolve(targetPath)}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2, 8)}.tmp`;
+  const tmpPath = `${resolvedTarget}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2, 8)}.tmp`;
 
   const fd = openSync(tmpPath, "wx", 0o644);
   try {
@@ -58,19 +59,42 @@ export function atomicWriteAndSync(targetPath, content) {
   } finally {
     closeSync(fd);
   }
+  if (mtimeDate instanceof Date && Number.isFinite(mtimeDate.getTime())) {
+    utimesSync(tmpPath, mtimeDate, mtimeDate);
+  }
 
-  renameSync(tmpPath, resolve(targetPath));
+  renameSync(tmpPath, resolvedTarget);
   fsyncDir(dir);
   return bytes;
 }
 
-function writeSyncedJsonAndGzip(jsonPath, data, mtimeDate = new Date()) {
-  const jsonBytes = Buffer.from(`${JSON.stringify(data)}\n`, "utf8");
+function createVerifiedGzip(jsonBytes, label = "payload") {
   const gzBytes = gzipSync(jsonBytes, { level: 9 });
   const roundtrip = gunzipSync(gzBytes);
   if (!roundtrip.equals(jsonBytes)) {
-    throw new Error(`Gzip round-trip integrity check failed for ${jsonPath}`);
+    throw new Error(`Gzip round-trip integrity check failed for ${label}`);
   }
+  return gzBytes;
+}
+
+export function isGzipMatchingBytes(gzPath, expectedBytes) {
+  try {
+    if (!existsSync(gzPath)) return false;
+    return gunzipSync(readFileSync(gzPath)).equals(expectedBytes);
+  } catch {
+    return false;
+  }
+}
+
+function writeVerifiedGzipSidecar(targetPath, rawBytes, mtimeDate = new Date()) {
+  const gzBytes = createVerifiedGzip(rawBytes, targetPath);
+  atomicWriteAndSync(`${targetPath}.gz`, gzBytes, mtimeDate);
+  return gzBytes;
+}
+
+function writeSyncedJsonAndGzip(jsonPath, data, mtimeDate = new Date()) {
+  const jsonBytes = Buffer.from(`${JSON.stringify(data)}\n`, "utf8");
+  const gzBytes = createVerifiedGzip(jsonBytes, jsonPath);
 
   const gzPath = `${jsonPath}.gz`;
   for (const [path, buf] of [
@@ -394,6 +418,15 @@ export async function reconcilePublishedState({
       return { action: "invalid_v1_baseline", errors: v1Errors };
     }
 
+    const mtimeDate = new Date(
+      Date.parse(v1Payload.publishedAt || v1Payload.generatedAt) || Date.now()
+    );
+    let repairedV1Gzip = false;
+    if (!isGzipMatchingBytes(`${v1OutputPath}.gz`, v1Bytes)) {
+      writeVerifiedGzipSidecar(v1OutputPath, v1Bytes, mtimeDate);
+      repairedV1Gzip = true;
+    }
+
     // Respect explicit v1-fallback rollback mode if set intentionally by rollback.sh
     const latestPath = join(dataDir, "v2/latest.json");
     if (existsSync(latestPath)) {
@@ -447,7 +480,7 @@ export async function reconcilePublishedState({
       }
       collectGarbageUnlocked(dataDir, { activeSnapId: expectedSnapId });
       return {
-        action: journalValid ? "clean" : "repaired",
+        action: journalValid && !repairedV1Gzip ? "clean" : "repaired",
         snapshotId: expectedSnapId,
         baseline: v1Payload
       };
@@ -583,8 +616,16 @@ export async function publishBatch({
 
     if (typeof hooks.afterSnapPublished === "function") hooks.afterSnapPublished({ snapId });
 
-    // Phase C: Commit authoritative v1 baseline
-    atomicWriteAndSync(v1OutputPath, v1Bytes);
+    // Phase C: Commit authoritative v1 baseline + synced .gz sidecar (pre-compressed & verified first)
+    const mtimeDate = new Date(
+      Date.parse(fullPayload.publishedAt || fullPayload.generatedAt) || Date.now()
+    );
+    const v1GzBytes = createVerifiedGzip(v1Bytes, v1OutputPath);
+    atomicWriteAndSync(v1OutputPath, v1Bytes, mtimeDate);
+    if (typeof hooks.afterV1PlainCommitted === "function") {
+      hooks.afterV1PlainCommitted({ snapId });
+    }
+    atomicWriteAndSync(`${v1OutputPath}.gz`, v1GzBytes, mtimeDate);
     writeJournal(dataDir, {
       snapId,
       generatedAt: fullPayload.generatedAt,
@@ -645,6 +686,13 @@ export async function seedV2FromV1({
     const errors = validateMonitorPayload(v1Payload);
     if (errors.length > 0) {
       throw new Error(`Cannot seed v2 from invalid v1 payload: ${errors.slice(0, 5).join("; ")}`);
+    }
+
+    const mtimeDate = new Date(
+      Date.parse(v1Payload.publishedAt || v1Payload.generatedAt) || Date.now()
+    );
+    if (!isGzipMatchingBytes(`${v1OutputPath}.gz`, v1Bytes)) {
+      writeVerifiedGzipSidecar(v1OutputPath, v1Bytes, mtimeDate);
     }
 
     const v1Sha256 = sha256Hex(v1Bytes);
