@@ -53,9 +53,7 @@ cycles and configurable starting prices from monthly estimates, and stops using
 foreign exchange rates older than seven days. CNY estimates are not settlement
 amounts and exclude fees/taxes.
 
-The visible browser rereads the published snapshot every five minutes and marks
-provider snapshots older than 30 minutes (three missed 10-minute cycles) as stale. Refreshing does not trigger a
-provider crawl. Local bookmarks do not send notifications.
+The visible browser polls `/api/v1/pulse` (falling back to `data/v2/latest.json` or `data/products.json`) every five minutes, downloads immutable `data/snapshots/<snapshotId>/snapshot.json` only when `snapshotId` changes, and marks snapshots older than **30 minutes** (exceeding the **20-minute** production collector cadence) as stale. Refreshing in the browser never triggers a provider crawl. Local bookmarks do not send notifications.
 
 ## Current Evidence
 

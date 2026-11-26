@@ -2,7 +2,7 @@
 
 ## 1. 核心定位与四维工作区
 
-ResNode Radar 采用「原生 ES Modules 静态前端 + 定时源站采集 + Cloudflare Workers 数据代理」架构，摒弃传统营销落地页，打造面向跨境业务运营者、独立开发者与基础设施玩家的**首屏即工作台（Zero-Hero Intelligence Terminal）**。
+ResNode Radar v2 采用纯原生 JavaScript（零 TypeScript）`npm workspaces` 全栈架构：**Vue 3.5 + Vite 6 + `@tanstack/vue-virtual` 前端工作台（`apps/web`）+ Zod 共享契约与紧凑快照投射（`packages/contracts`）+ 20 分钟级多源采集与四阶段原子发布器（`apps/collector`）+ Worker 线程隔离脉冲/访问统计服务（`apps/server`）**，打造面向跨境业务运营者、独立开发者与基础设施玩家的**首屏即工作台（Zero-Hero Intelligence Terminal）**。
 
 | 工作区视图 | 核心决策职责与交互能力 |
 | :--- | :--- |
@@ -39,24 +39,25 @@ ResNode Radar 采用「原生 ES Modules 静态前端 + 定时源站采集 + Clo
   - `高配`（性能高配）：硬件底线严格要求 **≥2核且 ≥4G 内存**（绝不将 1核1G/1核2G 万兆共享口入门机标为高配），需标明 AMD Ryzen / EPYC / Xeon Gold·Platinum 处理器（≤￥85/月），或达到 ≥4核8G40G + ≥500Mbps 大带宽（≤￥75/月）。
   - `紧俏`（紧俏余量）：监控精确核验仅剩 1–5 台正整数库存，且满足 ≥1G 内存、≥100Mbps 端口、已核验流量配额与主流消费级预算上限（常规 ≤￥60/月，真家宽/HKT ≤￥160/月），剔除玩具容器与高价大切片机型。
   - `低价`（低价入门）：明码固定周期折合月均 ≤ ￥18/月，且核验具备 ≥512M 内存、≥10G 硬盘、≥500G/不限流量及非小水管端口的可用低门槛现货。
-- **快照新鲜度与异常降级**：页面可见时每 5 分钟静默重读已发布快照（手动同步同样只读取快照，不向商家源站发起爬虫）。采集器每 10 分钟运行一次，采集时间超过 **30 分钟** 标记琥珀色陈旧预警；当 `/data/products.json` 返回 `503`、网络中断或结构异常时，立即清空旧计数并展示诚实不可用面板，绝不伪造零库存或回退模拟数据。
+- **快照新鲜度与四态诚实降级**：页面可见时每 5 分钟通过 `/api/v1/pulse`（约 300B）轮询快照版本，版本未变时零流量跳过下载，变更时读取不可变 `data/snapshots/<snapshotId>/snapshot.json`（打开套餐详情抽屉时再按需懒加载 `audit/<sourceId>.json` 原始 HTTP 尝试记录）。采集器每 **20 分钟**运行一次，快照生成时间超过 **30 分钟**标记琥珀色陈旧预警；首次加载失败展示诚实不可用空态，后台轮询失败则保留上一份已验证快照并弹出顶部同步告警横幅，绝不伪造零库存或回退模拟数据。
 
 ---
 
 ## 3. 核验抽屉、横向对比、收藏与全状态 URL
 
-- **右侧滑出核验抽屉（Slide-Over Inspector）**：点击任意套餐或商家即可原地滑出抽屉，查阅账单拆解、硬件参数、下单前核验清单、适配器 HTTP 证据链原文及同商家近期异动；支持 `Esc` 键与遮罩点击关闭并锁定背景滚动。
+- **右侧滑出核验抽屉（Slide-Over Inspector）**：点击任意套餐或商家即可原地滑出抽屉，查阅账单拆解、硬件参数、亮点标签核验依据、按需分片加载的源站 HTTP 尝试与近期连续巡检记录及同商家近期异动；支持 `Esc` 键与遮罩点击关闭并恢复触发焦点。
 - **多方案横向对比矩阵（Compare Workbench）**：支持跨筛选勾选最多 4 款方案并排比对，内置「仅展示有差异的指标行」开关及最优库存确定性 / 最低参考月均提示。
-- **全状态 URL 同步**：视图、透镜、筛选词、排序、对比池 ID 与当前核验对象均实时同步至 URL Query，支持一键复制分享完整上下文链接及浏览器前进/后退恢复。
+- **全状态 URL 同步**：视图、透镜、筛选词、排序、对比池标识（`?cmp=<savedKey>`）与当前核验对象（`?inspect=<productId>`）均实时同步至 URL Query，支持一键复制分享完整上下文链接及浏览器前进/后退恢复。
 
 ---
 
 ## 4. 本地验证与构建命令
 
 ```sh
-npm run check            # 校验根目录、src/、scripts/ 与 cloudflare/ 全部模块语法
-npm test                 # 运行全部采集器、定价汇率、分类归因与前端 DOM 自动化测试
-npm run monitor:validate # 校验 data/products.json 数据契约与事件窗口合法性
-npm run build:cloudflare # 构建静态发布产物至 dist/ 并校验无孤儿引用
-npm run serve            # 启动本地静态预览 http://127.0.0.1:4173/
+npm run check            # 零 TS 检查 + 全工作区 JS/MJS 语法 + Vue SFC 编译与兼容垫片校验
+npm test                 # 运行 contracts / collector / server / scripts 与 apps/web Vitest 全部测试
+npm run test:e2e         # 运行 Playwright Headless Chrome 桌面/移动/虚拟滚动/实时回滚端到端验证
+npm run monitor:validate # 校验 data/products.json 与 data/v2 分片快照双向无损等价契约
+npm run build:vps        # 构建生产不可变版本化前端产物至 dist/
+npm run serve            # 启动本地静态与脉冲预览服务 http://127.0.0.1:4173/
 ```

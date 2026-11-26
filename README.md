@@ -45,25 +45,35 @@ Previews show the checked-in snapshot and its original collection time, not curr
 - Not a payment or provisioning system.
 - Not a replacement for reading provider terms before ordering.
 
+## Architecture (v2 Pure-JS Monorepo)
+
+ResNode Radar v2 is organized as a pure-JavaScript (`"type": "module"`, zero TypeScript) `npm workspaces` monorepo validated at runtime with **Zod**:
+
+- `packages/contracts`: Shared provider catalog (121 vendors), pricing/FX math, network & IP classification, 7-dimension shop tags, 8-dimension plan highlight tags, URL state serialization, Zod schemas, and lossless `CompactSnapshot` (`v2`) projection/decoding.
+- `apps/collector`: 20-minute collector runtime (`config/sources.json`, 7 adapter types × 34 catalog formats, serialized FIFO per-origin pacer, SQLite WAL state, RSS/Atom announcement verifier, and 4-phase crash-resilient dual-write publisher emitting `data/products.json` + immutable `data/snapshots/<snapshotId>/{snapshot.json,audit/<sourceId>.json}` + `.gz` siblings).
+- `apps/server`: Zero-blocking HTTP telemetry service (`/api/v1/pulse`, `/api/v1/stats`, `/api/stats`) isolating SQLite WAL writes inside a dedicated `node:worker_threads` worker with bounded unfinished-job backpressure.
+- `apps/web`: **Vue 3.5 (`<script setup>` pure JS) + Vite 6 + `@tanstack/vue-virtual`** intelligence workbench (`index.html`) and standalone owner-run review dossiers (`reviews/aaitr.html`, `reviews/lisahost.html`).
+
+Root compatibility shims (`providers.js`, `pricing.js`, `saved.js`, `scripts/*.mjs`) remain intact for existing `systemd` units and CLI workflows.
+
 ## Quick Start
 
-Use Node.js 24 or newer. The repository includes `.nvmrc` for local version
-selection.
+Use Node.js 24 or newer.
 
 Install dependencies:
 
 ```sh
-npm ci
+npm ci --ignore-scripts
 ```
 
-Generate static assets, update monitor data, validate it, and run the local
-preview:
+Seed v2 snapshot shards from `data/products.json`, build assets, run workspace checks & tests, and start local preview:
 
 ```sh
-npm run assets
-npm run monitor
-npm run monitor:validate
+npm run monitor:seed-v2
+npm run build:vps
 npm run check
+npm test
+npm run test:e2e
 npm run serve
 ```
 
@@ -97,9 +107,9 @@ Open `http://127.0.0.1:4173/`.
 
 ## Data Contract
 
-Provider sources live in `monitor/sources.json`. Generated monitor output lives in `data/products.json`.
+Provider sources live in `apps/collector/config/sources.json`. Generated monitor output is dual-published to `data/products.json` (`v1`) and `data/v2/latest.json` + `data/snapshots/<snapshotId>/` (`v2` lossless compact snapshot & per-source lazy audit shards).
 
-The public frontend reads `data/products.json`; it does not contain fallback mock products. If a provider blocks scraping or parsing fails, the generated record must show `blocked` or `error`.
+The public frontend polls `/api/v1/pulse` (falling back to `data/v2/latest.json` or `data/products.json`); it never ships fallback mock products. If a provider blocks scraping or parsing fails, the generated record shows `blocked` or `error` with explicit attempt diagnostics.
 
 Each generated product record should carry enough evidence for a human reader to
 distinguish:

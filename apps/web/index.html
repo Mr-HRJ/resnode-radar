@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="radar-base" content="./" />
+    <title>VPS雷达 (vpsld) · 全网 VPS 与住宅家宽实时库存·线路·变价大盘</title>
+    <meta
+      name="description"
+      content="VPS雷达 (vpsld)：基于公开官方页面的 VPS 与住宅家宽（ISP）节点实时库存监控、三网回程线路甄别、原币种账单与 ECB 汇率参考折算及补货变价全网大盘。"
+    />
+    <link rel="canonical" href="https://vpsld.com/" />
+    <link rel="alternate" href="https://github.com/Mr-HRJ/resnode-radar" title="GitHub Repository" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="VPS雷达 (vpsld)" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:title" content="VPS雷达 (vpsld) · 全网 VPS 与住宅家宽实时库存·线路·变价大盘" />
+    <meta
+      property="og:description"
+      content="VPS雷达 (vpsld) — 高信噪比 VPS / 真家宽（双 ISP）库存监控、解析证据链审计、全网实时大盘与多方案横向对比平台。"
+    />
+    <meta property="og:url" content="https://vpsld.com/" />
+    <meta property="og:image" content="https://vpsld.com/assets/inventory-preview.png" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <script>
+      try {
+        const t = localStorage.getItem("resnode-radar:theme:v4");
+        if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-workspace">跳至主工作区</a>
+    <div id="app" data-app-root></div>
+
+    <noscript>
+      <div style="max-width:720px;margin:32px auto;padding:18px;border:1px solid #dce1ea;border-radius:8px;background:#fff;color:#0f172a">
+        请启用 JavaScript 以加载实时监控快照。
+      </div>
+    </noscript>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

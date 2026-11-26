@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { describePricing, formatPriceLabel } from "../src/domain/format.js";
+import { describePricing, formatPriceLabel } from "@resnode-radar/contracts";
 
 test("price labels standardize symbols and actual billing periods without changing amounts", () => {
   for (const [price, priceValue, expected] of [

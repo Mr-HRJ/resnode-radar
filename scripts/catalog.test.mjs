@@ -5,7 +5,7 @@ import { parseCatalogPage, cleanPublicUrl, canonicalCatalogPageKey, discoverCata
 import { monitorPublicCatalog, parseUsvps24 } from "./adapters/public-catalog.mjs";
 import { parseCatalogApi, parseJdidcApi, parseNodeMach } from "./adapters/catalog-api.mjs";
 import { providers } from "../providers.js";
-import { providerHealth } from "../src/domain/catalog.js";
+import { providerHealth } from "@resnode-radar/contracts";
 import { priceQuote, comparePrices } from "../pricing.js";
 const source = { id: "vendor", providerId: "vendor", provider: "Vendor", url: "https://vendor.example/store/vps", adapter: "public_catalog" };
 const baseRecord = (s, r, x) => ({ sourceId: s.id, provider: s.provider, sourceUrl: s.url, ...x });
@@ -300,7 +300,7 @@ test("NodeMach public list excludes proxy products and respects payable flag", (
   const rows=parseNodeMach(source,htmlResult(html),{baseRecord});assert.equal(rows.length,1);assert.equal(rows[0].status,'unavailable');
 });
 test("all directory providers have scheduled collection and no copied referral URLs", () => {
-  const sources=JSON.parse(readFileSync(new URL('../monitor/sources.json',import.meta.url)));
+  const sources=JSON.parse(readFileSync(new URL('../apps/collector/config/sources.json',import.meta.url)));
   assert.equal(new Set(providers.map(p=>p.id)).size,providers.length);
   assert.equal(providers.length, 121);
   for(const id of ['zgovps','berohost','spartan','attvps','bocchi','jcloud','mondoze','nexkr','tamago','666clouds','cloudsilk','tothost','buyvm','jindouyun']) assert.ok(providers.some(p=>p.id===id),id);

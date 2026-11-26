@@ -1,0 +1,14 @@
+{
+  "name": "@resnode-radar/server",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/server.js",
+    "./stats-store": "./src/visit-stats-store.js",
+    "./stats-client": "./src/stats-client.js"
+  },
+  "dependencies": {
+    "@resnode-radar/contracts": "*"
+  }
+}

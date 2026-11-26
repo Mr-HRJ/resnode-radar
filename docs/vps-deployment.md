@@ -53,12 +53,12 @@ Cloudflare 规则 `VPS Radar public cache — origin TTL`（`4998758453244597875
 
 首次部署可先用 `deploy/vps/nginx.conf` 完成正式域名的 Webroot 验证，再安装 `deploy/vps/nginx-https.conf`，添加直连域名并扩展证书。所有操作只改本项目的文件和服务。
 
-后续发布：
+后续发布（v2 双写架构与零停机切换 / 秒级回滚）：
 
-1. 在新版本目录安装依赖，运行 `npm test`、`npm run check`、`npm run monitor:validate` 和 `npm run build:vps`。
-2. 将新版本 `data` 链接到持久化目录，将 `dist/static/` 中的新内容版本复制到 `/var/lib/resnode-radar/static/`；保留旧版本。
-3. 在上一轮采集结束后切换 `current`，重启本项目服务。新旧版本都使用同一个持久化数据目录。
-4. 配置有变化时先运行 `nginx -t`，再 reload。验证两个域名、浏览器缓存头和最新数据。DNS-only 无边缘缓存；将来启用代理时 HTML 最多缓存 60 秒，无需清空整个 Cloudflare 区域。
+1. 在新版本目录运行 `npm ci --ignore-scripts`，依次执行 `npm run check`、`npm test`、`npm run monitor:validate` 和 `npm run build:vps`。
+2. 使用 `sudo ./deploy/vps/cutover.sh /opt/resnode-radar/releases/<release>` 完成切换：脚本会先校验权限与 `nginx -t`，链接持久化 `data` 目录并同步 `dist/static/` 至 `/var/lib/resnode-radar/static/`（保留旧版本目录），随后先停止并确认旧版 `resnode-radar` 采集服务退出（消除无锁写入竞争，异常中断时自动恢复拉起），再在 `.publish.lock` 单写者锁保护下执行 `node scripts/monitor.mjs --seed-v2-from-v1` 生成初始分片快照，最后切换 `current` 软链并启动/重载 `resnode-radar-stats`、`resnode-radar` 与 Nginx。
+3. 如需回滚至旧版 v1 发布包，执行 `sudo ./deploy/vps/rollback.sh /opt/resnode-radar/releases/<prev-release>`：脚本会停止采集进程、写入 `mode: "v1-fallback"` 原子指针、切回旧版 `current` 并重启服务，已打开的 v2 浏览器标签页会在下次脉冲轮询时自动无感切回 `/data/products.json`。
+4. 配置有变化时先运行 `nginx -t`，再 reload。验证两个域名、浏览器缓存头、`/api/v1/pulse` 响应和最新数据。DNS-only 无边缘缓存；将来启用代理时 HTML 最多缓存 60 秒，无需清空整个 Cloudflare 区域。
 
 不要覆盖持久化数据，不要修改同机其他站点的配置、证书或代理服务。采集日志由 journald 管理，访问日志沿用 Nginx 的 logrotate 策略。
 

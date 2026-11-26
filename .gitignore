@@ -4,6 +4,10 @@ node_modules/
 .wrangler/
 dist/
 data/daemon-status.json
+data/snapshots/
+data/v2/
+data/*.lock
 data/*.tmp
 data/*.sqlite*
+docs/server-connection.md
 logs/

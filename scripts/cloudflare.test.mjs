@@ -95,8 +95,8 @@ test("deployment package contains new modular browser assets, excludes legacy fi
       assert.ok(!files.includes(excluded), `Excluded or legacy file leaked: ${excluded}`);
     }
     assert.ok(files.includes("LICENSE"));
-    assert.ok(files.includes("styles"));
-    assert.ok(files.includes("src"));
+    assert.ok(files.includes("static"));
+    assert.ok(files.includes("reviews"));
 
     // Verify every relative ES module import inside dist/ resolves to a packaged file
     for (const jsPath of walkJsFiles(output)) {

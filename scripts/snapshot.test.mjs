@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fetchSnapshot } from "../src/services/snapshot.js";
+import { fetchSnapshot } from "../apps/web/src/services/snapshot-client.js";
 
 const valid = { schemaVersion: 1, generatedAt: "2026-11-22T00:00:00Z", products: [{ id: "p", status: "available" }] };
 

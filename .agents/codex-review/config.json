@@ -18,7 +18,7 @@
   ],
   "codex_bin": "/opt/homebrew/bin/codex",
   "requirements_file": ".agents/codex-review/requirements.txt",
-  "review_timeout_seconds": 600,
+  "review_timeout_seconds": 1800,
   "check_timeout_seconds": 300,
   "max_repair_rounds": 3,
   "cache_ttl_seconds": 3600,

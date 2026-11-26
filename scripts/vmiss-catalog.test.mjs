@@ -5,7 +5,7 @@ import { parseVmissCatalog } from "./adapters/vmiss-catalog.mjs";
 import { monitorPublicCatalog } from "./adapters/public-catalog.mjs";
 import { priceQuote } from "../pricing.js";
 
-const source = JSON.parse(readFileSync(new URL("../monitor/sources.json", import.meta.url))).find((s) => s.id === "catalog-vmiss");
+const source = JSON.parse(readFileSync(new URL("../apps/collector/config/sources.json", import.meta.url))).find((s) => s.id === "catalog-vmiss");
 const helpers = { baseRecord: (s, r, row) => ({ sourceId: s.id, ...row }),
   blockedRecord: (s, r, evidence) => ({ status: "blocked", evidence }), errorRecord: (s, error) => ({ status: "error", error: error.message }) };
 const card = ({ pid = "25", qty = "0 Available", disabled = true, amount = "$5.00 CAD", name = "JP.OSA.IIJ.Basic" } = {}) => `<div class="package" id="product${pid}">

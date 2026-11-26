@@ -1,0 +1,22 @@
+{
+  "name": "@resnode-radar/contracts",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./schemas": "./src/schemas.js",
+    "./dictionaries": "./src/dictionaries.js",
+    "./projection": "./src/projection.js",
+    "./identity": "./src/identity.js",
+    "./pricing": "./src/pricing.js",
+    "./network": "./src/network.js",
+    "./format": "./src/format.js",
+    "./catalog": "./src/catalog.js",
+    "./url-state": "./src/url-state.js",
+    "./providers": "./src/providers-catalog.js"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
+}

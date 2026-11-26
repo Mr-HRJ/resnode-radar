@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { productRegions, productSearchText } from "../src/domain/format.js";
-import { DEFAULT_FILTERS, matchesFilters, normalizeProduct } from "../src/domain/catalog.js";
+import {
+  DEFAULT_FILTERS,
+  matchesFilters,
+  normalizeProduct,
+  productRegions,
+  productSearchText
+} from "@resnode-radar/contracts";
 
 test("declared region membership supports macro-region, country filters and search without duplicating a grouped plan", () => {
   const raw = {

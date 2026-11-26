@@ -1,6 +1,6 @@
 {
   "name": "resnode-radar",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -8,6 +8,12 @@
   "engines": {
     "node": ">=24"
   },
+  "workspaces": [
+    "packages/contracts",
+    "apps/collector",
+    "apps/server",
+    "apps/web"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/majiayu000/resnode-radar.git"
@@ -16,13 +22,16 @@
     "url": "https://github.com/majiayu000/resnode-radar/issues"
   },
   "scripts": {
-    "test": "node --test scripts/*.test.mjs",
-    "check": "find . -maxdepth 1 -name '*.js' -print0 | xargs -0 -n1 node --check && find src -name '*.js' -print0 | xargs -0 -n1 node --check && find scripts -name '*.mjs' -print0 | xargs -0 -n1 node --check && node --check cloudflare/worker.mjs",
+    "test": "node --test packages/contracts/test/*.test.mjs apps/collector/test/*.test.mjs apps/server/test/*.test.mjs scripts/*.test.mjs && npm --workspace @resnode-radar/web run test && node apps/web/e2e/browser-e2e.mjs",
+    "test:e2e": "node apps/web/e2e/browser-e2e.mjs",
+    "check": "node scripts/check-workspace.mjs",
+    "build": "npm run build:vps",
     "build:cloudflare": "node scripts/build-cloudflare.mjs",
     "build:vps": "node scripts/build-vps.mjs",
     "deploy:cloudflare": "npm run build:cloudflare && npx --yes wrangler@4.160.0 deploy",
     "assets": "node scripts/generate-assets.mjs",
     "monitor": "node scripts/monitor.mjs",
+    "monitor:seed-v2": "node scripts/monitor.mjs --seed-v2-from-v1",
     "fx:update": "node scripts/fx-rates.mjs",
     "monitor:validate": "node scripts/validate-monitor-data.mjs",
     "monitor:sync": "npm run fx:update && npm run monitor && npm run monitor:validate",

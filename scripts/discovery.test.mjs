@@ -5,32 +5,31 @@ import { providers } from "../providers.js";
 import { loadSaved, saveSaved, savedKey } from "../saved.js";
 import {
   DEFAULT_FILTERS,
+  ROUTE_OPTIONS,
   classifyProduct,
   computeFacetCounts,
+  describePricing,
   diagnoseZeroResults,
   evaluatePlanTags,
   evaluateProviderTags,
+  formatEventDelta,
+  fxFreshness,
   isHotProvider,
   matchesFilters,
   matchesHardwareSpecs,
-  normalizeProduct,
-  rankProvidersByPopularity,
-  sortProducts
-} from "../src/domain/catalog.js";
-import {
-  ROUTE_OPTIONS,
-  describePricing,
-  formatEventDelta,
-  fxFreshness,
   matchesRoute,
   monitorFreshness,
+  normalizeProduct,
   parseNumericSpecs,
+  parseUrlState,
   productSearchText,
   productSpecs,
   providerInitial,
-  regionFlag
-} from "../src/domain/format.js";
-import { parseUrlState, serializeUrlState } from "../src/state/store.js";
+  rankProvidersByPopularity,
+  regionFlag,
+  serializeUrlState,
+  sortProducts
+} from "@resnode-radar/contracts";
 
 const unknown = { cpu: "未标明", memory: "未标明", disk: "未标明", bandwidth: "未标明", traffic: "未标明" };
 
@@ -507,18 +506,21 @@ test("evaluateProviderTags distinguishes hot, value, budget, NAT-only, ordinary,
   ];
   assert.deepEqual(evaluateProviderTags("akko", akkoDilutedOpt).tags.map((t) => t.key), ["line"]);
 
-  // 4a-2. Mainland cities (北京/上海/广州/深圳/杭州) and null/unknown regions NEVER qualify for shop tags
-  for (const invalidRegion of ["北京", "上海", "广州", "深圳", "中国", "Beijing", "Shanghai", null, "", "未知待定"]) {
-    const nonCrossBorderShop = Array.from({ length: 6 }, (_, i) => mk({
-      providerId: "dpnet",
-      region: invalidRegion,
-      hardware: "4 vCPU AMD EPYC 7763 / 8 GB RAM / 80 GB NVMe",
-      bandwidth: "10000 Mbps / 5 TB",
-      price: "CNY 15/月",
-      priceValue: 15,
-      currency: "CNY"
-    }, 700 + i));
-    assert.deepEqual(evaluateProviderTags("dpnet", nonCrossBorderShop).tags, [], `Expected [] shop tags for region=${invalidRegion}`);
+  // 4a-2. Mainland cities (北京/上海/广州/深圳/杭州), null/unknown regions, AND placeholder multi-region strings ("多地区（下单选择）"/"全球"/"Global") on listed or unlisted providers NEVER qualify for shop tags
+  for (const invalidRegion of ["北京", "上海", "广州", "深圳", "中国", "Beijing", "Shanghai", null, "", "未知待定", "多地区（下单选择）", "多地区", "全球", "Global", "Worldwide"]) {
+    for (const vendorId of ["dpnet", "unlisted-mystery-vendor"]) {
+      const nonCrossBorderShop = Array.from({ length: 6 }, (_, i) => mk({
+        providerId: vendorId,
+        provider: vendorId,
+        region: invalidRegion,
+        hardware: "4 vCPU AMD EPYC 7763 / 8 GB RAM / 80 GB NVMe",
+        bandwidth: "10000 Mbps / 5 TB",
+        price: "CNY 15/月",
+        priceValue: 15,
+        currency: "CNY"
+      }, 700 + i));
+      assert.deepEqual(evaluateProviderTags(vendorId, nonCrossBorderShop).tags, [], `Expected [] shop tags for vendor=${vendorId}, region=${invalidRegion}`);
+    }
   }
 
   // 4b. Big-port / Ryzen specialist shop (>=6 plans & >=44% share) earns "高配"; diluted giant catalog (JDIDC pattern) stays untagged
@@ -613,6 +615,11 @@ test("evaluateProviderTags distinguishes hot, value, budget, NAT-only, ordinary,
   assert.deepEqual(evaluateProviderTags("dpnet", staleDpnet).tags, []);
   assert.deepEqual(evaluateProviderTags("netcup", staleNetcup).tags.map((t) => t.key), ["veteran"]);
   assert.deepEqual(evaluateProviderTags("racknerd", staleRacknerd).tags.map((t) => t.key), ["veteran"]);
+  const staleCnyDpnet = [
+    mk({ providerId: "dpnet", hardware: "2 vCPU / 4 GB RAM / 50 GB SSD", bandwidth: "1000 Mbps / Unlimited", price: "CNY 15/月", priceValue: 15, currency: "CNY" }, 66, staleFx),
+    mk({ providerId: "dpnet", hardware: "4 vCPU / 8 GB RAM / 90 GB SSD", bandwidth: "1000 Mbps / Unlimited", price: "CNY 25/月", priceValue: 25, currency: "CNY" }, 67, staleFx)
+  ];
+  assert.deepEqual(evaluateProviderTags("dpnet", staleCnyDpnet).tags, [], "Expired FX also pauses live shop tags on CNY plans");
 
   // 8. Offline veteran benchmark brand keeps ONLY brand-history "veteran" (never price-class "value" or "budget" without live quotes)
   const netcupOffline = evaluateProviderTags("netcup", []);
@@ -832,6 +839,17 @@ test("evaluatePlanTags marks genuine blockbusters, generous plans, value lines, 
   assert.deepEqual(staleBwhLimited._planTags, []);
   assert.deepEqual(teaserBwhLimited._planTags, []);
   assert.deepEqual(unknownCycleBwhLimited._planTags, []);
+  const staleCnyGenerous = mk({
+    providerId: "dpnet",
+    name: "CNY 2C4G",
+    hardware: "2 vCPU / 4 GB RAM / 50 GB SSD",
+    bandwidth: "1000 Mbps / Unlimited",
+    price: "CNY 15/月",
+    priceValue: 15,
+    currency: "CNY"
+  }, 93, staleFx);
+  assert.equal(staleCnyGenerous._pricing.cnyMonthly, 15);
+  assert.deepEqual(staleCnyGenerous._planTags, []);
 
   // 7. New dimensions: 家宽直连 (home-opt), 性能高配 (perf), 紧俏余量 (scarce), 年付特惠 (annual) + strict bw/quota checks on perf
   const homeDirect = mk({
@@ -892,19 +910,22 @@ test("evaluatePlanTags marks genuine blockbusters, generous plans, value lines, 
   assert.deepEqual(perfMissingTraffic._planTags, []);
   assert.deepEqual(perfLowQuota._planTags, []);
 
-  // 7b. Mainland China cities (北京/上海/广州) and null/empty/unknown regions (including TOT K11) NEVER earn any product tags
-  for (const badRegion of ["北京", "上海", "广州", "杭州", "中国", "Beijing", "Shanghai", null, "", "未知机房"]) {
-    const domesticOrUnknown = mk({
-      providerId: "tothost",
-      name: badRegion === null ? "TOT K11" : `Node-${badRegion}`,
-      region: badRegion,
-      hardware: "2 vCPU AMD Ryzen 9950X / 4 GB RAM / 50 GB NVMe",
-      bandwidth: "1000 Mbps / Unlimited",
-      price: "CNY 15/月",
-      priceValue: 15,
-      currency: "CNY"
-    }, 800);
-    assert.deepEqual(domesticOrUnknown._planTags, [], `Expected [] plan tags for region=${badRegion}`);
+  // 7b. Mainland China cities, null/empty/unknown regions, AND placeholder multi-region strings ("多地区（下单选择）"/"全球") on listed or unlisted vendors NEVER earn any product tags
+  for (const badRegion of ["北京", "上海", "广州", "杭州", "中国", "Beijing", "Shanghai", null, "", "未知机房", "多地区（下单选择）", "多地区", "全球", "Global", "Worldwide"]) {
+    for (const vendorId of ["tothost", "dpnet", "unlisted-mystery-vendor"]) {
+      const domesticOrUnknown = mk({
+        providerId: vendorId,
+        provider: vendorId,
+        name: badRegion === null ? "TOT K11" : `Node-${badRegion}`,
+        region: badRegion,
+        hardware: "2 vCPU AMD Ryzen 9950X / 4 GB RAM / 50 GB NVMe",
+        bandwidth: "1000 Mbps / Unlimited",
+        price: "CNY 15/月",
+        priceValue: 15,
+        currency: "CNY"
+      }, 800);
+      assert.deepEqual(domesticOrUnknown._planTags, [], `Expected [] plan tags for vendor=${vendorId}, region=${badRegion}`);
+    }
   }
   // Whereas "中国香港" is recognized as Hong Kong cross-border and tagged normally
   const hkCrossBorder = mk({

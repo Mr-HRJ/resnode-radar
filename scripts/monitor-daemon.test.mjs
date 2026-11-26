@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { parseDaemonArgs, createStaticServer, startMonitorDaemon, writeAtomicJson } from "./monitor-daemon.mjs";
 import { buildLaunchAgentPlist } from "./macos-service.mjs";
+import { publishBatch, validateV2PublishedData } from "../apps/collector/src/index.js";
 
 test("daemon CLI argument and environment parser enforces safe bounds", () => {
   const defaults = parseDaemonArgs([], {});
@@ -133,4 +135,192 @@ test("macOS LaunchAgent generator embeds KeepAlive, RunAtLoad, and target interv
   assert.match(plist, /<key>KeepAlive<\/key>\s*<true\/>/);
   assert.match(plist, /<string>15<\/string>/);
   assert.ok(readFileSync(new URL("../wrangler.json", import.meta.url), "utf8").includes('"crons"'));
+});
+
+test("daemon startup reconciles interrupted v1_committed publish immediately even when v1 and FX are fresh", async () => {
+  const root = mkdtempSync(join(tmpdir(), "resnode-daemon-reconcile-"));
+  const dataDir = join(root, "data");
+  const v1Path = join(dataDir, "products.json");
+  const silent = { log() {}, warn() {}, error() {} };
+  let handle;
+
+  const makePayload = (generatedAt, name, stockCount) => ({
+    schemaVersion: 1,
+    generatedAt,
+    publishedAt: generatedAt,
+    sourceCount: 1,
+    summary: { total: 1, available: 1, unavailable: 0, unknown: 0, blocked: 0, error: 0 },
+    eventTracking: { startedAt: generatedAt, retentionDays: 7, limit: 300 },
+    events: [],
+    exchangeRates: {
+      base: "CNY",
+      date: generatedAt.slice(0, 10),
+      source: "ECB",
+      sourceUrl: "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml",
+      rates: { CNY: 1, USD: 7.2, EUR: 7.6 }
+    },
+    products: [
+      {
+        id: "daemon-rec-1",
+        sourceId: "src-1",
+        provider: "DMIT",
+        providerId: "dmit",
+        category: "vps",
+        adapter: "public_catalog",
+        sourceUrl: "https://www.dmit.io/",
+        fetchedAt: generatedAt,
+        status: "available",
+        statusLabel: "有货",
+        stockCount,
+        price: "$36.90 / Year",
+        priceValue: 36.9,
+        currency: "USD",
+        name,
+        region: "Los Angeles",
+        orderUrl: "https://www.dmit.io/cart.php?a=add&pid=1",
+        evidence: "official",
+        evidenceLevel: { value: "stock-count", label: `精确库存 ${stockCount}`, className: "is-count", rank: 1 },
+        riskTags: [{ value: "no-extra-risk", label: "未见额外风险", severity: "low" }]
+      }
+    ]
+  });
+
+  try {
+    const oldTs = new Date(Date.now() - 25 * 60_000).toISOString();
+    const freshTs = new Date(Date.now() - 60_000).toISOString();
+    const batchA = makePayload(oldTs, "OLD-BATCH-A", 2);
+    const batchB = makePayload(freshTs, "FRESH-CRASHED-BATCH-B", 7);
+
+    const resA = await publishBatch({
+      fullPayload: batchA,
+      dataDir,
+      v1OutputPath: v1Path,
+      expectedSourceIds: ["src-1"],
+      logger: silent
+    });
+
+    // Write fresh FX so fxNeedsRefresh() is false (daemon waits ~19m before next crawl)
+    writeFileSync(
+      join(dataDir, "fx.json"),
+      JSON.stringify({
+        base: "CNY",
+        date: freshTs.slice(0, 10),
+        fetchedAt: freshTs,
+        source: "ECB",
+        rates: { CNY: 1, USD: 7.2 }
+      })
+    );
+
+    // Interrupt Batch B right after Phase C (`v1_committed`), leaving v2/latest.json stale on Batch A!
+    await assert.rejects(
+      () =>
+        publishBatch({
+          fullPayload: batchB,
+          dataDir,
+          v1OutputPath: v1Path,
+          expectedSourceIds: ["src-1"],
+          logger: silent,
+          hooks: {
+            afterV1Committed() {
+              throw new Error("simulated crash before latest.json commit");
+            }
+          }
+        }),
+      /simulated crash before latest\.json commit/
+    );
+
+    const staleLatest = JSON.parse(readFileSync(join(dataDir, "v2/latest.json"), "utf8"));
+    const staleJournal = JSON.parse(readFileSync(join(dataDir, "v2/journal.json"), "utf8"));
+    assert.equal(staleLatest.snapshotId, resA.snapshotId);
+    assert.equal(staleJournal.state, "v1_committed");
+
+    let crawlCalls = 0;
+    handle = await startMonitorDaemon(
+      {},
+      {
+        cwd: root,
+        logger: silent,
+        runScript: async () => {
+          crawlCalls += 1;
+          return { stdout: "", stderr: "" };
+        }
+      }
+    );
+
+    // Must NOT wait ~19m or trigger a crawl just to repair latest.json!
+    assert.equal(crawlCalls, 0);
+    assert.equal(handle.state.state, "idle");
+    assert.ok(
+      Date.parse(handle.state.nextRunAt) > Date.now() + 15 * 60_000,
+      `Normal 20m cadence must be preserved cleanly (nextRunAt=${handle.state.nextRunAt})`
+    );
+
+    const healedV1Bytes = readFileSync(v1Path);
+    const healedLatest = JSON.parse(readFileSync(join(dataDir, "v2/latest.json"), "utf8"));
+    const healedJournal = JSON.parse(readFileSync(join(dataDir, "v2/journal.json"), "utf8"));
+    assert.notEqual(healedLatest.snapshotId, resA.snapshotId);
+    assert.equal(healedLatest.v1Sha256, createHash("sha256").update(healedV1Bytes).digest("hex"));
+    assert.equal(healedJournal.state, "completed");
+    assert.deepEqual(
+      validateV2PublishedData({ dataDir, fullPayload: batchB, v1Bytes: healedV1Bytes }),
+      []
+    );
+  } finally {
+    await handle?.stop();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("daemon retries transient startup reconciliation failure promptly during fresh-snapshot wait", async () => {
+  const root = mkdtempSync(join(tmpdir(), "resnode-daemon-reconcile-retry-"));
+  const dataDir = join(root, "data");
+  const silent = { log() {}, warn() {}, error() {} };
+  let handle;
+  try {
+    mkdirSync(dataDir, { recursive: true });
+    const freshTs = new Date(Date.now() - 60_000).toISOString();
+    writeFileSync(
+      join(dataDir, "products.json"),
+      JSON.stringify({ generatedAt: freshTs, summary: { total: 1, available: 1 } })
+    );
+    writeFileSync(
+      join(dataDir, "fx.json"),
+      JSON.stringify({ base: "CNY", date: freshTs.slice(0, 10), fetchedAt: freshTs, rates: { CNY: 1 } })
+    );
+
+    let reconcileAttempts = 0;
+    let crawlCalls = 0;
+    handle = await startMonitorDaemon(
+      {},
+      {
+        cwd: root,
+        logger: silent,
+        reconcileRetryMs: 25,
+        runScript: async () => {
+          crawlCalls += 1;
+          return { stdout: "", stderr: "" };
+        },
+        reconcilePublished: async () => {
+          reconcileAttempts += 1;
+          if (reconcileAttempts === 1) throw new Error("transient publish lock contention");
+          return { action: "repaired" };
+        }
+      }
+    );
+
+    assert.equal(reconcileAttempts, 1);
+    assert.equal(handle.state.lastError, "transient publish lock contention");
+    assert.equal(crawlCalls, 0);
+
+    const deadline = Date.now() + 2000;
+    while (handle.state.lastError !== null && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 15));
+    }
+    assert.equal(reconcileAttempts, 2);
+    assert.equal(handle.state.lastError, null);
+    assert.equal(crawlCalls, 0);
+  } finally {
+    await handle?.stop();
+    rmSync(root, { recursive: true, force: true });
+  }
 });

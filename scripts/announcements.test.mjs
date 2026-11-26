@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CollectionState } from "./collection-state.mjs";
 import { candidatesFromLinks, normalizeAnnouncement, parseFeedXml, refreshAnnouncements } from "./announcements.mjs";
-import { renderAnnouncements } from "../src/components/announcements.js";
 
 const at = "2026-11-23T10:00:00.000Z";
 const source = { id: "news", name: "Official", trust: "official", kind: "rss", url: "https://news.example/feed", linkHosts: ["news.example"] };
@@ -38,8 +37,6 @@ test("native feed deduplication, 304 refresh, failed refresh, and SKU verificati
   status = 503; result = await refreshAnnouncements(db, [source], vendors, at);
   assert.equal(result.items.length, 1); assert.equal(result.sources[0].status, "error");
   assert.equal(Object.hasOwn(result.sources[0], "etag"), false);
-  assert.match(renderAnnouncements(result), /售罄/);
-  assert.match(renderAnnouncements(result), /首次导入/);
 });
 
 test("old baseline announcements do not enqueue obsolete offers; edited/new announcements do", async (t) => {
@@ -55,13 +52,6 @@ test("old baseline announcements do not enqueue obsolete offers; edited/new anno
   body = body.replace("<guid>one</guid>", "<guid>two</guid>");
   await refreshAnnouncements(db, [source], vendors, at);
   assert.equal(db.pendingJobs("vendor").length, 1);
-});
-
-test("announcement rendering escapes hostile titles and removes unsafe source links", () => {
-  const html = renderAnnouncements({ sources: [{ name: "test", status: "ok", checkedAt: at }], items: [{ title: '<img src=x onerror="alert(1)">', url: "javascript:alert(1)", source: "test", firstSeenAt: at, candidates: [] }] });
-  assert.ok(!html.includes('<img')); assert.ok(!html.includes('href="javascript:'));
-  const allItems = Array.from({ length: 48 }, (_, i) => ({ title: `Announcement ${i}`, url: "https://news.example/" + i, firstSeenAt: at, candidates: [] }));
-  assert.match(renderAnnouncements({ sources: [{ name: "test", status: "ok", checkedAt: at }], items: allItems }), /Announcement 47/);
 });
 
 test("a valid empty RSS is healthy and does not erase previous announcements", async (t) => {

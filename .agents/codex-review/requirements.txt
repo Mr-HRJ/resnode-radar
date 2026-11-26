@@ -1,5 +1,10 @@
-1. 7 维客观店铺标签体系与文案设计（热门顶流 / 老牌稳健 / 原生家宽 / 回国优线 / 大口高配 / 高性价比 / 低价入门）：图标与徽章置于店名前方；严格依据真实品牌资历与在售非 NAT 目录占比/单价核定，剔除纯 NAT、小水管、内地机房、起步价与超期 ECB 汇率记录，防止大目录仅凭少量低价套餐冒充高性价比，不达标商家保持中性无标签；支持店铺面板标签切换、搜索别名及商家名录 ?provTag= 联动。
-2. 8 维客观单品亮点标签体系与逐条验真（口碑爆款 / 便宜量大 / 年付特惠 / 高性价比 / 家宽直连 / 性能高配 / 紧俏余量 / 低价入门）：图标与徽章置于商品品牌名前方；仅对在售、非 NAT/非共享端口、跨境节点、明码固定周期且 ECB 汇率 <=7 天的真实商品打标，绝不对重点品牌全店套餐无差别打热门标签（isHotProvider 保持仅 bwh/dmit/gomami/vmiss）；性能高配硬性要求 >=2C 且 >=4G 内存，家宽直连排除裸金属独服与无显式住宅依据记录，各标签严格校验带宽、流量与预算边界；支持工作台精选亮点行、行内标签一键速筛（不误开详情抽屉）、详情抽屉核验依据卡片与「同款 →」跳转、横向对比展示及 ?deal= URL 同步。
-3. 定制矢量动态图标与悬停核验浮窗交互：前置纯 SVG 动态图标（热门/爆款双层火焰跳动+火星升腾+流光扫掠、紧俏声呐脉冲、高配闪电呼吸、年付惠星芒闪烁、家宽波纹呼吸），严格适配 prefers-reduced-motion；悬停/聚焦展示 [data-tag-hud] 核验依据浮窗且不越界、无 XSS 风险、dispose 时正确清理监听与定时器。
-4. 工作台配套改进与构建契约：大目录虚拟列表渲染回收、快照分批归一化与取消、访问统计服务与前端水合容错、Cloudflare/VPS 构建产物包含全部前端模块（含 src/components/tag-icons.js），且文档（README.md、docs/product-experience.md）与代码口径一致。
-5. 验收条件：npm run check、npm test、npm run monitor:validate 全量通过，无逻辑缺陷、越界、内存/事件泄漏或安全问题。
+1. 标签与交互基线（含历史未决项复核）：
+   - 7维店铺标签（热门顶流/老牌稳健/原生家宽/回国优线/大口高配/高性价比/低价入门）与8维单品标签（口碑爆款/便宜量大/年付特惠/高性价比/家宽直连/性能高配/紧俏余量/低价入门）：徽章前置；仅对在售、非NAT/共享端口、固定周期、ECB汇率<=7天且有跨境地区正证据商品打标（排除北京/上海/广州等内地城市及未知空地区）；isHotProvider仅bwh/dmit/gomami/vmiss；性能高配>=2C且>=4G，家宽直连排除裸金属独服与无住宅依据项；店铺高性价比（含平价优线分支）须占比>=25%或占比>=12%且全店中位价<=65元，防少量低价款代表昂贵大目录。
+   - 动态SVG适配prefers-reduced-motion；[data-tag-hud]不越界、零XSS、卸载清理监听定时器；<=860px仅隐藏.layout-view-toggle，保留.radar-window-toggle（24h/72h/7天）可见可点。
+2. 全栈纯JS（零TS）v2 Monorepo重构：
+   - workspaces（packages/contracts、apps/collector、apps/server、apps/web，排除deploy/vps/feeds），0个.ts/.tsx/tsconfig + Zod 4校验。
+   - contracts：121商家名录、定价汇率、地区/网络识别、标签核验、URL状态（?cmp=用savedKey，?inspect=用product.id，resolveSiteAssetUrl同源解析），v1<->v2无损投射与未知版本/字典码/原型属性Fail-Closed。
+   - collector：161源、SQLite WAL与公告核验；OriginPacer同源FIFO串行且中间取消不越序；.publish.lock原子创建与四阶段发布（staged/snapshot_published/v1_committed/completed恢复收敛、.quarantine、latest.json、24h/96份GC）双写v1/v2及.gz；保留兼容垫片。
+   - server：visits.sqlite隔离至worker_threads（上限64+1500ms超时），零阻塞提供/api/v1/pulse、/api/v1/stats、/api/stats。
+   - web：Vue 3.5纯JS+Vite 6+@tanstack/vue-virtual（按实际容器宽度统一网格列数并测量行高）实现四视图、抽屉/对比弹窗、命令面板与noindex实测页；支持双协议与v1-fallback回滚、pulse展示缓存与新会话POST计数分离、跨断点缩放、懒加载audit及404协调刷新、7天汇率实时熔断。
+   - 构建部署与验收：build-cloudflare/build-vps、nginx-https.conf、cutover/rollback（预检nginx -t、替换真实data目录为共享软链、显式传MONITOR_DATA_DIR）、CI与文档同步；check/test（含E2E）/monitor:validate全通过。

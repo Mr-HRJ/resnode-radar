@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="radar-base" content="../" />
+    <title>AaITR 家宽实测档案（草稿） · VPS雷达 (vpsld)</title>
+    <meta
+      name="description"
+      content="AaITR 实测记录模板，尚待补齐购买截图、测试时间、IP 属性和三网速度证据；本页不构成已验证的测评或购买推荐。"
+    />
+    <meta name="robots" content="noindex, follow" />
+    <link rel="canonical" href="https://vpsld.com/reviews/aaitr.html" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="VPS雷达 (vpsld)" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:title" content="AaITR 家宽实测档案（草稿） · VPS雷达 (vpsld)" />
+    <meta property="og:description" content="待补测试证据的记录模板，不构成已验证的测评或购买推荐。" />
+    <meta property="og:url" content="https://vpsld.com/reviews/aaitr.html" />
+    <meta property="og:image" content="https://vpsld.com/assets/inventory-preview.png" />
+    <link rel="icon" href="../favicon.svg" type="image/svg+xml" />
+    <script>
+      try {
+        const t = localStorage.getItem("resnode-radar:theme:v4");
+        if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="cmd-header">
+        <div class="cmd-bar">
+          <div class="cmd-bar-left">
+            <a class="brand-link" href="../index.html">
+              <img class="brand-logo" src="../favicon.svg" alt="" width="26" height="26" />
+              <span class="brand-name">
+                <span class="brand-cn">VPS雷达</span>
+                <span class="brand-domain">vpsld</span>
+              </span>
+            </a>
+            <nav class="ws-nav" aria-label="返回主工作台">
+              <a class="ws-tab" href="../index.html">现货选机</a>
+              <a class="ws-tab" href="../index.html?view=radar">全网大盘</a>
+              <a class="ws-tab" href="../index.html?view=providers">商家名录</a>
+              <a class="ws-tab is-active" href="../index.html?view=guide">实测与口径</a>
+            </nav>
+          </div>
+          <div class="cmd-utils">
+            <a class="btn btn-sm btn-soft" href="../index.html?provider=aaitr&status=all">查 AaITR 套餐</a>
+            <button type="button" class="btn btn-sm btn-ghost" data-action="toggle-theme">☾ 暗色</button>
+          </div>
+        </div>
+      </header>
+
+      <main class="dossier-main">
+        <div class="dossier-draft-banner" role="note">
+          <span class="pill pill-warn" style="flex-shrink:0">实测草稿 · 未完备</span>
+          <div>
+            <strong>诚实性声明：</strong>本页当前仅作为站长一手实测的结构化归档框架，尚未补齐真实购买账单截图、<code>bgp.tools</code> / IPinfo ASN 宿主截图及三网晚高峰连续观测数据；因此<strong>绝不展示任何虚构评分或延迟跑分</strong>，亦不构成购买推荐。
+          </div>
+        </div>
+
+        <section class="dossier-hero">
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <span class="pill pill-home">真家宽 / 住宅 ISP</span>
+            <span class="pill pill-warn">官方常驻 Cloudflare 验证盾 · Reader 快照回退</span>
+          </div>
+          <h1>AaITR 家宽与住宅网络实测档案</h1>
+          <p>
+            主要提供美区（如 Verizon / AT&amp;T 属性）与日本（东京 SoftBank 普通民宅）住宅网络环境，产品线横跨「动态共享 NAT」与「静态住宅家宽」。由于官方 WHMCS 商店页面启用 Cloudflare 挑战页，本站采集器采用「官方直连优先 → Reader 公开快照回退」机制，并在证据链中强制标记第三方快照风险提示。
+          </p>
+          <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
+            <a class="btn btn-sm btn-primary" href="../index.html?provider=aaitr&status=all">在选机终端查看 AaITR 实时记录 →</a>
+            <a class="btn btn-sm" href="https://www.aaitr.com/" target="_blank" rel="nofollow noopener noreferrer">访问 AaITR 官方网站 ↗</a>
+          </div>
+        </section>
+
+        <div class="dossier-layout">
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <article class="guide-card">
+              <h3>适用场景与核心防坑关注点</h3>
+              <ul>
+                <li>需要美区运营商住宅 IP 或日本 SoftBank 民宅环境的跨境业务运营者与风控测试场景。</li>
+                <li><strong>关键防坑点 1（NAT vs 独享）</strong>：下单前必须核对套餐是否属于「动态共享 NAT 端口段」（例如每日定时更换 IP 的民宅 NAT），切勿与「独享静态住宅 IPv4」混淆。</li>
+                <li><strong>关键防坑点 2（快照时效边界）</strong>：本站展示的 AaITR 行若带有「第三方快照」标签，仅反映快照时刻页面内容，结算价与库存请以浏览器实测打开官方下单页为准。</li>
+              </ul>
+            </article>
+
+            <article class="guide-card">
+              <h3>正式发布前待补齐的一手实测证据清单</h3>
+              <ol>
+                <li>具体实测套餐名称、真实结算账单与交付耗时（自动开通或工单排期）。</li>
+                <li>交付 IP 的 <code>bgp.tools</code> ASN 归属截图、IPinfo / Scamalytics / IP2Location 原图留档（脱敏末段）。</li>
+                <li>电信、联通、移动三网晚高峰（20:00–23:30）MTR 回程路由与 24 小时稳定性日志。</li>
+              </ol>
+            </article>
+
+            <article class="guide-card">
+              <h3>采购前核验速查表（基于公开监控字段）</h3>
+              <dl class="kv-table">
+                <dt>采集方式</dt>
+                <dd class="mono">aaitr_store（官方直连优先 → Reader 快照回退）</dd>
+                <dt>证据等级说明</dt>
+                <dd>受 Cloudflare 验证盾影响，快照行强制标注「第三方快照」高风险提醒</dd>
+                <dt>交付形态辨别</dt>
+                <dd>务必区分「动态共享 NAT 端口」与「独享静态住宅 IPv4」</dd>
+                <dt>核验建议</dt>
+                <dd>以浏览器实测登录官方 WHMCS 结账页所展示的价格、库存与退款条款为准</dd>
+              </dl>
+            </article>
+          </div>
+
+          <aside class="guide-card">
+            <h3>实时监控快照水合</h3>
+            <p style="margin:0;font-size:var(--text-xs);color:var(--ink-muted)">
+              直接读取自本站最新实时采集快照：
+            </p>
+            <div data-review-live-box data-provider-id="aaitr">
+              <span class="skel" style="height:14px;width:72%;margin-bottom:8px"></span>
+              <span class="skel" style="height:14px;width:92%"></span>
+            </div>
+          </aside>
+        </div>
+      </main>
+
+      <footer class="site-footer">
+        <div class="site-footer-inner">
+          <div><strong>VPS雷达 (vpsld)</strong> · 统一设计体系下的商家实测档案</div>
+          <div class="footer-links">
+            <a href="../index.html">返回现货选机</a>
+            <a href="lisahost.html">LisaHost 实测档案</a>
+            <a href="https://github.com/Mr-HRJ/resnode-radar" target="_blank" rel="noopener noreferrer">GitHub 源码 ↗</a>
+          </div>
+        </div>
+      </footer>
+    </div>
+
+    <script type="module" src="/src/review-main.js"></script>
+  </body>
+</html>

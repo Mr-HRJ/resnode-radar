@@ -1,0 +1,19 @@
+{
+  "name": "@resnode-radar/collector",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./pacing": "./src/pacing/origin-pacer.js",
+    "./publisher": "./src/publisher/index.js",
+    "./events": "./src/events/radar-events.js",
+    "./state": "./src/state/collection-db.js",
+    "./validate": "./src/validate.js"
+  },
+  "dependencies": {
+    "@resnode-radar/contracts": "*",
+    "impers": "0.1.3",
+    "node-html-parser": "7.0.1"
+  }
+}

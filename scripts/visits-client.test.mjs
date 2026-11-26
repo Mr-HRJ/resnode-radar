@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fetchVisitStats, isValidVisitStats, visitStatsDay } from "../src/services/visits.js";
+import { fetchVisitStats, isValidVisitStats, visitStatsDay } from "../apps/web/src/services/visits-client.js";
 
 const valid = { day: "2026-11-24", todayPv: 2, todayUv: 1, totalPv: 3, totalUv: 2 };
 

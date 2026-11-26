@@ -141,11 +141,11 @@ ihdr[10] = 0;
 ihdr[11] = 0;
 ihdr[12] = 0;
 
-mkdirSync("assets", { recursive: true });
+mkdirSync("apps/web/public/assets", { recursive: true });
 const png = Buffer.concat([
   Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
   chunk("IHDR", ihdr),
   chunk("IDAT", deflateSync(raw, { level: 9 })),
   chunk("IEND", Buffer.alloc(0))
 ]);
-writeFileSync("assets/benchmark-console.png", png);
+writeFileSync("apps/web/public/assets/benchmark-console.png", png);

@@ -14,13 +14,16 @@ test("concurrent sources on one origin are spaced while other merchants can proc
   const jobs = [start("https://merchant.example/a"), start("https://merchant.example/b"), start("https://merchant.example/c"), start("https://other.example/a")];
   await new Promise(setImmediate);
   assert.deepEqual(starts, [["https://merchant.example/a", 0], ["https://other.example/a", 0]]);
-  assert.deepEqual(pending.map((timer) => timer.at), [10000, 20000]);
+  // Serialized FIFO pacing schedules the next origin sleep after the active waiter releases,
+  // preventing 0ms back-to-back launches if an earlier sleep wakes late.
+  assert.deepEqual(pending.map((timer) => timer.at), [10000]);
   for (const timer of pending) {
     time = timer.at;
     timer.resolve();
     await new Promise(setImmediate);
   }
   await Promise.all(jobs);
+  assert.deepEqual(pending.map((timer) => timer.at), [10000, 20000]);
   assert.deepEqual(starts.slice(2), [["https://merchant.example/b", 10000], ["https://merchant.example/c", 20000]]);
 });
 

@@ -22,19 +22,25 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
-      - name: Syntax check
+      - name: Ensure headless Chrome for browser E2E
+        run: command -v google-chrome || npx --yes playwright-core install --with-deps chromium
+
+      - name: Workspace syntax & shim check
         run: npm run check
 
-      - name: Offline monitor regression tests
+      - name: Unit, integration & browser E2E regression tests
         run: npm test
 
-      - name: Validate monitor data
-        run: npm run monitor:validate
+      - name: Seed & validate monitor data (v1 + v2 parity)
+        run: npm run monitor:seed-v2 && npm run monitor:validate
 
       - name: Build Cloudflare assets
         run: npm run build:cloudflare
+
+      - name: Build VPS immutable assets
+        run: npm run build:vps
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high

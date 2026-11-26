@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { parseSixCloudsCatalog } from "./adapters/sixclouds-catalog.mjs";
 import { monitorPublicCatalog } from "./adapters/public-catalog.mjs";
 import { priceQuote } from "../pricing.js";
-import { productSpecs } from "../src/domain/format.js";
+import { productSpecs } from "@resnode-radar/contracts";
 
 const source = { id: "catalog-666clouds", url: "https://www.666clouds.com/shop", adapter: "public_catalog", catalogFormat: "sixclouds", maxPages: 1, discover: false };
 const baseRecord = (s, r, values) => ({ sourceId: s.id, ...values });
