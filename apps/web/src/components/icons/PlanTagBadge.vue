@@ -1,4 +1,5 @@
 <script setup>
+import { ElTag } from "element-plus";
 import TagSvgIcon from "./TagSvgIcon.vue";
 
 const props = defineProps({
@@ -18,6 +19,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  focusable: {
+    type: Boolean,
+    default: false
+  },
   isActiveFilter: {
     type: Boolean,
     default: false
@@ -31,11 +36,19 @@ function handleActivate(event) {
   event?.stopPropagation?.();
   emit("select", props.tag.key);
 }
+
+function handleKeydownActivate(event) {
+  if (!props.interactive || !props.tag) return;
+  event?.preventDefault?.();
+  handleActivate(event);
+}
 </script>
 
 <template>
-  <span
+  <ElTag
     v-if="tag"
+    size="small"
+    disable-transitions
     class="plan-tag"
     :class="[
       `is-${tag.tone}`,
@@ -58,15 +71,15 @@ function handleActivate(event) {
         : undefined
     "
     :role="interactive ? 'button' : undefined"
-    :tabindex="interactive ? 0 : undefined"
+    :tabindex="interactive || focusable ? 0 : undefined"
     :data-action="interactive ? 'set-deal' : undefined"
     :data-deal="interactive ? tag.key : undefined"
     :data-stop-row="interactive ? '' : undefined"
     @click="interactive ? handleActivate($event) : undefined"
-    @keydown.enter.prevent="interactive ? handleActivate($event) : undefined"
-    @keydown.space.prevent="interactive ? handleActivate($event) : undefined"
+    @keydown.enter="handleKeydownActivate"
+    @keydown.space="handleKeydownActivate"
   >
     <TagSvgIcon :tone="tag.tone" />
-    <span class="tag-txt">{{ fullLabel ? tag.label : tag.shortLabel }}</span>
-  </span>
+    {{ fullLabel ? tag.label : tag.shortLabel }}
+  </ElTag>
 </template>

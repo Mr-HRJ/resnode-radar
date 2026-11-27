@@ -1,5 +1,7 @@
 <script setup>
 import { computed } from "vue";
+import { ElButton, ElEmpty, ElIcon, ElInput, ElSkeleton } from "element-plus";
+import { Refresh, RefreshLeft, Search } from "@element-plus/icons-vue";
 import {
   REVIEW_DOSSIERS,
   SHOP_TAG_DEFS,
@@ -15,6 +17,7 @@ import {
 } from "@resnode-radar/contracts";
 import ShopTagBadge from "../icons/ShopTagBadge.vue";
 import PlanTagBadge from "../icons/PlanTagBadge.vue";
+import RadarSelect from "../ui/RadarSelect.vue";
 import { smartBrandMonogram } from "../../utils/plan-presenters.js";
 
 const props = defineProps({
@@ -231,12 +234,27 @@ function toggleRegionFilter(val) {
   const cur = pf.value.region;
   props.store.patchProviders({ region: val !== "all" && cur === val ? "all" : val });
 }
+
+const providerTagOptions = computed(() => [
+  { value: "all", label: "全部商家标签", text: "全部商家标签" },
+  ...SHOP_TAG_ORDER.map((k) => {
+    const count = summaryKpis.value.tagCounts.get(k) || 0;
+    return {
+      value: k,
+      text: SHOP_TAG_DEFS[k].label,
+      count,
+      label: `${SHOP_TAG_DEFS[k].label} (${count})`
+    };
+  })
+]);
+
+const providerFeatureOptions = PROV_FEATURES.map(([value, label]) => ({ value, label }));
+const providerSortOptions = PROV_SORTS.map(([value, label]) => ({ value, label }));
 </script>
 
 <template>
   <div v-if="store.state.loadState === 'loading'" class="skeleton-stack">
-    <span class="skel" style="height: 28px; width: 45%"></span>
-    <span class="skel" style="height: 260px; width: 100%"></span>
+    <ElSkeleton :rows="6" animated />
   </div>
 
   <section v-else-if="store.state.loadState === 'error'" class="empty-state-card is-error">
@@ -245,14 +263,15 @@ function toggleRegionFilter(val) {
       上游快照接口当前不可用（{{ store.state.errorDetail?.detail || "Fetch error" }}），暂时无法判断商家的套餐与库存。
     </p>
     <div>
-      <button
-        type="button"
-        class="btn btn-primary"
+      <ElButton
+        class="radar-el-btn"
+        type="primary"
         data-action="refresh-snapshot"
         @click="store.refreshSnapshot({ force: true })"
       >
-        ↻ 重试读取
-      </button>
+        <ElIcon style="margin-right: 4px"><Refresh /></ElIcon>
+        重试读取
+      </ElButton>
     </div>
   </section>
 
@@ -349,53 +368,55 @@ function toggleRegionFilter(val) {
         </div>
 
         <div class="radar-filter-cluster">
-          <div class="input-wrap" style="width: 208px">
-            <input
+          <div class="input-wrap" style="width: 220px">
+            <ElInput
+              class="radar-el-input"
               type="search"
-              class="input-field"
-              style="height: 28px"
+              size="small"
+              clearable
               data-provider-search
-              :value="pf.q"
+              :model-value="pf.q"
               placeholder="搜商家、别名或标签（热门 / 低价）…"
               aria-label="搜索商家"
-              @input="store.patchProviders({ q: $event.target.value })"
-            />
+              @update:model-value="store.patchProviders({ q: $event })"
+            >
+              <template #prefix>
+                <ElIcon><Search /></ElIcon>
+              </template>
+            </ElInput>
           </div>
 
-          <select
-            class="select-field mini-select"
+          <RadarSelect
+            variant="mini"
             data-provider-select="tag"
             aria-label="按商家标签筛选"
-            :value="pf.tag || 'all'"
-            @change="store.patchProviders({ tag: $event.target.value })"
-          >
-            <option value="all">全部商家标签</option>
-            <option v-for="k in SHOP_TAG_ORDER" :key="k" :value="k">
-              {{ SHOP_TAG_DEFS[k].label }} ({{ summaryKpis.tagCounts.get(k) || 0 }})
-            </option>
-          </select>
+            :filtered="Boolean(pf.tag && pf.tag !== 'all')"
+            :model-value="pf.tag || 'all'"
+            :options="providerTagOptions"
+            @change="store.patchProviders({ tag: $event })"
+          />
 
-          <select
-            class="select-field mini-select"
+          <RadarSelect
+            variant="mini"
             data-provider-select="feature"
             aria-label="按商家定位筛选"
-            :value="pf.feature"
-            @change="store.patchProviders({ feature: $event.target.value })"
-          >
-            <option v-for="[v, l] in PROV_FEATURES" :key="v" :value="v">{{ l }}</option>
-          </select>
+            :filtered="pf.feature !== 'all'"
+            :model-value="pf.feature"
+            :options="providerFeatureOptions"
+            @change="store.patchProviders({ feature: $event })"
+          />
 
-          <select
-            class="select-field mini-select"
+          <RadarSelect
+            variant="sort"
             data-provider-sort
             aria-label="商家排序方式"
-            :value="sortMode"
-            @change="store.setProvidersSort($event.target.value)"
-          >
-            <option v-for="[v, l] in PROV_SORTS" :key="v" :value="v">{{ l }}</option>
-          </select>
+            :filtered="sortMode !== 'recommended'"
+            :model-value="sortMode"
+            :options="providerSortOptions"
+            @change="store.setProvidersSort($event)"
+          />
 
-          <button
+          <ElButton
             v-if="
               pf.q ||
               pf.region !== 'all' ||
@@ -404,13 +425,15 @@ function toggleRegionFilter(val) {
               pf.health !== 'all' ||
               sortMode !== 'recommended'
             "
-            type="button"
-            class="btn btn-xs btn-ghost"
+            class="radar-el-btn"
+            size="small"
+            text
             data-action="reset-providers"
             @click="store.resetProviders()"
           >
+            <ElIcon style="margin-right: 3px"><RefreshLeft /></ElIcon>
             重置
-          </button>
+          </ElButton>
 
           <span class="radar-hit-count num">
             <strong>{{ filteredProviders.length }}</strong> / {{ providers.length }} 家
@@ -420,17 +443,16 @@ function toggleRegionFilter(val) {
     </section>
 
     <section v-if="filteredProviders.length === 0" class="empty-state-card">
-      <h2 class="empty-state-title">没有匹配当前条件的商家</h2>
-      <div>
-        <button
-          type="button"
-          class="btn btn-primary"
+      <ElEmpty description="没有匹配当前条件的商家" :image-size="76">
+        <ElButton
+          class="radar-el-btn"
+          type="primary"
           data-action="reset-providers"
           @click="store.resetProviders()"
         >
           重置商家筛选
-        </button>
-      </div>
+        </ElButton>
+      </ElEmpty>
     </section>
 
     <div v-else class="provider-grid">
@@ -591,10 +613,9 @@ function toggleRegionFilter(val) {
           class="prov-sample-list"
           aria-label="该商家当前可购代表方案"
         >
-          <button
+          <ElButton
             v-for="sp in getSampleAvailPlans(health)"
             :key="sp.id"
-            type="button"
             class="prov-sample-item"
             data-action="inspect-plan"
             :data-product-id="sp.id"
@@ -605,7 +626,7 @@ function toggleRegionFilter(val) {
               <span class="prov-sample-name">{{ plain(sp.name) }}</span>
             </span>
             <span class="prov-sample-price mono num">{{ sp._pricing?.displayLabel || "" }}</span>
-          </button>
+          </ElButton>
         </div>
         <div v-else-if="health.diagnostics.length === 0" class="prov-idle-note">
           {{
@@ -688,19 +709,18 @@ function toggleRegionFilter(val) {
               目录 ↗
             </a>
           </div>
-          <button
-            type="button"
-            class="btn btn-xs"
-            :class="
-              health.available > 0 ? 'btn-primary' : health.planCount > 0 ? 'btn-soft' : ''
-            "
+          <ElButton
+            size="small"
+            class="radar-el-btn"
+            :type="health.planCount > 0 ? 'primary' : 'default'"
+            :plain="health.available === 0 && health.planCount > 0"
             data-action="drill-provider"
             :data-provider-id="provider.id"
             :disabled="health.planCount === 0"
             @click="store.drillProvider(provider.id)"
           >
             {{ health.planCount > 0 ? `筛选 ${health.planCount} 款套餐 →` : "暂无固定套餐" }}
-          </button>
+          </ElButton>
         </div>
       </article>
     </div>

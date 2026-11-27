@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { ElButton } from "element-plus";
 import { useWindowVirtualizer } from "@tanstack/vue-virtual";
 import { formatEventDelta, plain, safeUrl } from "@resnode-radar/contracts";
 import PlanTagBadge from "../icons/PlanTagBadge.vue";
@@ -579,9 +580,9 @@ function cardsForVirtualRow(rowIndex) {
             <!-- Col 8: Actions -->
             <td class="col-act">
               <div class="row-actions" data-stop-row @click.stop>
-                <button
-                  type="button"
-                  class="btn btn-icon btn-xs btn-star"
+                <ElButton
+                  size="small"
+                  class="radar-row-btn btn btn-icon btn-xs btn-star"
                   :class="{
                     'is-active': store.state.savedKeys.has(items[vRow.index]._key)
                   }"
@@ -599,10 +600,10 @@ function cardsForVirtualRow(rowIndex) {
                   @click.stop="store.toggleSave(items[vRow.index]._key)"
                 >
                   ★
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-icon btn-xs"
+                </ElButton>
+                <ElButton
+                  size="small"
+                  class="radar-row-btn btn btn-icon btn-xs"
                   :class="{
                     'is-active': store.state.compareKeys.includes(items[vRow.index]._key)
                   }"
@@ -624,7 +625,7 @@ function cardsForVirtualRow(rowIndex) {
                   @click.stop="store.toggleCompare(items[vRow.index]._key)"
                 >
                   ⇄
-                </button>
+                </ElButton>
                 <a
                   v-if="safeUrl(items[vRow.index].orderUrl)"
                   class="btn-buy-cta"
@@ -636,16 +637,16 @@ function cardsForVirtualRow(rowIndex) {
                 >
                   直达 ↗
                 </a>
-                <button
+                <ElButton
                   v-else
-                  type="button"
-                  class="btn btn-xs"
+                  size="small"
+                  class="radar-row-btn btn btn-xs"
                   data-action="inspect-plan"
                   :data-product-id="items[vRow.index].id"
                   @click.stop="store.openInspector(items[vRow.index].id)"
                 >
                   详情
-                </button>
+                </ElButton>
               </div>
             </td>
           </tr>

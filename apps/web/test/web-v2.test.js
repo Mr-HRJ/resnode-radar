@@ -819,6 +819,7 @@ describe("Vue 3 Workbench + Dual-Protocol v2 Snapshot Architecture", () => {
     await nextTick();
     expect(document.querySelector(".terminal-table")).toBeNull();
     expect(document.querySelectorAll(".plan-card").length).toBeLessThanOrEqual(36);
+    expect(document.querySelectorAll("*").length).toBeLessThan(4000);
   });
 
   it("hydrates standalone review dossier pages via dual-protocol loader, trips 7-day FX fuse on timer/visibilitychange, cleans up on dispose, and toggles theme", async () => {
@@ -974,15 +975,30 @@ describe("Vue 3 Workbench + Dual-Protocol v2 Snapshot Architecture", () => {
     expect(app.store.state.filters.budget).toBe("all");
     expect(app.store.state.filters.minPrice).toBe("30");
 
-    const budgetSelect = document.querySelector("[data-filter-dock] [data-filter-select='budget']");
-    budgetSelect.value = "50-100";
-    budgetSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    const budgetSelectTrigger = document.querySelector(
+      "[data-filter-dock] [data-filter-select='budget'] .el-select__wrapper"
+    );
+    expect(budgetSelectTrigger).not.toBeNull();
+    budgetSelectTrigger.click();
+    await nextTick();
+    const budgetOption = [...document.querySelectorAll(".radar-select-popper .el-select-dropdown__item")].find(
+      (el) => el.textContent?.includes("50–100") || el.textContent?.includes("50-100")
+    );
+    expect(budgetOption).not.toBeUndefined();
+    budgetOption.click();
     await nextTick();
     expect(app.store.state.filters.budget).toBe("50-100");
     expect(app.store.state.filters.minPrice).toBe("");
 
     // 5) Visit counter strictly hides at <= 1000 and reveals at >= 1001, skipping pop class under reduced motion
-    window.matchMedia = () => ({ matches: true });
+    vi.spyOn(window, "matchMedia").mockImplementation((query) => ({
+      matches: true,
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {}
+    }));
     await app.refreshVisitStats(true);
     await nextTick();
     expect(document.querySelector("[data-visit-stat]")).toBeNull();
@@ -1029,5 +1045,644 @@ describe("Vue 3 Workbench + Dual-Protocol v2 Snapshot Architecture", () => {
 
     expect(app2.store.state.protocolMode).toBe("v1");
     expect(document.body.textContent).toContain("Fresh V1 After Forgotten Pointer");
+  });
+
+  it("upgrades selects, segmented toggles, switches, inputs, drawers/dialogs, and dark theme class via Element Plus", async () => {
+    setupHostDom("https://vpsld.com/");
+    const now = Date.parse("2026-11-25T12:00:00.000Z");
+    const payload = makeBasePayload(now);
+
+    const app = mountApp({
+      endpoint: "data/products.json",
+      fetchImpl: async () => Response.json(payload),
+      initialNowMs: now,
+      statsEndpoint: ""
+    });
+    activeApps.push(app);
+    await flushUi(app);
+
+    // 1) Theme toggle synchronizes both data-theme="dark" and html.dark for Element Plus
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
+    document.querySelector("[data-action='toggle-theme']").click();
+    await nextTick();
+    expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+    document.querySelector("[data-action='toggle-theme']").click();
+    await nextTick();
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
+
+    // 2) Region filter uses Element Plus ElSelect (RadarSelect) and updates filters on option click
+    const regionSelect = document.querySelector("[data-filter-dock] [data-filter-select='region']");
+    expect(regionSelect?.classList.contains("el-select")).toBe(true);
+    regionSelect.querySelector(".el-select__wrapper").click();
+    await nextTick();
+    const jpOpt = [...document.querySelectorAll(".radar-select-popper .el-select-dropdown__item")].find(
+      (el) => el.textContent?.includes("日本")
+    );
+    expect(jpOpt).not.toBeUndefined();
+    jpOpt.click();
+    await nextTick();
+    expect(app.store.state.filters.region).toBe("JP");
+    expect(regionSelect.classList.contains("is-filtered")).toBe(true);
+
+    // 3) Desktop layout toggle uses Element Plus ElSegmented
+    const layoutSegmented = document.querySelector(".layout-view-toggle");
+    expect(layoutSegmented?.classList.contains("el-segmented")).toBe(true);
+    layoutSegmented.querySelector("[data-layout='grid']").click();
+    await nextTick();
+    expect(app.store.state.layout).toBe("grid");
+
+    // 4) Radar view uses ElSegmented for window, RadarSelect for region, and ElSwitch for savedOnly
+    document.querySelector("[data-nav-view='radar']").click();
+    await nextTick();
+    expect(document.querySelector(".radar-window-toggle")?.classList.contains("el-segmented")).toBe(true);
+    expect(document.querySelector("[data-radar-select='region']")?.classList.contains("el-select")).toBe(true);
+    expect(document.querySelector("[data-radar-toggle='savedOnly']")?.classList.contains("el-switch")).toBe(true);
+
+    // 5) Providers view uses ElInput and RadarSelect
+    document.querySelector("[data-nav-view='providers']").click();
+    await nextTick();
+    expect(document.querySelector("[data-provider-select='tag']")?.classList.contains("el-select")).toBe(true);
+    expect(document.querySelector("[data-provider-sort]")?.classList.contains("el-select")).toBe(true);
+
+    // 6) SavedDrawer opens as Element Plus ElDrawer with accessible dialog name
+    document.querySelector("[data-action='open-saved']").click();
+    await nextTick();
+    expect(document.querySelector("[data-saved-backdrop]")?.hidden).toBe(false);
+    expect(document.querySelector("[data-saved-backdrop] .el-drawer")).not.toBeNull();
+    expect(
+      document.querySelector("[data-saved-backdrop] [role='dialog']")?.getAttribute("aria-label")
+    ).toBe("本地收藏夹");
+    document.querySelector("[data-action='close-saved']").click();
+    await nextTick();
+    expect(document.querySelector("[data-saved-backdrop]")?.hidden).toBe(true);
+
+    // 7) CommandPalette exposes accessible dialog name, focuses search input once, and does not steal focus when user moves away before opened
+    document.querySelector("[data-action='open-palette']").click();
+    await flushUi();
+    expect(
+      document.querySelector("[data-palette-backdrop] [role='dialog']")?.getAttribute("aria-label")
+    ).toBe("全局快速检索");
+    const paletteInput = document.querySelector("[data-palette-input]");
+    const paletteCloseBtn = document.querySelector("[data-palette-backdrop] [data-action='close-palette']");
+    expect(paletteInput).not.toBeNull();
+    expect(paletteCloseBtn).not.toBeNull();
+    expect(document.activeElement).toBe(paletteInput);
+    paletteCloseBtn.focus();
+    expect(document.activeElement).toBe(paletteCloseBtn);
+    await flushUi();
+    expect(document.activeElement).toBe(paletteCloseBtn);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await nextTick();
+    expect(document.querySelector("[data-palette-backdrop]")?.hidden).toBe(true);
+
+    // 8) CompareModal exposes accessible dialog name on actual role="dialog" node
+    document.querySelector("[data-nav-view='terminal']").click();
+    await nextTick();
+    document.querySelector(".layout-view-toggle [data-layout='table']").click();
+    await nextTick();
+    document.querySelector("[data-filter-dock] [data-action='reset-filters']").click();
+    await nextTick();
+    document.querySelector("tr[data-product-id='bwh-ams-hit'] [data-action='toggle-compare']").click();
+    await nextTick();
+    document.querySelector("[data-action='open-compare']").click();
+    await nextTick();
+    expect(
+      document.querySelector("[data-compare-modal] [role='dialog']")?.getAttribute("aria-label")
+    ).toBe("多方案关键指标横向对比");
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await nextTick();
+    expect(document.querySelector("[data-compare-modal]")?.hidden).toBe(true);
+    app.store.clearCompare();
+    await nextTick();
+
+    // 9) Tag HUD triggered inside InspectorDrawer via real keyboard focus uses z-index above ElDrawer and follows layered Escape priority + focus restore
+    const targetRowEl = document.querySelector("tr[data-product-id='bwh-ams-hit']");
+    const focusBeforeDrawer = targetRowEl?.querySelector("button[data-action='toggle-save']");
+    expect(targetRowEl).not.toBeNull();
+    expect(focusBeforeDrawer).not.toBeNull();
+    focusBeforeDrawer.focus();
+    expect(document.activeElement).toBe(focusBeforeDrawer);
+    targetRowEl.click();
+    await flushUi();
+    expect(
+      document.querySelector("[data-inspector-backdrop] [role='dialog']")?.getAttribute("aria-label")
+    ).toBe("套餐解析证据与定价解剖");
+    const drawerOverlay = document.querySelector("[data-inspector-backdrop] .el-overlay");
+    const drawerTag = document.querySelector("[data-inspector-backdrop] [data-tag-tip]");
+    expect(drawerOverlay).not.toBeNull();
+    expect(drawerTag).not.toBeNull();
+    expect(drawerTag.tabIndex).toBe(0);
+    drawerTag.focus();
+    drawerTag.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    await flushUi();
+    expect(document.activeElement).toBe(drawerTag);
+    expect(drawerTag.getAttribute("aria-describedby")).toContain("radar-tag-hud");
+    const hudEl = document.querySelector("[data-tag-hud]");
+    expect(hudEl?.hidden).toBe(false);
+    const drawerZ = Number.parseInt(drawerOverlay.style.zIndex || "2000", 10);
+    const hudZ = Number.parseInt(hudEl.style.zIndex || "0", 10);
+    expect(hudZ).toBeGreaterThan(drawerZ);
+
+    // First Escape closes ONLY the HUD; InspectorDrawer must stay open!
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await nextTick();
+    expect(hudEl.hidden).toBe(true);
+    expect(app.store.state.inspectId).toBe("bwh-ams-hit");
+    expect(document.querySelector("[data-inspector-backdrop]")?.hidden).toBe(false);
+
+    // Second Escape closes InspectorDrawer and restores focus to the element focused before opening!
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await nextTick();
+    expect(app.store.state.inspectId).toBeNull();
+    expect(document.querySelector("[data-inspector-backdrop]")?.hidden).toBe(true);
+    expect(document.activeElement).toBe(focusBeforeDrawer);
+
+    // 10) Single accessible toast region on save (no duplicate alert + status announcements)
+    document.querySelector("tr[data-product-id='home-att'] button[data-action='toggle-save']").click();
+    await nextTick();
+    const announcements = document.querySelectorAll("[role='alert'], [role='status']");
+    expect(announcements.length).toBe(1);
+    expect(announcements[0].textContent).toContain("收藏");
+
+    // 11) CompareDock exposes per-plan accessible remove buttons & nested overlay Escape closes topmost Inspector first
+    document.querySelector("tr[data-product-id='bwh-ams-hit'] button[data-action='toggle-compare']").click();
+    document.querySelector("tr[data-product-id='home-att'] button[data-action='toggle-compare']").click();
+    await nextTick();
+    const removeBwhBtn = document.querySelector(
+      "[data-compare-dock] button[aria-label='移出 The Amsterdam Plan']"
+    );
+    const removeHomeBtn = document.querySelector(
+      "[data-compare-dock] button[aria-label='移出 加州 AT&T 双ISP 家宽']"
+    );
+    expect(removeBwhBtn).not.toBeNull();
+    expect(removeHomeBtn).not.toBeNull();
+    removeHomeBtn.click();
+    await nextTick();
+    expect(app.store.state.compareKeys.length).toBe(1);
+
+    // Re-add second plan, open Compare -> Ctrl+K Palette -> pick plan to stack Inspector above Compare
+    document.querySelector("tr[data-product-id='home-att'] button[data-action='toggle-compare']").click();
+    await nextTick();
+    document.querySelector("[data-compare-dock] [data-action='open-compare']").click();
+    await nextTick();
+    expect(app.store.state.compareOpen).toBe(true);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }));
+    await flushUi();
+    expect(app.store.state.paletteOpen).toBe(true);
+    const palPlanBtn = document.querySelector("[data-palette-backdrop] button[data-action='palette-plan']");
+    expect(palPlanBtn).not.toBeNull();
+    palPlanBtn.click();
+    await flushUi();
+    expect(app.store.state.compareOpen).toBe(true);
+    expect(app.store.state.inspectId).not.toBeNull();
+
+    // First Escape closes topmost Inspector while keeping CompareModal open and returning focus into CompareModal
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await nextTick();
+    await nextTick();
+    expect(app.store.state.inspectId).toBeNull();
+    expect(app.store.state.compareOpen).toBe(true);
+    expect(
+      document.querySelector("[data-compare-modal]")?.contains(document.activeElement)
+    ).toBe(true);
+
+    // Second Escape closes CompareModal
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await nextTick();
+    expect(app.store.state.compareOpen).toBe(false);
+
+    // 12) Mobile filter drawer Escape closes rail when focused on collapsed ElSelect
+    const openRailBtn = document.querySelector("[data-action='open-mobile-rail']");
+    openRailBtn.focus();
+    openRailBtn.click();
+    await nextTick();
+    expect(app.store.state.mobileRailOpen).toBe(true);
+    const mobileProvCombo = document.querySelector(
+      "[data-mobile-filter-sheet] [data-filter-select='provider'] [role='combobox']"
+    );
+    expect(mobileProvCombo).not.toBeNull();
+    mobileProvCombo.focus();
+    expect(mobileProvCombo.getAttribute("aria-expanded")).toBe("false");
+    mobileProvCombo.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await nextTick();
+    await nextTick();
+    expect(app.store.state.mobileRailOpen).toBe(false);
+    expect(document.activeElement).toBe(openRailBtn);
+
+    // 13) Desktop FilterDock Escape from collapsed ElSelect closes expanded shop picker & restores focus
+    document.querySelector("[data-filter-dock] [data-action='toggle-shops-expand']").click();
+    await nextTick();
+    expect(app.store.state.shopsExpanded).toBe(true);
+    const desktopCycleCombo = document.querySelector(
+      "[data-filter-dock] [data-filter-select='cycle'] [role='combobox']"
+    );
+    expect(desktopCycleCombo).not.toBeNull();
+    desktopCycleCombo.focus();
+    expect(desktopCycleCombo.getAttribute("aria-expanded")).toBe("false");
+    desktopCycleCombo.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await nextTick();
+    await nextTick();
+    expect(app.store.state.shopsExpanded).toBe(false);
+    expect(document.activeElement?.getAttribute("data-action")).toBe("toggle-shops-expand");
+
+    // 14) GuideView ElProgress exposes accessible name via aria-labelledby and updates aria-valuenow
+    document.querySelector("[data-nav-view='guide']").click();
+    await nextTick();
+    const guideBar = document.querySelector("[data-view-panel='guide'] [role='progressbar']");
+    expect(guideBar).not.toBeNull();
+    const labelledBy = guideBar.getAttribute("aria-labelledby");
+    expect(labelledBy).toBeTruthy();
+    expect(document.getElementById(labelledBy)?.textContent).toContain("4 步验真自检表");
+    expect(guideBar.getAttribute("aria-valuenow")).toBe("0");
+    document.querySelector("[data-action='toggle-guide-check'][data-check-id='chk-nat']").click();
+    await nextTick();
+    expect(guideBar.getAttribute("aria-valuenow")).toBe("25");
+    document.querySelector("[data-nav-view='terminal']").click();
+    await nextTick();
+
+    // 15) CommandPalette Enter during IME composition must not preventDefault or prematurely submit stale query
+    app.store.setPaletteOpen(true, "香港");
+    await nextTick();
+    await nextTick();
+    const imePaletteInput = document.querySelector("[data-palette-input]");
+    expect(imePaletteInput).not.toBeNull();
+    imePaletteInput.dispatchEvent(new Event("compositionstart", { bubbles: true }));
+    imePaletteInput.value = "香港双";
+    const imeEnter = new KeyboardEvent("keydown", {
+      key: "Enter",
+      code: "Enter",
+      bubbles: true,
+      cancelable: true
+    });
+    imePaletteInput.dispatchEvent(imeEnter);
+    await nextTick();
+    expect(imeEnter.defaultPrevented).toBe(false);
+    expect(app.store.state.paletteOpen).toBe(true);
+    expect(app.store.state.filters.q).toBe("");
+    imePaletteInput.dispatchEvent(new Event("compositionend", { bubbles: true }));
+    imePaletteInput.dispatchEvent(new Event("input", { bubbles: true }));
+    await nextTick();
+    const submitEnter = new KeyboardEvent("keydown", {
+      key: "Enter",
+      code: "Enter",
+      bubbles: true,
+      cancelable: true
+    });
+    imePaletteInput.dispatchEvent(submitEnter);
+    await nextTick();
+    expect(submitEnter.defaultPrevented).toBe(true);
+    expect(app.store.state.paletteOpen).toBe(false);
+    expect(app.store.state.filters.q).toBe("香港双");
+
+    // 16) `/` shortcut opens CommandPalette even when focused on ElSegmented radio inputs,
+    // and Escape from CompareModal opened via CompareDock restores focus to CompareDock's open-compare button
+    app.store.resetFilters();
+    await nextTick();
+    const layoutRadio = document.querySelector(".layout-view-toggle input[type='radio']");
+    expect(layoutRadio).not.toBeNull();
+    layoutRadio.focus();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "/", bubbles: true, cancelable: true }));
+    await nextTick();
+    expect(app.store.state.paletteOpen).toBe(true);
+    app.store.setPaletteOpen(false);
+    await nextTick();
+
+    const firstPlanKey = app.store.plans.value[0]?._key;
+    app.store.toggleCompare(firstPlanKey);
+    await nextTick();
+    const dockOpenBtn = document.querySelector("[data-compare-dock] [data-action='open-compare']");
+    expect(dockOpenBtn).not.toBeNull();
+    dockOpenBtn.focus();
+    dockOpenBtn.click();
+    await nextTick();
+    expect(app.store.state.compareOpen).toBe(true);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await nextTick();
+    await nextTick();
+    expect(app.store.state.compareOpen).toBe(false);
+    expect(document.activeElement).toBe(
+      document.querySelector("[data-compare-dock] [data-action='open-compare']")
+    );
+    app.store.clearCompare();
+    await nextTick();
+
+    // 17) Adding a 5th plan to Compare triggers a warning-type ElMessage (not success)
+    for (let i = 0; i < 4; i += 1) {
+      app.store.toggleCompare(`fake-key-${i}`);
+    }
+    const fifthRes = app.store.toggleCompare("fake-key-4");
+    expect(fifthRes).toEqual({ changed: false, reason: "limit" });
+    await nextTick();
+    expect(app.store.state.toastType).toBe("warning");
+    expect(document.querySelector(".el-message.radar-el-message.el-message--warning")).not.toBeNull();
+    app.store.clearCompare();
+    await nextTick();
+
+    // 18) TerminalView zero-results renders ElEmpty
+    app.store.updateFilters({ q: "no-such-plan-xyz-999" });
+    await nextTick();
+    expect(document.querySelector("[data-zero-results] .el-empty")).not.toBeNull();
+  }, 15_000);
+
+  it("renews ElMessage toast lifetime across consecutive identical-text saves via single store timer", async () => {
+    vi.useFakeTimers();
+    try {
+      setupHostDom("https://vpsld.com/");
+      const now = Date.parse("2026-11-25T12:00:00.000Z");
+      const payload = makeBasePayload(now);
+      const app = mountApp({
+        endpoint: "data/products.json",
+        fetchImpl: async () => Response.json(payload),
+        initialNowMs: now,
+        statsEndpoint: ""
+      });
+      activeApps.push(app);
+      await app.refresh(false);
+      await nextTick();
+
+      const visibleToasts = () =>
+        [...document.querySelectorAll(".el-message.radar-el-message")].filter(
+          (el) => el.style.display !== "none"
+        );
+
+      // First save at t = 0
+      document.querySelector("tr[data-product-id='home-att'] button[data-action='toggle-save']").click();
+      await nextTick();
+      expect(visibleToasts().length).toBe(1);
+
+      // Advance 1500ms, then save a second distinct plan with identical toast wording
+      vi.advanceTimersByTime(1500);
+      await nextTick();
+      document.querySelector("tr[data-product-id='dc-native'] button[data-action='toggle-save']").click();
+      await nextTick();
+      expect(visibleToasts().length).toBe(1);
+
+      // At t = 2600ms (past the first 2400ms timer, but only 1100ms after the second save), toast MUST remain visible!
+      vi.advanceTimersByTime(1100);
+      await nextTick();
+      expect(app.store.state.toastMessage).toBeTruthy();
+      expect(visibleToasts().length).toBe(1);
+
+      // At t = 4000ms (2500ms after the second save), store timer clears and closes the toast cleanly
+      vi.advanceTimersByTime(1400);
+      await nextTick();
+      // Flush Vue <Transition> requestAnimationFrame leave ticks under fake timers
+      vi.advanceTimersByTime(100);
+      await nextTick();
+      expect(app.store.state.toastMessage).toBe("");
+      expect(visibleToasts().length).toBe(0);
+
+      // If a toast is dismissed early via Escape, a subsequent identical-text save must still render a new toast
+      document.querySelector("tr[data-product-id='home-att'] button[data-action='toggle-save']").click();
+      await nextTick();
+      expect(visibleToasts().length).toBe(1);
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
+      await nextTick();
+      vi.advanceTimersByTime(100);
+      await nextTick();
+      expect(visibleToasts().length).toBe(0);
+
+      document.querySelector("tr[data-product-id='dc-native'] button[data-action='toggle-save']").click();
+      await nextTick();
+      expect(visibleToasts().length).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("renders ElSkeleton while loading and ElEmpty on empty results in both TerminalView and ReviewLiveBox", async () => {
+    setupHostDom("https://vpsld.com/");
+    const now = Date.parse("2026-11-25T12:00:00.000Z");
+    const payload = makeBasePayload(now);
+
+    let releaseSlowFetch = null;
+    const slowApp = mountApp({
+      endpoint: "data/products.json",
+      fetchImpl: () =>
+        new Promise((resolve) => {
+          releaseSlowFetch = () => resolve(Response.json(payload));
+        }),
+      initialNowMs: now,
+      statsEndpoint: ""
+    });
+    activeApps.push(slowApp);
+    await nextTick();
+    expect(document.querySelector("[data-skeleton-grid] .el-skeleton")).not.toBeNull();
+    releaseSlowFetch();
+    await flushUi(slowApp);
+
+    // ReviewLiveBox loading ElSkeleton and empty-provider ElEmpty
+    document.body.innerHTML = `<div data-review-live-box data-provider-id="nonexistent-provider"></div>`;
+    let releaseReviewFetch = null;
+    const reviewPromise = mountReviewDossier({
+      endpoint: "data/products.json",
+      initialNowMs: now,
+      fetchImpl: () =>
+        new Promise((resolve) => {
+          releaseReviewFetch = () => resolve(Response.json(payload));
+        })
+    });
+    await nextTick();
+    expect(document.querySelector("[data-review-live-box] .el-skeleton")).not.toBeNull();
+    releaseReviewFetch();
+    const reviewInst = await reviewPromise;
+    activeApps.push(reviewInst);
+    await flushUi();
+    expect(document.querySelector("[data-review-live-box] .el-empty")).not.toBeNull();
+  });
+
+  it("preserves searchbox roles, passes collapsed RadarSelect Escape to tag HUD, and traps focus inside mobile filter sheet", async () => {
+    setupHostDom("https://vpsld.com/?status=all");
+    const now = Date.parse("2026-11-25T12:00:00.000Z");
+    const payload = makeBasePayload(now);
+    const app = mountApp({
+      endpoint: "data/products.json",
+      fetchImpl: async () => Response.json(payload),
+      initialNowMs: now,
+      statsEndpoint: ""
+    });
+    activeApps.push(app);
+    await flushUi(app);
+
+    // 1) Collapsed desktop RadarSelect Escape must close open [data-tag-hud]
+    const cycleCombo = document.querySelector("[data-filter-select='cycle'] [role='combobox']");
+    expect(cycleCombo).not.toBeNull();
+    cycleCombo.focus();
+    const dealTipBtn = document.querySelector("[data-filter-dock] [data-tag-tip]");
+    expect(dealTipBtn).not.toBeNull();
+    const PointerEvt = globalThis.PointerEvent || MouseEvent;
+    dealTipBtn.dispatchEvent(new PointerEvt("pointerover", { bubbles: true, pointerType: "mouse" }));
+    await new Promise((resolve) => setTimeout(resolve, 110));
+    await nextTick();
+    expect(document.querySelector("[data-tag-hud]")?.hidden).toBe(false);
+    expect(cycleCombo.getAttribute("aria-expanded")).not.toBe("true");
+    cycleCombo.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    await nextTick();
+    expect(document.querySelector("[data-tag-hud]")?.hidden).toBe(true);
+
+    // 2) Mobile filter sheet moves focus in on open, traps Tab/Shift+Tab, and restores trigger focus on close
+    const openRailBtn = document.querySelector("button[data-action='open-mobile-rail']");
+    expect(openRailBtn).not.toBeNull();
+    openRailBtn.focus();
+    openRailBtn.click();
+    await nextTick();
+    await nextTick();
+    const sheet = document.querySelector("[data-mobile-filter-sheet]");
+    expect(sheet?.classList.contains("is-mobile-open")).toBe(true);
+    expect(sheet?.contains(document.activeElement)).toBe(true);
+    const firstCloseBtn = sheet.querySelector("[data-action='close-mobile-rail']");
+    expect(document.activeElement).toBe(firstCloseBtn);
+    // Shift+Tab from first control wraps to last control inside sheet
+    document.activeElement.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true, cancelable: true })
+    );
+    expect(sheet.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).not.toBe(firstCloseBtn);
+    // Tab from last control wraps back to first control inside sheet
+    document.activeElement.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Tab", shiftKey: false, bubbles: true, cancelable: true })
+    );
+    expect(document.activeElement).toBe(firstCloseBtn);
+    // Escape closes mobile filter sheet and restores focus to trigger button
+    document.activeElement.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+    );
+    await nextTick();
+    await nextTick();
+    expect(sheet.classList.contains("is-mobile-open")).toBe(false);
+    expect(document.activeElement).toBe(openRailBtn);
+
+    // 3) Migrated search inputs keep input[type=search] (searchbox role) and accessible names
+    app.store.setView("providers");
+    await nextTick();
+    const provSearch = document.querySelector("input[data-provider-search][type='search']");
+    expect(provSearch).not.toBeNull();
+    expect(provSearch.getAttribute("aria-label")).toBe("搜索商家");
+
+    app.store.setView("radar");
+    await nextTick();
+    const radarSearch = document.querySelector("input[data-radar-search][type='search']");
+    expect(radarSearch).not.toBeNull();
+    expect(radarSearch.getAttribute("aria-label")).toBe("搜索异动事件");
+
+    // 4) Non-searchable RadarSelect supports Spacebar open + ArrowDown + Spacebar confirm without scrolling
+    app.store.setView("terminal");
+    await nextTick();
+    const cycleSelectCombo = document.querySelector("[data-filter-select='cycle'] [role='combobox']");
+    expect(cycleSelectCombo).not.toBeNull();
+    cycleSelectCombo.focus();
+    const openSpaceEv = new KeyboardEvent("keydown", {
+      key: " ",
+      code: "Space",
+      bubbles: true,
+      cancelable: true
+    });
+    cycleSelectCombo.dispatchEvent(openSpaceEv);
+    await nextTick();
+    await nextTick();
+    expect(openSpaceEv.defaultPrevented).toBe(true);
+    expect(cycleSelectCombo.getAttribute("aria-expanded")).toBe("true");
+    cycleSelectCombo.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowDown", code: "ArrowDown", bubbles: true, cancelable: true })
+    );
+    await nextTick();
+    const commitSpaceEv = new KeyboardEvent("keydown", {
+      key: " ",
+      code: "Space",
+      bubbles: true,
+      cancelable: true
+    });
+    cycleSelectCombo.dispatchEvent(commitSpaceEv);
+    await nextTick();
+    expect(commitSpaceEv.defaultPrevented).toBe(true);
+    expect(cycleSelectCombo.getAttribute("aria-expanded")).toBe("false");
+    expect(app.store.state.filters.cycle).not.toBe("all");
+
+    // 5) Stacked overlay jumps from focused header open-compare button close obstructing overlays without Vue handler errors and focus #main-workspace
+    const vueErrors = [];
+    app.app.config.errorHandler = (err) => {
+      vueErrors.push(err);
+    };
+    const firstPlan = app.store.plans.value[0];
+    app.store.toggleCompare(firstPlan._key);
+    await nextTick();
+    const headerCompareBtn = document.querySelector("[data-app-header] [data-action='open-compare']");
+    expect(headerCompareBtn).not.toBeNull();
+    headerCompareBtn.focus();
+    headerCompareBtn.click();
+    await nextTick();
+    expect(app.store.state.compareOpen).toBe(true);
+
+    // Jump from InspectorDrawer stacked over CompareModal -> drill-provider
+    app.store.openInspector(firstPlan.id);
+    await nextTick();
+    await nextTick();
+    const drillBtn = document.querySelector("[data-inspector-backdrop] [data-action='drill-provider']");
+    expect(drillBtn).not.toBeNull();
+    drillBtn.click();
+    await nextTick();
+    await nextTick();
+    expect(app.store.state.compareOpen).toBe(false);
+    expect(app.store.state.inspectId).toBeNull();
+    expect(app.store.state.compareKeys).toContain(firstPlan._key);
+    expect(document.activeElement?.id).toBe("main-workspace");
+
+    // Jump from InspectorDrawer stacked over CompareModal -> jump-radar ("全部异动")
+    headerCompareBtn.focus();
+    headerCompareBtn.click();
+    await nextTick();
+    app.store.openInspector(firstPlan.id);
+    await nextTick();
+    await nextTick();
+    const radarJumpBtn = document.querySelector("[data-inspector-backdrop] [data-action='jump-radar-from-inspector']");
+    expect(radarJumpBtn).not.toBeNull();
+    radarJumpBtn.click();
+    await nextTick();
+    await nextTick();
+    expect(app.store.state.view).toBe("radar");
+    expect(app.store.state.compareOpen).toBe(false);
+    expect(app.store.state.inspectId).toBeNull();
+    expect(document.activeElement?.id).toBe("main-workspace");
+
+    // CommandPalette Enter filter while CompareModal is open closes both and focuses #main-workspace
+    headerCompareBtn.focus();
+    headerCompareBtn.click();
+    await nextTick();
+    app.store.setPaletteOpen(true, "BWH");
+    await nextTick();
+    await nextTick();
+    const palInput = document.querySelector("input[data-palette-input]");
+    expect(palInput).not.toBeNull();
+    palInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+    await nextTick();
+    await nextTick();
+    expect(app.store.state.view).toBe("terminal");
+    expect(app.store.state.filters.q).toBe("BWH");
+    expect(app.store.state.compareOpen).toBe(false);
+    expect(app.store.state.paletteOpen).toBe(false);
+    expect(document.activeElement?.id).toBe("main-workspace");
+
+    // 6) Drilling from ProvidersView (no overlay open) must NOT hijack subsequent SavedDrawer Escape returnFocus
+    app.store.setView("providers");
+    await nextTick();
+    const provDrillBtn = document.querySelector("[data-view-panel='providers'] [data-action='drill-provider']:not(:disabled)");
+    expect(provDrillBtn).not.toBeNull();
+    provDrillBtn.click();
+    await nextTick();
+    expect(app.store.state.view).toBe("terminal");
+    const openSavedBtn = document.querySelector("[data-app-header] [data-action='open-saved']");
+    expect(openSavedBtn).not.toBeNull();
+    openSavedBtn.focus();
+    openSavedBtn.click();
+    await nextTick();
+    await nextTick();
+    expect(app.store.state.savedDrawerOpen).toBe(true);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    await nextTick();
+    await nextTick();
+    expect(app.store.state.savedDrawerOpen).toBe(false);
+    expect(document.activeElement).toBe(openSavedBtn);
+    expect(vueErrors).toEqual([]);
   });
 });

@@ -66,6 +66,9 @@ export function createRadarStore(options = {}) {
     compareOpen: fromUrl.compareOpen,
     compareDiffOnly: false,
     inspectId: fromUrl.inspectId,
+    inspectSource: fromUrl.inspectId ? "url" : "user",
+    inspectActionSeq: 0,
+    workspaceFocusSeq: 0,
     savedDrawerOpen: false,
     mobileRailOpen: false,
     shopsExpanded: false,
@@ -78,7 +81,9 @@ export function createRadarStore(options = {}) {
     paletteOpen: false,
     paletteQuery: "",
     theme: applyTheme(loadTheme(win?.localStorage)),
-    toastMessage: ""
+    toastMessage: "",
+    toastType: "success",
+    toastSeq: 0
   });
 
   // Keep large arrays in shallowRef so Vue never deep-proxies 3,700+ records unnecessarily!
@@ -120,13 +125,27 @@ export function createRadarStore(options = {}) {
     }
   }
 
-  function showToast(msg, durationMs = 2400) {
+  function showToast(msg, durationMs = 2400, type = "success") {
     if (disposed) return;
     state.toastMessage = msg;
+    state.toastType = type;
+    state.toastSeq += 1;
     if (toastTimer) clearTimeout(toastTimer);
     toastTimer = setTimeout(() => {
-      if (!disposed) state.toastMessage = "";
+      if (!disposed) {
+        state.toastMessage = "";
+        state.toastType = "success";
+      }
     }, durationMs);
+  }
+
+  function reconcileCompareOpen(planList = plans.value, { sync = true } = {}) {
+    if (!state.compareOpen) return;
+    const validKeySet = new Set(planList.map((p) => p._key));
+    const matchedCount = state.compareKeys.filter((k) => validKeySet.has(k)).length;
+    if (matchedCount > 0) return;
+    state.compareOpen = false;
+    if (sync) syncUrl(true);
   }
 
   function scheduleFxBoundaryTimer() {
@@ -220,13 +239,8 @@ export function createRadarStore(options = {}) {
           lastFxExpiredState = fxAtCommit.expired;
           scheduleFxBoundaryTimer();
 
-          // Ensure compareOpen does not lock scroll if none of compareKeys exist in the loaded plans!
-          if (state.compareOpen) {
-            const validKeySet = new Set(committed.plans.map((p) => p._key));
-            if (!state.compareKeys.some((k) => validKeySet.has(k))) {
-              state.compareOpen = false;
-            }
-          }
+          // Close CompareModal & sync URL if 0 selected compareKeys match the loaded snapshot, while keeping keys for dock/recovery
+          reconcileCompareOpen(committed.plans, { sync: true });
         } else {
           tickClock(nowMs.value);
         }
@@ -374,6 +388,9 @@ export function createRadarStore(options = {}) {
   function setView(view) {
     if (!VALID_VIEWS.includes(view)) return;
     state.view = view;
+    if (view !== "terminal") {
+      state.mobileRailOpen = false;
+    }
     syncUrl(false);
   }
 
@@ -435,13 +452,32 @@ export function createRadarStore(options = {}) {
 
   function filterByProviderTag(tagKey) {
     state.view = "providers";
+    state.mobileRailOpen = false;
     state.providersFilter.tag = state.providersFilter.tag === tagKey ? "all" : tagKey;
     syncUrl(false);
   }
 
+  function closeOverlaysForNavigation() {
+    const hadOpenOverlay = Boolean(
+      (state.compareOpen && comparedPlans.value.length > 0) ||
+        state.inspectId ||
+        state.savedDrawerOpen ||
+        state.paletteOpen ||
+        (state.mobileRailOpen && state.view === "terminal")
+    );
+    state.compareOpen = false;
+    state.inspectId = null;
+    state.savedDrawerOpen = false;
+    state.paletteOpen = false;
+    state.mobileRailOpen = false;
+    if (hadOpenOverlay) {
+      state.workspaceFocusSeq += 1;
+    }
+  }
+
   function drillProvider(providerId, status = "all") {
     state.view = "terminal";
-    state.inspectId = null;
+    closeOverlaysForNavigation();
     Object.assign(state.filters, {
       ...DEFAULT_FILTERS,
       provider: providerId,
@@ -476,12 +512,18 @@ export function createRadarStore(options = {}) {
     const idx = state.compareKeys.indexOf(key);
     if (idx >= 0) {
       state.compareKeys.splice(idx, 1);
-      if (state.compareKeys.length === 0) state.compareOpen = false;
+      if (
+        state.compareOpen &&
+        (state.compareKeys.length === 0 ||
+          (state.loadState === "ready" && comparedPlans.value.length === 0))
+      ) {
+        state.compareOpen = false;
+      }
       syncUrl(true);
       return { changed: true, added: false };
     }
     if (state.compareKeys.length >= MAX_COMPARE) {
-      showToast(`横向对比最多同时选择 ${MAX_COMPARE} 款套餐`);
+      showToast(`横向对比最多同时选择 ${MAX_COMPARE} 款套餐`, 2400, "warning");
       return { changed: false, reason: "limit" };
     }
     state.compareKeys.push(key);
@@ -496,7 +538,13 @@ export function createRadarStore(options = {}) {
   }
 
   function setCompareOpen(open) {
-    state.compareOpen = Boolean(open) && comparedPlans.value.length > 0;
+    if (!open) {
+      state.compareOpen = false;
+    } else if (!rawPayload.value && state.loadState !== "ready") {
+      state.compareOpen = state.compareKeys.length > 0;
+    } else {
+      state.compareOpen = comparedPlans.value.length > 0;
+    }
     syncUrl(true);
   }
 
@@ -506,6 +554,10 @@ export function createRadarStore(options = {}) {
 
   function openInspector(productId) {
     state.inspectId = productId || null;
+    state.inspectSource = "user";
+    if (productId) {
+      state.inspectActionSeq += 1;
+    }
     syncUrl(true);
     if (productId) {
       void loadInspectorAuditForCurrentPlan();
@@ -520,7 +572,7 @@ export function createRadarStore(options = {}) {
   }
 
   function setMobileRailOpen(open) {
-    state.mobileRailOpen = Boolean(open);
+    state.mobileRailOpen = Boolean(open) && state.view === "terminal";
   }
 
   function setPaletteOpen(open, query = null) {
@@ -603,13 +655,20 @@ export function createRadarStore(options = {}) {
   const onPopState = () => {
     const parsed = parseUrlState(win?.location?.href || initialHref);
     state.view = parsed.view;
+    if (parsed.view !== "terminal") {
+      state.mobileRailOpen = false;
+    }
     state.layout = parsed.layout;
     Object.assign(state.filters, parsed.filters);
     Object.assign(state.radar, parsed.radar);
     Object.assign(state.providersFilter, parsed.providersFilter);
     state.compareKeys = [...parsed.compareKeys];
-    state.compareOpen = parsed.compareOpen && comparedPlans.value.length > 0;
+    state.compareOpen = parsed.compareOpen;
     state.inspectId = parsed.inspectId;
+    state.inspectSource = "url";
+    if (rawPayload.value && state.loadState === "ready") {
+      reconcileCompareOpen(plans.value, { sync: true });
+    }
     if (state.inspectId) void loadInspectorAuditForCurrentPlan();
   };
 
@@ -700,6 +759,7 @@ export function createRadarStore(options = {}) {
     patchProviders,
     resetProviders,
     applyPreset,
+    closeOverlaysForNavigation,
     toggleDealFilter,
     filterByProviderTag,
     drillProvider,

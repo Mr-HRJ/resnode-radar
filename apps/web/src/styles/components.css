@@ -1847,7 +1847,7 @@
 
 .tag-hud {
   position: fixed;
-  z-index: 125;
+  z-index: 3000;
   pointer-events: none;
   max-width: min(332px, calc(100vw - 20px));
 }

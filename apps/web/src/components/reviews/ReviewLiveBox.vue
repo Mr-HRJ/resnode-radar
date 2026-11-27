@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from "vue";
+import { ElAlert, ElEmpty, ElSkeleton } from "element-plus";
 import {
   describePricing,
   formatDateTime,
@@ -62,25 +63,29 @@ const sampleRows = computed(() =>
 </script>
 
 <template>
-  <template v-if="status === 'loading'">
-    <span class="skel" style="height: 14px; width: 72%; margin-bottom: 8px"></span>
-    <span class="skel" style="height: 14px; width: 92%"></span>
-  </template>
+  <ElSkeleton v-if="status === 'loading'" animated :rows="2" />
 
-  <div
+  <ElAlert
     v-else-if="status === 'error'"
-    class="alert-banner is-danger"
-    style="padding: 10px 12px"
+    class="radar-status-alert"
+    type="error"
+    :closable="false"
+    show-icon
   >
-    <span>实时快照暂不可用（{{ errorMessage || "Fetch error" }}），拒绝展示本地模拟数据。</span>
-  </div>
+    <template #default>
+      <span>实时快照暂不可用（{{ errorMessage || "Fetch error" }}），拒绝展示本地模拟数据。</span>
+    </template>
+  </ElAlert>
 
-  <div v-else-if="matched.length === 0" class="dossier-live-row">
-    <strong>最新快照暂未检索到该商家记录</strong>
-    <span style="color: var(--ink-muted)">
+  <ElEmpty
+    v-else-if="matched.length === 0"
+    :image-size="56"
+    description="最新快照暂未检索到该商家记录"
+  >
+    <span style="font-size: var(--text-xs); color: var(--ink-muted)">
       快照时间：{{ formatDateTime(payload?.generatedAt) }}
     </span>
-  </div>
+  </ElEmpty>
 
   <template v-else>
     <div

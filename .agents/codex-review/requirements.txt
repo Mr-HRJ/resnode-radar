@@ -1,10 +1,15 @@
-1. 标签与交互基线（含历史未决项复核）：
-   - 7维店铺标签（热门顶流/老牌稳健/原生家宽/回国优线/大口高配/高性价比/低价入门）与8维单品标签（口碑爆款/便宜量大/年付特惠/高性价比/家宽直连/性能高配/紧俏余量/低价入门）：徽章前置；仅对在售、非NAT/共享端口、固定周期、ECB汇率<=7天且有跨境地区正证据商品打标（排除北京/上海/广州等内地城市及未知空地区）；isHotProvider仅bwh/dmit/gomami/vmiss；性能高配>=2C且>=4G，家宽直连排除裸金属独服与无住宅依据项；店铺高性价比（含平价优线分支）须占比>=25%或占比>=12%且全店中位价<=65元，防少量低价款代表昂贵大目录。
-   - 动态SVG适配prefers-reduced-motion；[data-tag-hud]不越界、零XSS、卸载清理监听定时器；<=860px仅隐藏.layout-view-toggle，保留.radar-window-toggle（24h/72h/7天）可见可点。
-2. 全栈纯JS（零TS）v2 Monorepo重构：
-   - workspaces（packages/contracts、apps/collector、apps/server、apps/web，排除deploy/vps/feeds），0个.ts/.tsx/tsconfig + Zod 4校验。
-   - contracts：121商家名录、定价汇率、地区/网络识别、标签核验、URL状态（?cmp=用savedKey，?inspect=用product.id，resolveSiteAssetUrl同源解析），v1<->v2无损投射与未知版本/字典码/原型属性Fail-Closed。
-   - collector：161源、SQLite WAL与公告核验；OriginPacer同源FIFO串行且中间取消不越序；.publish.lock原子创建与四阶段发布（staged/snapshot_published/v1_committed/completed恢复收敛、.quarantine、latest.json、24h/96份GC）双写v1/v2及.gz；保留兼容垫片。
-   - server：visits.sqlite隔离至worker_threads（上限64+1500ms超时），零阻塞提供/api/v1/pulse、/api/v1/stats、/api/stats。
-   - web：Vue 3.5纯JS+Vite 6+@tanstack/vue-virtual（按实际容器宽度统一网格列数并测量行高）实现四视图、抽屉/对比弹窗、命令面板与noindex实测页；支持双协议与v1-fallback回滚、pulse展示缓存与新会话POST计数分离、跨断点缩放、懒加载audit及404协调刷新、7天汇率实时熔断。
-   - 构建部署与验收：build-cloudflare/build-vps、nginx-https.conf、cutover/rollback（预检nginx -t、替换真实data目录为共享软链、显式传MONITOR_DATA_DIR）、CI与文档同步；check/test（含E2E）/monitor:validate全通过。
+基于 Element Plus（按需加载）完成前端 UI 组件升级，具体要求与验收条件：
+1. 架构与规范约束：
+   - 严格保持零 TypeScript 策略（0 个 .ts/.tsx/.mts/.cts/tsconfig），所有源码与配置均为纯 JS/Vue 3 SFC。
+   - 按需加载 Element Plus（`element-plus` + `@element-plus/icons-vue` + `unplugin-element-plus/vite`），不引入全量 CSS 膨胀包体；Vitest 测试环境内联支持 `element-plus`。
+   - 在 App 根部接入 `ElConfigProvider`（简体中文语言包 `zh-cn`）及 `ElMessage` 全局提示；卸载时清理残留弹窗/消息。
+2. 双主题无缝联动与现代暗黑模式：
+   - `applyTheme()` 及所有 HTML 入口首屏内联脚本同步维护 `data-theme` 与 `html.dark`（适配 Element Plus 暗黑模式），并声明 `<meta name="color-scheme" content="light dark" />` 防 FOUC。
+   - 在 `element-theme.css` 中将 Element Plus CSS 变量（`--el-*`）完整映射到项目现有的浅色/深色设计令牌，避免风格割裂。
+3. 全站 UI 组件升级：
+   - 封装统一的 `RadarSelect.vue`（基于 `ElSelect` + `ElOption`，支持可搜索、地区/店铺徽标与计数、筛选高亮态），替换全站所有原生 `<select>`（FilterDock 桌面/移动端、ProvidersView、RadarView）。
+   - 搜索输入与全局命令面板输入框升级为 `ElInput`（配图标与清空）；桌面列表/卡片切换及大盘时间窗口（`24h`/`72h`/`7天`）升级为 `ElSegmented`（保留窄屏 `<=860px` 隐藏 `.layout-view-toggle` 且保留 `.radar-window-toggle` 可见可点）；移动端红线与差异高亮/收藏过滤升级为 `ElSwitch`。
+   - 详情抽屉、收藏抽屉升级为 `ElDrawer`，横向对比弹窗与命令面板升级为 `ElDialog`，状态横幅升级为 `ElAlert`，避坑自检进度条升级为 `ElProgress`，加载态/空状态/标签/核心按钮升级为 `ElSkeleton`/`ElEmpty`/`ElTag`/`ElButton`。
+   - 抽屉/弹窗关闭时彻底释放焦点陷阱，不影响 `[data-tag-hud]` 键盘聚焦、视口防越界、零 XSS 及原有业务筛选/对比/收藏/URL 同步/回滚/3,700+ 行 `@tanstack/vue-virtual` 虚拟滚动（DOM 节点受控 < 4,000）。
+4. 验证与回归：
+   - `npm run check`、`npm test`（含 Node 单测、Vitest 前端单测与 Playwright 真实浏览器 E2E）及 `npm run monitor:validate` 全部通过。

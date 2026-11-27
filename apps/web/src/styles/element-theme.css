@@ -1,0 +1,1099 @@
+/* ==========================================================================
+   Element Plus Token Bridge & Telemetry Visual Integration
+   Maps Element Plus CSS variables onto ResNode Radar's Ice-Sky / Deep-Space tokens
+   ========================================================================== */
+
+html:root,
+html[data-theme="light"] {
+  --el-font-family: var(--font-sans);
+  --el-font-size-base: var(--text-xs);
+  --el-font-size-small: var(--text-xs);
+
+  --el-color-primary: var(--accent);
+  --el-color-primary-light-3: #60a5fa;
+  --el-color-primary-light-5: #93c5fd;
+  --el-color-primary-light-7: #bfdbfe;
+  --el-color-primary-light-8: #dbeafe;
+  --el-color-primary-light-9: var(--accent-soft);
+  --el-color-primary-dark-2: var(--accent-hover);
+
+  --el-color-success: var(--ok-fg);
+  --el-color-success-light-9: var(--ok-bg);
+  --el-color-warning: var(--warn-fg);
+  --el-color-warning-light-9: var(--warn-bg);
+  --el-color-danger: var(--danger-fg);
+  --el-color-danger-light-9: var(--danger-bg);
+  --el-color-info: var(--ink-muted);
+
+  --el-bg-color: var(--bg-surface);
+  --el-bg-color-page: var(--bg-canvas);
+  --el-bg-color-overlay: var(--bg-surface);
+  --el-fill-color-blank: var(--bg-surface);
+  --el-fill-color-light: var(--bg-hover);
+  --el-fill-color-lighter: var(--bg-surface-2);
+  --el-fill-color: var(--bg-subtle);
+
+  --el-text-color-primary: var(--ink-primary);
+  --el-text-color-regular: var(--ink-secondary);
+  --el-text-color-secondary: var(--ink-muted);
+  --el-text-color-placeholder: var(--ink-muted);
+
+  --el-border-color: var(--border-default);
+  --el-border-color-light: var(--border-subtle);
+  --el-border-color-lighter: var(--border-subtle);
+  --el-border-color-hover: var(--border-strong);
+
+  --el-border-radius-base: var(--r-sm);
+  --el-border-radius-small: var(--r-xs);
+  --el-border-radius-round: var(--r-pill);
+
+  --el-box-shadow-light: var(--shadow-md);
+  --el-box-shadow: var(--shadow-lg);
+  --el-mask-color: var(--bg-backdrop);
+  --el-overlay-color-lighter: var(--bg-backdrop);
+}
+
+html.dark,
+html[data-theme="dark"],
+html.dark[data-theme="dark"] {
+  --el-color-primary: var(--accent);
+  --el-color-primary-light-3: #60a5fa;
+  --el-color-primary-light-5: #3b82f6;
+  --el-color-primary-light-7: #1e3a5f;
+  --el-color-primary-light-8: #172a46;
+  --el-color-primary-light-9: var(--accent-soft);
+  --el-color-primary-dark-2: var(--accent-hover);
+
+  --el-bg-color: var(--bg-surface);
+  --el-bg-color-page: var(--bg-canvas);
+  --el-bg-color-overlay: var(--bg-surface-2);
+  --el-fill-color-blank: var(--bg-surface);
+  --el-fill-color-light: var(--bg-hover);
+  --el-fill-color-lighter: var(--bg-surface-2);
+  --el-fill-color: var(--bg-subtle);
+
+  --el-text-color-primary: var(--ink-primary);
+  --el-text-color-regular: var(--ink-secondary);
+  --el-text-color-secondary: var(--ink-muted);
+  --el-text-color-placeholder: var(--ink-muted);
+
+  --el-border-color: var(--border-default);
+  --el-border-color-light: var(--border-subtle);
+  --el-border-color-lighter: var(--border-subtle);
+  --el-border-color-hover: var(--border-strong);
+
+  --el-box-shadow-light: var(--shadow-md);
+  --el-box-shadow: var(--shadow-lg);
+  --el-mask-color: var(--bg-backdrop);
+  --el-overlay-color-lighter: var(--bg-backdrop);
+}
+
+/* ---------- RadarSelect (ElSelect) ---------- */
+.radar-select {
+  --el-select-input-font-size: var(--text-xs);
+  --el-select-border-color-hover: var(--border-strong);
+  --el-select-input-focus-border-color: var(--accent);
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.radar-select .el-select__wrapper {
+  min-height: 28px;
+  padding: 2px 9px;
+  border-radius: var(--r-sm);
+  background-color: var(--bg-surface);
+  box-shadow: 0 0 0 1px var(--border-default) inset, var(--shadow-xs);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--ink-primary);
+  transition: box-shadow 150ms var(--ease-out), background-color 150ms var(--ease-out);
+}
+
+.radar-select .el-select__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--border-strong) inset, var(--shadow-xs);
+}
+
+.radar-select .el-select__wrapper.is-focused,
+.radar-select .el-select__wrapper:focus-within {
+  box-shadow: 0 0 0 1.5px var(--accent) inset, 0 0 0 3px var(--ring-color);
+}
+
+.radar-select.is-filtered .el-select__wrapper {
+  background-color: var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--accent-border) inset;
+}
+
+.radar-select.is-filtered .el-select__wrapper:hover {
+  background-color: var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--accent) inset, var(--shadow-xs);
+}
+
+.radar-select.is-filtered .el-select__wrapper.is-focused,
+.radar-select.is-filtered .el-select__wrapper:focus-within {
+  background-color: var(--accent-soft);
+  box-shadow: 0 0 0 1.5px var(--accent) inset, 0 0 0 3px var(--ring-color);
+}
+
+.radar-select.is-filtered .el-select__selected-item {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+html.dark .radar-select.is-filtered .el-select__selected-item,
+html[data-theme="dark"] .radar-select.is-filtered .el-select__selected-item {
+  color: #93c5fd;
+}
+
+.radar-select.is-region {
+  width: 158px;
+}
+
+.radar-select.is-mini {
+  width: 132px;
+}
+
+.radar-select.is-budget {
+  width: 138px;
+}
+
+.radar-select.is-sort {
+  width: 168px;
+}
+
+.radar-select.is-full {
+  width: 100%;
+}
+
+.radar-select.is-full .el-select__wrapper {
+  min-height: 34px;
+  padding: 4px 11px;
+  font-size: var(--text-sm);
+}
+
+.radar-select-popper.el-popper {
+  border-radius: var(--r-md) !important;
+  border: 1px solid var(--border-default) !important;
+  background: var(--bg-surface) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+.radar-select-popper .el-select-dropdown__list {
+  padding: 4px !important;
+}
+
+.radar-select-popper .el-select-dropdown__item {
+  border-radius: var(--r-xs);
+  font-size: var(--text-xs);
+  height: 30px;
+  line-height: 30px;
+  padding: 0 10px;
+  color: var(--ink-primary);
+}
+
+.radar-select-popper .el-select-dropdown__item.is-hovering {
+  background-color: var(--bg-hover);
+}
+
+.radar-select-popper .el-select-dropdown__item.is-selected {
+  background-color: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+html.dark .radar-select-popper .el-select-dropdown__item.is-selected,
+html[data-theme="dark"] .radar-select-popper .el-select-dropdown__item.is-selected {
+  background-color: var(--accent-soft);
+  color: #93c5fd;
+}
+
+.radar-option-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.radar-option-lead {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.radar-option-code {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  padding: 0 4px;
+  height: 17px;
+  border-radius: 4px;
+  background: var(--bg-subtle);
+  color: var(--ink-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.radar-option-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-muted);
+  flex-shrink: 0;
+}
+
+/* ---------- Element Plus Inputs ---------- */
+.radar-el-input,
+.radar-el-input.el-input {
+  --el-input-border-radius: var(--r-sm);
+  --el-input-bg-color: var(--bg-surface);
+  --el-input-border-color: var(--border-default);
+  --el-input-hover-border-color: var(--border-strong);
+  --el-input-focus-border-color: var(--accent);
+  --el-input-text-color: var(--ink-primary);
+  --el-input-placeholder-color: var(--ink-muted);
+}
+
+.radar-el-input.el-input .el-input__inner::placeholder {
+  color: var(--ink-muted);
+  opacity: 1;
+}
+
+.radar-el-input .el-input__wrapper {
+  min-height: 28px;
+  padding: 1px 9px;
+  box-shadow: 0 0 0 1px var(--border-default) inset;
+  border-radius: var(--r-sm);
+  font-size: var(--text-xs);
+}
+
+.radar-el-input .el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1.5px var(--accent) inset, 0 0 0 3px var(--ring-color);
+}
+
+.radar-el-input.is-palette .el-input__wrapper {
+  min-height: 44px;
+  padding: 0 12px;
+  box-shadow: none !important;
+  background: transparent;
+  font-size: var(--text-base);
+}
+
+.radar-el-input.is-palette .el-input__inner {
+  font-size: var(--text-base);
+  color: var(--ink-primary);
+}
+
+/* ---------- Element Plus Segmented ---------- */
+.radar-segmented.el-segmented {
+  --el-segmented-bg-color: var(--bg-subtle);
+  --el-segmented-item-selected-bg-color: var(--bg-surface);
+  --el-segmented-item-selected-color: var(--ink-primary);
+  --el-segmented-color: var(--ink-secondary);
+  --el-segmented-item-hover-color: var(--ink-primary);
+  --el-segmented-item-hover-bg-color: transparent;
+  --el-border-radius-base: var(--r-sm);
+  padding: 2px;
+  height: 28px;
+  border: 1px solid var(--border-default);
+}
+
+.radar-segmented .el-segmented__item {
+  padding: 0 9px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  min-height: 22px;
+}
+
+.radar-segmented .el-segmented__item-selected {
+  box-shadow: var(--shadow-xs);
+}
+
+@media (max-width: 860px) {
+  .radar-segmented.layout-view-toggle.el-segmented {
+    display: none;
+  }
+  .radar-segmented.radar-window-toggle.el-segmented {
+    display: inline-flex;
+  }
+}
+
+/* ---------- Element Plus Switches & Checkboxes ---------- */
+.radar-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 2px;
+  font-size: var(--text-xs);
+  color: var(--ink-primary);
+  cursor: pointer;
+}
+
+.radar-inline-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--ink-secondary);
+  cursor: pointer;
+}
+
+/* ---------- Element Plus Alert (StatusBanner & ReviewLiveBox) ---------- */
+.radar-status-alert.el-alert,
+.radar-status-alert.el-alert.is-light {
+  --el-alert-bg-color: var(--warn-bg);
+  border-radius: var(--r-md);
+  border: 1px solid var(--warn-border);
+  background-color: var(--warn-bg);
+  color: var(--warn-fg);
+  padding: 10px 14px;
+}
+
+.radar-status-alert.el-alert--warning.is-light,
+.radar-status-alert.el-alert--warning.is-light .el-alert__title,
+.radar-status-alert.el-alert--warning.is-light .el-alert__description,
+.radar-status-alert.el-alert--warning.is-light .el-alert__icon,
+.status-banner-wrap .radar-status-alert.el-alert--warning .el-alert__description {
+  color: var(--warn-fg);
+}
+
+.radar-status-alert.el-alert--error,
+.radar-status-alert.el-alert--error.is-light {
+  --el-alert-bg-color: var(--danger-bg);
+  border-color: var(--danger-border);
+  background-color: var(--danger-bg);
+  color: var(--danger-fg);
+}
+
+.radar-status-alert.el-alert--error.is-light .el-alert__title,
+.radar-status-alert.el-alert--error.is-light .el-alert__description,
+.radar-status-alert.el-alert--error.is-light .el-alert__icon,
+.status-banner-wrap .radar-status-alert.el-alert--error .el-alert__description {
+  color: var(--danger-fg);
+}
+
+.radar-status-alert .el-alert__content {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.radar-status-alert .el-alert__description {
+  margin: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+/* ---------- CompareDock & CompareModal ElTag Pills & Focusable Plan Tags ---------- */
+.compare-dock .dock-pill.el-tag,
+.compare-dock .dock-pill-missing.el-tag,
+.compare-missing-strip .dock-pill-missing.el-tag {
+  --el-tag-bg-color: var(--bg-surface-2);
+  --el-tag-border-color: var(--border-default);
+  --el-tag-text-color: var(--ink-primary);
+  max-width: 196px;
+  height: 28px;
+  padding: 0 5px 0 9px;
+}
+
+.compare-dock .dock-pill-missing.el-tag,
+.compare-missing-strip .dock-pill-missing.el-tag {
+  --el-tag-text-color: var(--ink-secondary);
+  border-style: dashed;
+}
+
+.compare-dock .dock-pill.el-tag .el-tag__content,
+.compare-dock .dock-pill-missing.el-tag .el-tag__content,
+.compare-missing-strip .dock-pill-missing.el-tag .el-tag__content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.compare-dock .dock-pill-name,
+.compare-missing-strip .dock-pill-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compare-dock .dock-pill .dock-pill-close.el-button,
+.compare-dock .dock-pill-missing .dock-pill-close.el-button,
+.compare-missing-strip .dock-pill-missing .dock-pill-close.el-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  margin-left: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background-color: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.compare-dock .dock-pill .dock-pill-close.el-button:hover,
+.compare-dock .dock-pill .dock-pill-close.el-button:focus-visible,
+.compare-dock .dock-pill-missing .dock-pill-close.el-button:hover,
+.compare-dock .dock-pill-missing .dock-pill-close.el-button:focus-visible,
+.compare-missing-strip .dock-pill-missing .dock-pill-close.el-button:hover,
+.compare-missing-strip .dock-pill-missing .dock-pill-close.el-button:focus-visible {
+  background-color: var(--danger-bg);
+  color: var(--danger-fg);
+}
+
+.compare-missing-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border-radius: var(--r-md);
+  border: 1px dashed var(--border-default);
+  background: var(--bg-surface-2);
+}
+
+.compare-missing-label {
+  font-size: var(--text-xs);
+  color: var(--ink-secondary);
+}
+
+.compare-missing-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 860px) {
+  .compare-dock.has-missing {
+    align-items: stretch;
+  }
+
+  .compare-dock.has-missing .dock-items {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .compare-dock.has-missing .dock-actions {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+  }
+
+  .compare-dock .dock-pill-missing.el-tag,
+  .compare-missing-strip .dock-pill-missing.el-tag {
+    display: inline-flex;
+    max-width: 100%;
+  }
+}
+
+.prov-sample-list .prov-sample-item.el-button {
+  width: 100%;
+  height: auto;
+  margin-left: 0;
+  padding: 4px 7px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  background-color: var(--bg-surface);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink-secondary);
+  text-align: left;
+  justify-content: flex-start;
+  transition: border-color 110ms ease, background-color 110ms ease, color 110ms ease;
+}
+
+.prov-sample-list .prov-sample-item.el-button + .prov-sample-item.el-button {
+  margin-left: 0;
+}
+
+.prov-sample-list .prov-sample-item.el-button > span {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.prov-sample-list .prov-sample-item.el-button:hover,
+.prov-sample-list .prov-sample-item.el-button:focus-visible {
+  border-color: var(--accent-border);
+  background-color: var(--accent-soft);
+  color: var(--ink-primary);
+}
+
+.plan-tag[tabindex="0"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- Element Plus Drawers & Dialogs ---------- */
+.ep-overlay-host[hidden] {
+  display: none !important;
+}
+
+.radar-el-drawer.el-drawer {
+  background: var(--bg-surface) !important;
+  color: var(--ink-primary) !important;
+  border-left: 1px solid var(--border-default);
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.radar-el-drawer .el-drawer__header {
+  margin-bottom: 0 !important;
+  padding: 16px 20px !important;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  align-items: flex-start;
+}
+
+.radar-el-drawer .el-drawer__body {
+  padding: 16px 20px 24px !important;
+  background: var(--bg-canvas);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.radar-el-dialog.el-dialog {
+  background: var(--bg-surface) !important;
+  color: var(--ink-primary) !important;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-lg) !important;
+  box-shadow: var(--shadow-lg) !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.radar-el-dialog .el-dialog__header {
+  padding: 16px 20px !important;
+  margin-right: 0 !important;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+}
+
+.radar-el-dialog .el-dialog__body {
+  padding: 16px 20px !important;
+  max-height: 76vh;
+  overflow: auto;
+}
+
+.radar-palette-dialog.el-dialog {
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg) !important;
+  box-shadow: var(--shadow-lg) !important;
+  padding: 0 !important;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: min(74vh, calc(100vh - 11vh - 24px));
+  max-height: min(74dvh, calc(100dvh - 11dvh - 24px));
+}
+
+.radar-palette-dialog .el-dialog__header {
+  display: none !important;
+}
+
+.radar-palette-dialog .el-dialog__body {
+  padding: 0 !important;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.radar-palette-dialog .palette-input-row {
+  flex: 0 0 auto;
+}
+
+.radar-palette-dialog .palette-results {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ---------- Shared Business Tags (ElTag in PlanTagBadge / ShopTagBadge) ---------- */
+.el-tag.el-tag--small.shop-tag,
+.el-tag.el-tag--small.plan-tag {
+  border-radius: 5px;
+  font-weight: 700;
+  line-height: 1;
+  --el-tag-border-radius: 5px;
+}
+
+.el-tag.el-tag--small.shop-tag {
+  height: 18px;
+  padding: 0 5.5px 0 4.5px;
+  font-size: 10px;
+}
+
+.el-tag.el-tag--small.shop-tag.is-compact {
+  height: 17px;
+  padding: 0 4.5px 0 3.5px;
+  font-size: 9.5px;
+}
+
+.el-tag.el-tag--small.plan-tag {
+  height: 19px;
+  padding: 0 6px 0 4.5px;
+  font-size: 10.5px;
+}
+
+.el-tag.el-tag--small.plan-tag.is-compact {
+  height: 17px;
+  padding: 0 4.5px 0 3.5px;
+  font-size: 9.5px;
+}
+
+.el-tag.shop-tag .el-tag__content,
+.el-tag.plan-tag .el-tag__content {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  position: relative;
+  z-index: 1;
+}
+
+.el-tag.shop-tag.is-compact .el-tag__content,
+.el-tag.plan-tag.is-compact .el-tag__content {
+  gap: 2.5px;
+}
+
+/* ---------- Row & Card Action Buttons (ElButton in VirtualPlanTable / PlanCard) ---------- */
+.row-actions .radar-row-btn.el-button {
+  margin-left: 0;
+  min-width: 0;
+  border-radius: var(--r-sm);
+  background-color: var(--bg-surface);
+  border-color: var(--border-default);
+  color: var(--ink-secondary);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.row-actions .radar-row-btn.el-button + .radar-row-btn.el-button,
+.row-actions .radar-el-btn.el-button + .radar-el-btn.el-button {
+  margin-left: 0;
+}
+
+.row-actions .radar-row-btn.el-button:hover,
+.row-actions .radar-row-btn.el-button:focus-visible {
+  background-color: var(--bg-hover);
+  border-color: var(--border-strong);
+  color: var(--ink-primary);
+}
+
+.row-actions .radar-row-btn.el-button.btn-icon.btn-xs {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  font-size: var(--text-xs);
+}
+
+.row-actions .radar-row-btn.el-button.btn-sm {
+  height: 30px;
+  padding: 0 9px;
+  font-size: var(--text-xs);
+}
+
+.row-actions .radar-row-btn.el-button.is-active {
+  background-color: var(--accent-soft);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+html.dark .row-actions .radar-row-btn.el-button.is-active,
+html[data-theme="dark"] .row-actions .radar-row-btn.el-button.is-active {
+  color: #93c5fd;
+}
+
+.row-actions .radar-row-btn.el-button.btn-star.is-active {
+  background-color: var(--warn-bg);
+  border-color: var(--warn-border);
+  color: var(--warn-fg);
+}
+
+html.dark .row-actions .radar-row-btn.el-button.btn-star.is-active,
+html[data-theme="dark"] .row-actions .radar-row-btn.el-button.btn-star.is-active {
+  background-color: #29200e;
+  border-color: rgba(251, 191, 36, 0.42);
+  color: var(--warn-fg);
+}
+
+/* ---------- Element Plus Buttons in Header & Actions ---------- */
+.cmd-utils .cmd-search-trigger.el-button {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  min-width: 244px;
+  margin-left: 0;
+  padding: 0 11px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border-default);
+  background-color: var(--bg-surface-2);
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  text-align: left;
+  justify-content: flex-start;
+  transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.cmd-utils .cmd-search-trigger.el-button > span {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.cmd-utils .cmd-search-trigger.el-button:hover,
+.cmd-utils .cmd-search-trigger.el-button:focus-visible {
+  border-color: var(--accent-border);
+  background-color: var(--bg-surface);
+  color: var(--ink-secondary);
+}
+
+.cmd-utils .cmd-search-trigger.el-button.has-query {
+  border-color: var(--accent);
+  background-color: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+html.dark .cmd-utils .cmd-search-trigger.el-button.has-query,
+html[data-theme="dark"] .cmd-utils .cmd-search-trigger.el-button.has-query {
+  color: #93c5fd;
+}
+
+@media (max-width: 1280px) {
+  .cmd-utils .cmd-search-trigger.el-button {
+    min-width: 176px;
+  }
+}
+
+@media (max-width: 980px) {
+  .cmd-utils .cmd-search-trigger.el-button {
+    min-width: auto;
+    padding: 0 9px;
+  }
+  .cmd-utils .cmd-search-trigger.el-button .search-label,
+  .cmd-utils .cmd-search-trigger.el-button .kbd-hint {
+    display: none;
+  }
+}
+
+.telemetry-left .tele-pill-btn.el-button {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  margin-left: 0;
+  padding: 0 9px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--border-default);
+  background-color: var(--bg-surface);
+  color: var(--ink-secondary);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.telemetry-left .tele-pill-btn.el-button > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.telemetry-left .tele-pill-btn.el-button:hover:not(:disabled),
+.telemetry-left .tele-pill-btn.el-button:focus-visible:not(:disabled) {
+  border-color: var(--accent-border);
+  background-color: var(--bg-surface);
+  color: var(--ink-primary);
+}
+
+.telemetry-left .tele-pill-btn.el-button.is-warn {
+  background-color: var(--warn-bg);
+  border-color: var(--warn-border);
+  color: var(--warn-fg);
+}
+
+.telemetry-left .tele-pill-btn.el-button.is-danger {
+  background-color: var(--danger-bg);
+  border-color: var(--danger-border);
+  color: var(--danger-fg);
+}
+
+.telemetry-left .tele-pill-btn.el-button:disabled {
+  cursor: wait;
+  opacity: 0.78;
+}
+
+.mobile-quick-row .mobile-filter-trigger.el-button {
+  flex-shrink: 0;
+  margin-left: 0;
+  height: 30px;
+}
+
+.radar-el-btn.el-button {
+  font-weight: 600;
+  border-radius: var(--r-sm);
+  letter-spacing: 0.01em;
+}
+
+@media (max-width: 640px) {
+  .cmd-utils .header-compare-btn.el-button {
+    display: none;
+  }
+}
+
+.radar-el-btn.el-button--primary:not(.is-plain):not(.is-text):not(.is-link) {
+  background: var(--grad-primary);
+  border-color: transparent;
+  color: var(--ink-inverse);
+  box-shadow: var(--shadow-cta);
+}
+
+.radar-el-btn.el-button--primary:not(.is-plain):not(.is-text):not(.is-link):hover,
+.radar-el-btn.el-button--primary:not(.is-plain):not(.is-text):not(.is-link):focus-visible {
+  background: var(--grad-primary);
+  border-color: transparent;
+  color: var(--ink-inverse);
+  filter: brightness(1.06);
+}
+
+.radar-el-btn.el-button--primary.is-plain {
+  --el-button-bg-color: var(--accent-soft);
+  --el-button-border-color: var(--accent-border);
+  --el-button-text-color: var(--vps-fg);
+  --el-button-hover-bg-color: var(--accent);
+  --el-button-hover-border-color: var(--accent);
+  --el-button-hover-text-color: var(--ink-inverse);
+  --el-button-active-bg-color: var(--accent-hover);
+  --el-button-active-border-color: var(--accent-hover);
+  --el-button-active-text-color: var(--ink-inverse);
+  background-color: var(--accent-soft);
+  border-color: var(--accent-border);
+  color: var(--vps-fg);
+}
+
+.radar-el-btn.el-button--primary.is-plain:hover,
+.radar-el-btn.el-button--primary.is-plain:focus-visible {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: var(--ink-inverse);
+}
+
+html.dark .radar-el-btn.el-button--primary.is-plain,
+html[data-theme="dark"] .radar-el-btn.el-button--primary.is-plain {
+  --el-button-bg-color: #172540;
+  --el-button-border-color: #3b63a8;
+  --el-button-text-color: #93c5fd;
+  background-color: #172540;
+  border-color: #3b63a8;
+  color: #93c5fd;
+}
+
+html.dark .radar-el-btn.el-button--primary.is-plain:hover,
+html.dark .radar-el-btn.el-button--primary.is-plain:focus-visible,
+html[data-theme="dark"] .radar-el-btn.el-button--primary.is-plain:hover,
+html[data-theme="dark"] .radar-el-btn.el-button--primary.is-plain:focus-visible {
+  background-color: #2563eb;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.radar-el-btn.el-button--warning.is-plain {
+  --el-button-bg-color: var(--warn-bg);
+  --el-button-border-color: var(--warn-border);
+  --el-button-text-color: var(--warn-fg);
+  --el-button-hover-bg-color: var(--warn-fg);
+  --el-button-hover-border-color: var(--warn-fg);
+  --el-button-hover-text-color: #ffffff;
+  --el-button-active-bg-color: #92400e;
+  --el-button-active-border-color: #92400e;
+  --el-button-active-text-color: #ffffff;
+  background-color: var(--warn-bg);
+  border-color: var(--warn-border);
+  color: var(--warn-fg);
+}
+
+.radar-el-btn.el-button--warning.is-plain:hover,
+.radar-el-btn.el-button--warning.is-plain:focus-visible {
+  background-color: var(--warn-fg);
+  border-color: var(--warn-fg);
+  color: #ffffff;
+}
+
+html.dark .radar-el-btn.el-button--warning.is-plain,
+html[data-theme="dark"] .radar-el-btn.el-button--warning.is-plain {
+  --el-button-bg-color: #29200e;
+  --el-button-border-color: rgba(251, 191, 36, 0.42);
+  --el-button-text-color: var(--warn-fg);
+  background-color: #29200e;
+  border-color: rgba(251, 191, 36, 0.42);
+  color: var(--warn-fg);
+}
+
+html.dark .radar-el-btn.el-button--warning.is-plain:hover,
+html.dark .radar-el-btn.el-button--warning.is-plain:focus-visible,
+html[data-theme="dark"] .radar-el-btn.el-button--warning.is-plain:hover,
+html[data-theme="dark"] .radar-el-btn.el-button--warning.is-plain:focus-visible {
+  background-color: #b45309;
+  border-color: #d97706;
+  color: #ffffff;
+}
+
+.radar-el-btn.el-button--danger.is-plain {
+  --el-button-bg-color: var(--danger-bg);
+  --el-button-border-color: var(--danger-border);
+  --el-button-text-color: #be123c;
+  --el-button-hover-bg-color: #be123c;
+  --el-button-hover-border-color: #be123c;
+  --el-button-hover-text-color: #ffffff;
+  --el-button-active-bg-color: #9f1239;
+  --el-button-active-border-color: #9f1239;
+  --el-button-active-text-color: #ffffff;
+  background-color: var(--danger-bg);
+  border-color: var(--danger-border);
+  color: #be123c;
+}
+
+.radar-el-btn.el-button--danger.is-plain:hover,
+.radar-el-btn.el-button--danger.is-plain:focus-visible {
+  background-color: #be123c;
+  border-color: #be123c;
+  color: #ffffff;
+}
+
+html.dark .radar-el-btn.el-button--danger.is-plain,
+html[data-theme="dark"] .radar-el-btn.el-button--danger.is-plain {
+  --el-button-bg-color: #2b1218;
+  --el-button-border-color: rgba(251, 113, 133, 0.42);
+  --el-button-text-color: #fda4af;
+  --el-button-hover-bg-color: #be123c;
+  --el-button-hover-border-color: #e11d48;
+  --el-button-hover-text-color: #ffffff;
+  --el-button-active-bg-color: #9f1239;
+  --el-button-active-border-color: #e11d48;
+  --el-button-active-text-color: #ffffff;
+  background-color: #2b1218;
+  border-color: rgba(251, 113, 133, 0.42);
+  color: #fda4af;
+}
+
+html.dark .radar-el-btn.el-button--danger.is-plain:hover,
+html.dark .radar-el-btn.el-button--danger.is-plain:focus-visible,
+html[data-theme="dark"] .radar-el-btn.el-button--danger.is-plain:hover,
+html[data-theme="dark"] .radar-el-btn.el-button--danger.is-plain:focus-visible {
+  background-color: #be123c;
+  border-color: #e11d48;
+  color: #ffffff;
+}
+
+/* ---------- Element Plus Message (Toast) ---------- */
+.el-message.radar-el-message {
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-md);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.el-message.radar-el-message.el-message--success,
+.el-message.radar-el-message.el-message--success.is-plain {
+  --el-message-bg-color: var(--ok-bg);
+  --el-message-border-color: var(--ok-border);
+  --el-message-text-color: var(--ok-fg);
+  background-color: var(--ok-bg);
+  border-color: var(--ok-border);
+  color: var(--ok-fg);
+}
+
+.el-message.radar-el-message.el-message--success .el-message__content,
+.el-message.radar-el-message.el-message--success .el-message__icon {
+  color: var(--ok-fg);
+}
+
+html.dark .el-message.radar-el-message.el-message--success,
+html.dark .el-message.radar-el-message.el-message--success.is-plain,
+html[data-theme="dark"] .el-message.radar-el-message.el-message--success,
+html[data-theme="dark"] .el-message.radar-el-message.el-message--success.is-plain {
+  --el-message-bg-color: #0e241d;
+  --el-message-border-color: rgba(52, 211, 153, 0.36);
+  --el-message-text-color: var(--ok-fg);
+  background-color: #0e241d;
+  border-color: rgba(52, 211, 153, 0.36);
+  color: var(--ok-fg);
+}
+
+.el-message.radar-el-message.el-message--warning,
+.el-message.radar-el-message.el-message--warning.is-plain {
+  --el-message-bg-color: var(--warn-bg);
+  --el-message-border-color: var(--warn-border);
+  --el-message-text-color: var(--warn-fg);
+  background-color: var(--warn-bg);
+  border-color: var(--warn-border);
+  color: var(--warn-fg);
+}
+
+.el-message.radar-el-message.el-message--warning .el-message__content,
+.el-message.radar-el-message.el-message--warning .el-message__icon {
+  color: var(--warn-fg);
+}
+
+html.dark .el-message.radar-el-message.el-message--warning,
+html.dark .el-message.radar-el-message.el-message--warning.is-plain,
+html[data-theme="dark"] .el-message.radar-el-message.el-message--warning,
+html[data-theme="dark"] .el-message.radar-el-message.el-message--warning.is-plain {
+  --el-message-bg-color: #29200e;
+  --el-message-border-color: rgba(251, 191, 36, 0.42);
+  --el-message-text-color: var(--warn-fg);
+  background-color: #29200e;
+  border-color: rgba(251, 191, 36, 0.42);
+  color: var(--warn-fg);
+}
+
+@media (max-width: 860px) {
+  .radar-select.is-region,
+  .radar-select.is-mini,
+  .radar-select.is-budget,
+  .radar-select.is-sort {
+    width: auto;
+    min-width: 112px;
+  }
+
+  .compare-dock .dock-pill.el-tag {
+    display: none;
+  }
+}

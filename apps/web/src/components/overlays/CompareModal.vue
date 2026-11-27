@@ -1,5 +1,7 @@
 <script setup>
-import { computed } from "vue";
+import { computed, nextTick } from "vue";
+import { ElButton, ElDialog, ElIcon, ElSwitch, ElTag } from "element-plus";
+import { Close, Link } from "@element-plus/icons-vue";
 import { MAX_COMPARE, plain, safeUrl } from "@resnode-radar/contracts";
 import PlanTagBadge from "../icons/PlanTagBadge.vue";
 
@@ -7,11 +9,20 @@ const props = defineProps({
   store: {
     type: Object,
     required: true
+  },
+  deferred: {
+    type: Boolean,
+    default: false
   }
 });
 
 const items = computed(() => props.store.comparedPlans.value);
-const visible = computed(() => props.store.state.compareOpen && items.value.length > 0);
+const missingKeys = computed(() => {
+  if (props.store.state.loadState !== "ready") return [];
+  const matched = new Set(items.value.map((p) => p._key));
+  return props.store.state.compareKeys.filter((k) => !matched.has(k));
+});
+const visible = computed(() => Boolean(props.store.state.compareOpen && items.value.length > 0 && !props.deferred));
 
 const lowestCny = computed(() => {
   const validCnys = items.value
@@ -54,84 +65,187 @@ function isLowestPlan(p) {
   );
 }
 
-function handleBackdropClick(event) {
-  if (event.target === event.currentTarget) {
-    props.store.setCompareOpen(false);
-  }
+function handleBeforeClose(done) {
+  props.store.setCompareOpen(false);
+  done(true);
 }
 
 function handleInspectFromCompare(productId) {
   props.store.setCompareOpen(false);
   props.store.openInspector(productId);
 }
+
+async function handleRemoveCompared(key, idx) {
+  props.store.toggleCompare(key);
+  await nextTick();
+  if (!visible.value) return;
+  const doc = globalThis.document;
+  const remaining = doc?.querySelectorAll?.("[data-compare-modal] [data-action='toggle-compare']");
+  if (remaining && remaining.length > 0) {
+    remaining[Math.min(idx, remaining.length - 1)]?.focus?.();
+  } else {
+    doc?.querySelector?.("[data-compare-modal] [data-action='close-compare']")?.focus?.();
+  }
+}
+
+async function handleRemoveMissing(key, idx) {
+  props.store.toggleCompare(key);
+  await nextTick();
+  if (!visible.value) return;
+  const doc = globalThis.document;
+  const remainingMissing = doc?.querySelectorAll?.(
+    "[data-compare-modal] [data-action='remove-missing-compare']"
+  );
+  if (remainingMissing && remainingMissing.length > 0) {
+    remainingMissing[Math.min(idx, remainingMissing.length - 1)]?.focus?.();
+    return;
+  }
+  const firstCompared = doc?.querySelector?.("[data-compare-modal] [data-action='toggle-compare']");
+  if (firstCompared) {
+    firstCompared.focus();
+    return;
+  }
+  doc?.querySelector?.("[data-compare-modal] [data-action='close-compare']")?.focus?.();
+}
+
+function handleTrapTabKeydown(event) {
+  if (event.key !== "Tab" || !visible.value) return;
+  const doc = globalThis.document;
+  const dialog = doc?.querySelector?.("[data-compare-modal] .el-dialog");
+  if (!dialog) return;
+  const focusables = [
+    ...dialog.querySelectorAll(
+      "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])"
+    )
+  ].filter((el) => !el.disabled && !el.hidden && el.getClientRects?.().length > 0);
+  if (focusables.length === 0) {
+    event.preventDefault();
+    return;
+  }
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const active = doc?.activeElement;
+  if (!event.shiftKey && (active === last || !dialog.contains(active))) {
+    event.preventDefault();
+    first.focus();
+  } else if (event.shiftKey && (active === first || active === dialog || !dialog.contains(active))) {
+    event.preventDefault();
+    last.focus();
+  }
+}
 </script>
 
 <template>
   <div
-    class="modal-backdrop"
-    :class="{ 'is-entering': visible }"
+    class="ep-overlay-host"
     data-compare-modal
     :hidden="!visible"
-    @click="handleBackdropClick"
+    @keydown="handleTrapTabKeydown"
   >
-    <div
+    <ElDialog
       v-if="visible"
-      class="modal-shell"
-      role="dialog"
-      aria-modal="true"
-      aria-label="多方案关键指标横向对比"
+      class="radar-el-dialog"
+      width="min(1120px, 94vw)"
+      top="6vh"
+      :model-value="visible"
+      :append-to-body="false"
+      :show-close="false"
+      :close-on-press-escape="false"
+      :destroy-on-close="true"
+      :before-close="handleBeforeClose"
+      title="多方案关键指标横向对比"
     >
-      <div class="modal-head">
-        <div>
-          <h2 style="margin: 0; font-size: var(--text-lg); font-weight: 700">
-            多方案关键指标横向对比（{{ items.length }}/{{ MAX_COMPARE }}）
-          </h2>
-          <p style="margin: 3px 0 0; font-size: var(--text-xs); color: var(--ink-muted)">
-            保留原币种账单与证据等级；仅对明码固定周期且汇率在 7 天有效期内的方案标注参考月均最低项。
-          </p>
-        </div>
+      <template #header="{ titleId }">
+        <div
+          style="
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+          "
+        >
+          <div>
+            <h2 :id="titleId" style="margin: 0; font-size: var(--text-lg); font-weight: 700">
+              多方案关键指标横向对比（{{ items.length }}/{{ MAX_COMPARE }}）
+            </h2>
+            <p style="margin: 3px 0 0; font-size: var(--text-xs); color: var(--ink-muted)">
+              保留原币种账单与证据等级；仅对明码固定周期且汇率在 7 天有效期内的方案标注参考月均最低项。
+            </p>
+          </div>
 
-        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
-          <label
-            class="btn btn-sm"
-            :class="{ 'is-active': store.state.compareDiffOnly }"
-            style="cursor: pointer"
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+            <label class="radar-inline-switch">
+              <ElSwitch
+                size="small"
+                data-action="toggle-compare-diff"
+                :model-value="store.state.compareDiffOnly"
+                @change="store.toggleCompareDiffOnly()"
+              />
+              <span>仅高亮差异项</span>
+            </label>
+            <ElButton
+              class="radar-el-btn"
+              size="small"
+              type="primary"
+              plain
+              data-action="copy-share-url"
+              @click="store.copyShareUrl()"
+            >
+              <ElIcon style="margin-right: 4px"><Link /></ElIcon>
+              复制对比链接
+            </ElButton>
+            <ElButton
+              class="radar-el-btn"
+              size="small"
+              text
+              circle
+              data-action="close-compare"
+              aria-label="关闭对比工作台"
+              @click="store.setCompareOpen(false)"
+            >
+              <ElIcon><Close /></ElIcon>
+            </ElButton>
+          </div>
+        </div>
+      </template>
+
+      <div v-if="missingKeys.length > 0" class="compare-missing-strip" data-compare-missing-strip>
+        <span class="compare-missing-label">
+          另有 {{ missingKeys.length }} 款所选套餐本轮快照暂缺（可单独移出以释放名额）：
+        </span>
+        <div class="compare-missing-tags">
+          <ElTag
+            v-for="(key, mIdx) in missingKeys"
+            :key="`modal-missing-${key}`"
+            class="dock-pill-missing"
+            type="info"
+            size="small"
+            disable-transitions
+            :title="`本轮快照暂缺 · ${key}`"
           >
-            <input
-              type="checkbox"
-              style="margin: 0"
-              data-action="toggle-compare-diff"
-              :checked="store.state.compareDiffOnly"
-              @change="store.toggleCompareDiffOnly()"
-            />
-            <span>仅高亮差异项</span>
-          </label>
-          <button
-            type="button"
-            class="btn btn-sm btn-soft"
-            data-action="copy-share-url"
-            @click="store.copyShareUrl()"
-          >
-            🔗 复制对比链接
-          </button>
-          <button
-            type="button"
-            class="btn btn-sm btn-ghost"
-            data-action="close-compare"
-            aria-label="关闭对比工作台"
-            @click="store.setCompareOpen(false)"
-          >
-            ✕
-          </button>
+            <span class="dock-pill-name">暂缺 · {{ key }}</span>
+            <ElButton
+              text
+              circle
+              size="small"
+              class="dock-pill-close"
+              data-action="remove-missing-compare"
+              :data-key="key"
+              :aria-label="`移出暂缺对比项 ${key}`"
+              @click="handleRemoveMissing(key, mIdx)"
+            >
+              <ElIcon :size="12" aria-hidden="true"><Close /></ElIcon>
+            </ElButton>
+          </ElTag>
         </div>
       </div>
 
-      <div class="modal-body">
-        <table class="compare-table">
+      <table class="compare-table">
           <thead>
             <tr>
               <th class="cmp-metric-col">对比维度</th>
-              <th v-for="p in items" :key="p._key">
+              <th v-for="(p, idx) in items" :key="p._key">
                 <div
                   style="
                     display: flex;
@@ -150,16 +264,17 @@ function handleInspectFromCompare(productId) {
                   >
                     {{ plain(p.name) }}
                   </span>
-                  <button
-                    type="button"
-                    class="btn btn-xs btn-ghost"
+                  <ElButton
+                    size="small"
+                    text
+                    class="radar-el-btn"
                     data-action="toggle-compare"
                     :data-key="p._key"
-                    aria-label="移出对比"
-                    @click="store.toggleCompare(p._key)"
+                    :aria-label="`移出对比：${plain(p.name)}`"
+                    @click="handleRemoveCompared(p._key, idx)"
                   >
                     ×
-                  </button>
+                  </ElButton>
                 </div>
               </th>
             </tr>
@@ -174,7 +289,7 @@ function handleInspectFromCompare(productId) {
                   v-if="(p._planTags || []).length"
                   style="display: flex; gap: 4px; flex-wrap: wrap"
                 >
-                  <PlanTagBadge v-for="t in p._planTags" :key="t.key" :tag="t" />
+                  <PlanTagBadge v-for="t in p._planTags" :key="t.key" :tag="t" focusable />
                 </div>
                 <span v-else style="color: var(--ink-muted)">常规款</span>
               </td>
@@ -369,21 +484,20 @@ function handleInspectFromCompare(productId) {
                   >
                     去官网下单 ↗
                   </a>
-                  <button
-                    type="button"
-                    class="btn btn-xs"
+                  <ElButton
+                    size="small"
+                    class="radar-el-btn"
                     data-action="inspect-from-compare"
                     :data-product-id="p.id"
                     @click="handleInspectFromCompare(p.id)"
                   >
                     证据详情
-                  </button>
+                  </ElButton>
                 </div>
               </td>
             </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+        </tbody>
+      </table>
+    </ElDialog>
   </div>
 </template>

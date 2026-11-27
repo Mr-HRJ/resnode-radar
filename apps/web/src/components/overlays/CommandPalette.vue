@@ -1,5 +1,7 @@
 <script setup>
 import { computed, nextTick, ref, watch } from "vue";
+import { ElButton, ElDialog, ElIcon, ElInput } from "element-plus";
+import { Search } from "@element-plus/icons-vue";
 import {
   DEFAULT_FILTERS,
   evaluateProviderTags,
@@ -22,12 +24,48 @@ const visible = computed(() => props.store.state.paletteOpen);
 const rawQ = computed(() => props.store.state.paletteQuery.trim());
 const normQ = computed(() => normalizeSearch(rawQ.value));
 
-watch(visible, async (isOpen) => {
+let hasAutoFocusedForOpen = false;
+const isComposing = ref(false);
+
+watch(visible, (isOpen) => {
   if (isOpen) {
-    await nextTick();
-    inputRef.value?.focus?.();
+    hasAutoFocusedForOpen = false;
+    isComposing.value = false;
+  } else {
+    isComposing.value = false;
   }
 });
+
+function isFocusOnActionableDialogChild() {
+  const doc = globalThis.document;
+  const active = doc?.activeElement;
+  if (!active || active === doc.body || active === doc.documentElement) return false;
+  const dialog = doc.querySelector("[data-palette-backdrop] .el-dialog");
+  if (!dialog || !dialog.contains(active)) return false;
+  return active !== dialog;
+}
+
+async function handleOpenAutoFocus() {
+  if (!visible.value) return;
+  // Wait two ticks so ElFocusTrap's single-nextTick container focus runs first, then focus the input.
+  await nextTick();
+  await nextTick();
+  if (!visible.value || hasAutoFocusedForOpen) return;
+  hasAutoFocusedForOpen = true;
+  if (!isFocusOnActionableDialogChild()) {
+    inputRef.value?.focus?.();
+  }
+}
+
+async function handleOpenedFallback() {
+  if (!visible.value) return;
+  await nextTick();
+  if (!visible.value) return;
+  // Never steal focus if user already moved focus to an actionable element inside the dialog.
+  if (hasAutoFocusedForOpen || isFocusOnActionableDialogChild()) return;
+  hasAutoFocusedForOpen = true;
+  inputRef.value?.focus?.();
+}
 
 const matchedProviders = computed(() => {
   if (!normQ.value) return [];
@@ -88,26 +126,31 @@ const quickCommands = computed(() =>
   ].filter((cmd) => !normQ.value || normalizeSearch(cmd.label).includes(normQ.value))
 );
 
-function handleBackdropClick(event) {
-  if (event.target === event.currentTarget) {
-    props.store.setPaletteOpen(false);
-  }
+function handleBeforeClose(done) {
+  props.store.setPaletteOpen(false);
+  done(true);
 }
 
 function handleFilterQuery(query) {
-  props.store.setPaletteOpen(false);
+  props.store.closeOverlaysForNavigation();
   props.store.setView("terminal");
   props.store.updateFilters({ q: query });
 }
 
-function handleInputEnter() {
-  if (rawQ.value) {
-    handleFilterQuery(rawQ.value);
+function handleInputEnter(event) {
+  if (isComposing.value || event?.isComposing || event?.keyCode === 229) {
+    return;
+  }
+  event?.preventDefault?.();
+  const inputVal = event?.target?.value;
+  const candidate = (typeof inputVal === "string" ? inputVal : props.store.state.paletteQuery).trim();
+  if (candidate) {
+    handleFilterQuery(candidate);
   }
 }
 
 function handleSelectProvider(providerId) {
-  props.store.setPaletteOpen(false);
+  props.store.closeOverlaysForNavigation();
   props.store.setView("terminal");
   props.store.updateFilters({ ...DEFAULT_FILTERS, status: "all", provider: providerId });
 }
@@ -118,7 +161,17 @@ function handleSelectPlan(productId) {
 }
 
 function handleQuickCmd(cmd) {
-  props.store.setPaletteOpen(false);
+  if (cmd === "copy-share") {
+    props.store.setPaletteOpen(false);
+    props.store.copyShareUrl();
+    return;
+  }
+  if (cmd === "toggle-theme") {
+    props.store.setPaletteOpen(false);
+    props.store.toggleTheme();
+    return;
+  }
+  props.store.closeOverlaysForNavigation();
   if (cmd === "preset-us-home") props.store.applyPreset("us-home-dedicated");
   else if (cmd === "preset-cn2") props.store.applyPreset("cn2-opt");
   else if (cmd === "preset-blockbuster") props.store.applyPreset("deal-blockbuster");
@@ -128,47 +181,55 @@ function handleQuickCmd(cmd) {
   else if (cmd === "preset-scarce") props.store.applyPreset("deal-scarce");
   else if (cmd === "go-radar") props.store.setView("radar");
   else if (cmd === "go-providers") props.store.setView("providers");
-  else if (cmd === "copy-share") props.store.copyShareUrl();
-  else if (cmd === "toggle-theme") props.store.toggleTheme();
 }
 </script>
 
 <template>
-  <div
-    class="palette-backdrop"
-    :class="{ 'is-entering': visible }"
-    data-palette-backdrop
-    :hidden="!visible"
-    @click="handleBackdropClick"
-  >
-    <div
+  <div class="ep-overlay-host" data-palette-backdrop :hidden="!visible">
+    <ElDialog
       v-if="visible"
-      class="palette-shell"
-      role="dialog"
-      aria-modal="true"
-      aria-label="全局快速检索"
+      class="radar-palette-dialog"
+      width="min(640px, 92vw)"
+      top="11vh"
+      :model-value="visible"
+      :append-to-body="false"
+      :show-close="false"
+      :close-on-press-escape="false"
+      :destroy-on-close="true"
+      :before-close="handleBeforeClose"
+      title="全局快速检索"
+      @open-auto-focus="handleOpenAutoFocus"
+      @opened="handleOpenedFallback"
     >
       <div class="palette-input-row">
-        <span aria-hidden="true" style="color: var(--ink-muted)">⌕</span>
-        <input
+        <ElInput
           ref="inputRef"
+          class="radar-el-input is-palette"
           type="search"
-          class="palette-input"
+          clearable
           data-palette-input
-          :value="store.state.paletteQuery"
+          :model-value="store.state.paletteQuery"
           placeholder="输入商家、地区、线路或型号（如 搬瓦工 / 香港 / 9929 / 双ISP），回车直接过滤列表…"
+          aria-label="全局快速检索"
           autocomplete="off"
-          @input="store.setPaletteQuery($event.target.value)"
-          @keydown.enter.prevent="handleInputEnter"
-        />
-        <button
-          type="button"
-          class="btn btn-xs btn-ghost"
+          @update:model-value="store.setPaletteQuery($event)"
+          @compositionstart="isComposing = true"
+          @compositionend="isComposing = false"
+          @keydown.enter="handleInputEnter"
+        >
+          <template #prefix>
+            <ElIcon :size="16"><Search /></ElIcon>
+          </template>
+        </ElInput>
+        <ElButton
+          class="radar-el-btn"
+          size="small"
+          text
           data-action="close-palette"
           @click="store.setPaletteOpen(false)"
         >
           Esc
-        </button>
+        </ElButton>
       </div>
 
       <div class="palette-results">
@@ -252,6 +313,6 @@ function handleQuickCmd(cmd) {
           </button>
         </div>
       </div>
-    </div>
+    </ElDialog>
   </div>
 </template>

@@ -1,5 +1,7 @@
 <script setup>
 import { computed } from "vue";
+import { ElAlert, ElButton, ElIcon } from "element-plus";
+import { Refresh } from "@element-plus/icons-vue";
 import { formatDateTime, fxFreshness, monitorFreshness } from "@resnode-radar/contracts";
 
 const props = defineProps({
@@ -43,25 +45,32 @@ const isDanger = computed(() => Boolean(props.store.state.errorDetail));
 
 <template>
   <div class="status-banner-wrap app-banner-slot" data-app-banner :hidden="warnings.length === 0">
-    <div
+    <ElAlert
       v-if="warnings.length > 0"
-      class="alert-banner"
-      :class="{ 'is-danger': isDanger }"
+      class="radar-status-alert"
+      :type="isDanger ? 'error' : 'warning'"
+      :closable="false"
+      show-icon
       role="status"
       data-status-banner
     >
-      <div class="alert-banner-list">
-        <strong>{{ isDanger ? "数据同步告警" : "数据时效与口径提醒" }}：</strong>
-        <span>{{ warnings.join(" · ") }}</span>
-      </div>
-      <button
-        type="button"
-        class="btn btn-xs"
-        data-action="refresh-snapshot"
-        @click="store.refreshSnapshot({ force: true })"
-      >
-        立即重新读取
-      </button>
-    </div>
+      <template #default>
+        <div class="alert-banner-list">
+          <strong>{{ isDanger ? "数据同步告警" : "数据时效与口径提醒" }}：</strong>
+          <span>{{ warnings.join(" · ") }}</span>
+        </div>
+        <ElButton
+          class="radar-el-btn"
+          size="small"
+          :type="isDanger ? 'danger' : 'warning'"
+          plain
+          data-action="refresh-snapshot"
+          @click="store.refreshSnapshot({ force: true })"
+        >
+          <ElIcon style="margin-right: 4px"><Refresh /></ElIcon>
+          立即重新读取
+        </ElButton>
+      </template>
+    </ElAlert>
   </div>
 </template>

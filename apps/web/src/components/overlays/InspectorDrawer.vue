@@ -1,5 +1,7 @@
 <script setup>
 import { computed } from "vue";
+import { ElAlert, ElButton, ElDrawer, ElIcon, ElSkeleton } from "element-plus";
+import { Close, Link, Star, StarFilled, Switch } from "@element-plus/icons-vue";
 import {
   RISK_EXPLANATIONS,
   featureEntries,
@@ -16,10 +18,31 @@ const props = defineProps({
   store: {
     type: Object,
     required: true
+  },
+  deferred: {
+    type: Boolean,
+    default: false
   }
 });
 
-const isOpen = computed(() => Boolean(props.store.state.inspectId));
+const isOpen = computed(() => Boolean(props.store.state.inspectId) && !props.deferred);
+const hasSnapshot = computed(() => Boolean(props.store.rawPayload.value));
+const isInitialLoading = computed(
+  () => !hasSnapshot.value && props.store.state.loadState === "loading"
+);
+const isInitialError = computed(
+  () => !hasSnapshot.value && props.store.state.loadState === "error"
+);
+const initialErrorText = computed(() => {
+  const err = props.store.state.errorDetail;
+  if (typeof err === "string" && err.trim()) return err.trim();
+  const msg = typeof err?.message === "string" ? err.message.trim() : "";
+  const detail = typeof err?.detail === "string" ? err.detail.trim() : "";
+  if (msg && detail && !msg.includes(detail)) return `${msg}（${detail}）`;
+  if (msg) return msg;
+  if (detail) return detail;
+  return "暂无法拉取最新监控快照，请重试，不会以套餐下线误导显示。";
+});
 const plan = computed(() => {
   const id = props.store.state.inspectId;
   if (!id) return null;
@@ -104,16 +127,50 @@ const caveats = computed(() => {
   return list;
 });
 
-function handleBackdropClick(event) {
-  if (event.target === event.currentTarget) {
-    props.store.openInspector(null);
+function handleBeforeClose(done) {
+  props.store.openInspector(null);
+  done(true);
+}
+
+function handleTrapTabKeydown(event) {
+  if (event.key !== "Tab" || !isOpen.value) return;
+  const doc = globalThis.document;
+  const drawer = doc?.querySelector?.("[data-inspector-backdrop] .el-drawer");
+  if (!drawer) return;
+  const focusables = [
+    ...drawer.querySelectorAll(
+      "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])"
+    )
+  ].filter((el) => !el.disabled && !el.hidden && el.getClientRects?.().length > 0);
+  if (focusables.length === 0) {
+    event.preventDefault();
+    return;
+  }
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const active = doc?.activeElement;
+  if (!event.shiftKey && (active === last || !drawer.contains(active))) {
+    event.preventDefault();
+    first.focus();
+  } else if (event.shiftKey && (active === first || active === drawer || !drawer.contains(active))) {
+    event.preventDefault();
+    last.focus();
   }
 }
 
+function handleDrillProvider(providerId) {
+  props.store.drillProvider(providerId);
+}
+
 function handleJumpDeal(dealKey) {
-  props.store.openInspector(null);
+  props.store.closeOverlaysForNavigation();
   props.store.setView("terminal");
   props.store.updateFilters({ deal: dealKey, status: "available" });
+}
+
+function handleJumpRadar() {
+  props.store.closeOverlaysForNavigation();
+  props.store.setView("radar");
 }
 
 function eventPill(ev) {
@@ -129,147 +186,220 @@ function eventPill(ev) {
 
 <template>
   <div
-    class="drawer-backdrop"
-    :class="{ 'is-entering': isOpen }"
+    class="ep-overlay-host"
     data-inspector-backdrop
     :hidden="!isOpen"
-    @click="handleBackdropClick"
+    @keydown="handleTrapTabKeydown"
   >
-    <!-- Missing plan fallback -->
-    <div
-      v-if="isOpen && !plan"
-      class="drawer-panel"
-      role="dialog"
-      aria-modal="true"
-      aria-label="套餐证据抽屉"
+    <ElDrawer
+      v-if="isOpen"
+      class="radar-el-drawer"
+      direction="rtl"
+      size="min(512px, 100vw)"
+      :model-value="isOpen"
+      :append-to-body="false"
+      :show-close="false"
+      :close-on-press-escape="false"
+      :destroy-on-close="true"
+      :before-close="handleBeforeClose"
+      :title="plan ? '套餐解析证据与定价解剖' : '套餐证据抽屉'"
     >
-      <div class="drawer-head">
-        <div>
-          <h2 style="margin: 0; font-size: var(--text-lg); font-weight: 700">未找到对应套餐</h2>
-          <p style="margin: 4px 0 0; font-size: var(--text-xs); color: var(--ink-muted)">
-            该套餐可能已从最新监控快照中下线或变更标识。
-          </p>
-        </div>
-        <button
-          type="button"
-          class="btn btn-sm btn-ghost"
-          data-action="close-inspector"
-          aria-label="关闭证据抽屉"
-          @click="store.openInspector(null)"
-        >
-          ✕
-        </button>
-      </div>
-      <div class="drawer-body">
-        <p style="font-size: var(--text-sm); color: var(--ink-secondary)">
-          请求标识：<code>{{ store.state.inspectId }}</code>
-        </p>
-        <button
-          type="button"
-          class="btn btn-primary"
-          data-action="close-inspector"
-          @click="store.openInspector(null)"
-        >
-          返回列表
-        </button>
-      </div>
-    </div>
-
-    <!-- Full Inspector Drawer -->
-    <div
-      v-else-if="isOpen && plan"
-      class="drawer-panel"
-      role="dialog"
-      aria-modal="true"
-      aria-label="套餐解析证据与定价解剖"
-    >
-      <div class="drawer-head">
-        <div style="min-width: 0">
-          <div
-            style="
-              display: flex;
-              align-items: center;
-              gap: 6px;
-              flex-wrap: wrap;
-              margin-bottom: 6px;
-            "
-          >
-            <PlanTagBadge v-for="t in planTags" :key="t.key" :tag="t" />
-            <span
-              class="pill"
-              :class="plan._classify.isResidential ? 'pill-home' : 'pill-vps'"
-            >
-              {{ plan._classify.ipTier.label }}
-            </span>
-            <span v-if="plan._classify.isNat" class="pill pill-warn">NAT / 共享</span>
-            <span v-else class="pill">IP 独享性未核验</span>
-
-            <span v-if="plan.status === 'available'" class="pill pill-ok">
+      <template #header="{ titleId }">
+        <template v-if="!plan">
+          <div>
+            <h2 :id="titleId" style="margin: 0; font-size: var(--text-lg); font-weight: 700">
               {{
-                plan._isExactStock
-                  ? `精确库存 ${plan.stockCount}`
-                  : plain(plan.statusLabel) || "可订购"
+                isInitialLoading
+                  ? "正在加载套餐快照…"
+                  : isInitialError
+                    ? "暂无法读取套餐快照"
+                    : "未找到对应套餐"
               }}
-            </span>
-            <span v-else-if="plan.status === 'unavailable'" class="pill pill-danger">售罄</span>
-            <span v-else class="pill pill-neutral">
-              {{ plain(plan.statusLabel) || "状态未知" }}
-            </span>
+            </h2>
+            <p style="margin: 4px 0 0; font-size: var(--text-xs); color: var(--ink-muted)">
+              {{
+                isInitialLoading
+                  ? "正在同步最新监控快照并匹配该套餐的实时库存与抓取证据，请稍候。"
+                  : isInitialError
+                    ? "上游数据源暂时不可用，当前无法核验该套餐的最新状态与证据。"
+                    : "该套餐可能已从最新监控快照中下线或变更标识。"
+              }}
+            </p>
           </div>
-
-          <h2
-            style="
-              margin: 0;
-              font-size: var(--text-lg);
-              font-weight: 700;
-              line-height: 1.35;
-              overflow-wrap: anywhere;
-            "
+          <ElButton
+            class="radar-el-btn"
+            size="small"
+            text
+            circle
+            data-action="close-inspector"
+            aria-label="关闭证据抽屉"
+            @click="store.openInspector(null)"
           >
-            {{ plain(plan.name) }}
-          </h2>
+            <ElIcon><Close /></ElIcon>
+          </ElButton>
+        </template>
 
-          <div
-            style="
-              margin-top: 5px;
-              font-size: var(--text-xs);
-              color: var(--ink-muted);
-              display: flex;
-              align-items: center;
-              gap: 8px;
-              flex-wrap: wrap;
-            "
-          >
-            <button
-              type="button"
-              class="btn btn-xs btn-ghost"
-              style="padding: 0 4px; height: auto; color: var(--accent)"
-              data-action="drill-provider"
-              :data-provider-id="plan._providerId"
-              @click="store.drillProvider(plan._providerId)"
+        <template v-else>
+          <div style="min-width: 0; flex: 1">
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                flex-wrap: wrap;
+                margin-bottom: 6px;
+              "
             >
-              {{ plan._providerName }}
-            </button>
-            <span>·</span>
-            <span>{{ plan._regions.length ? plan._regions.join(" / ") : "地区待核验" }}</span>
-            <a v-if="plan._dossier" class="pill pill-warn" :href="plan._dossier.path">
-              实测档案 →
-            </a>
+              <PlanTagBadge v-for="t in planTags" :key="t.key" :tag="t" focusable />
+              <span
+                class="pill"
+                :class="plan._classify.isResidential ? 'pill-home' : 'pill-vps'"
+              >
+                {{ plan._classify.ipTier.label }}
+              </span>
+              <span v-if="plan._classify.isNat" class="pill pill-warn">NAT / 共享</span>
+              <span v-else class="pill">IP 独享性未核验</span>
+
+              <span v-if="plan.status === 'available'" class="pill pill-ok">
+                {{
+                  plan._isExactStock
+                    ? `精确库存 ${plan.stockCount}`
+                    : plain(plan.statusLabel) || "可订购"
+                }}
+              </span>
+              <span v-else-if="plan.status === 'unavailable'" class="pill pill-danger">售罄</span>
+              <span v-else class="pill pill-neutral">
+                {{ plain(plan.statusLabel) || "状态未知" }}
+              </span>
+            </div>
+
+            <h2
+              :id="titleId"
+              style="
+                margin: 0;
+                font-size: var(--text-lg);
+                font-weight: 700;
+                line-height: 1.35;
+                overflow-wrap: anywhere;
+              "
+            >
+              {{ plain(plan.name) }}
+            </h2>
+
+            <div
+              style="
+                margin-top: 5px;
+                font-size: var(--text-xs);
+                color: var(--ink-muted);
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex-wrap: wrap;
+              "
+            >
+              <button
+                type="button"
+                class="btn btn-xs btn-ghost"
+                style="padding: 0 4px; height: auto; color: var(--accent)"
+                data-action="drill-provider"
+                :data-provider-id="plan._providerId"
+                @click="handleDrillProvider(plan._providerId)"
+              >
+                {{ plan._providerName }}
+              </button>
+              <span>·</span>
+              <span>{{ plan._regions.length ? plan._regions.join(" / ") : "地区待核验" }}</span>
+              <a v-if="plan._dossier" class="pill pill-warn" :href="plan._dossier.path">
+                实测档案 →
+              </a>
+            </div>
           </div>
-        </div>
 
-        <button
-          type="button"
-          class="btn btn-sm btn-ghost"
-          data-action="close-inspector"
-          aria-label="关闭抽屉"
-          @click="store.openInspector(null)"
-        >
-          ✕
-        </button>
-      </div>
+          <ElButton
+            class="radar-el-btn"
+            size="small"
+            text
+            circle
+            data-action="close-inspector"
+            aria-label="关闭抽屉"
+            @click="store.openInspector(null)"
+          >
+            <ElIcon><Close /></ElIcon>
+          </ElButton>
+        </template>
+      </template>
 
-      <div class="drawer-body">
+      <template v-if="!plan">
+        <template v-if="isInitialLoading">
+          <div
+            role="status"
+            aria-live="polite"
+            style="font-size: var(--text-xs); color: var(--ink-muted)"
+          >
+            正在加载最新监控快照，请稍候…
+          </div>
+          <ElSkeleton :rows="5" animated />
+          <div>
+            <ElButton
+              class="radar-el-btn"
+              data-action="close-inspector"
+              @click="store.openInspector(null)"
+            >
+              返回列表
+            </ElButton>
+          </div>
+        </template>
+
+        <template v-else-if="isInitialError">
+          <ElAlert
+            type="error"
+            :closable="false"
+            show-icon
+            class="radar-status-alert"
+            title="首次快照读取失败"
+            :description="initialErrorText"
+          />
+          <p style="font-size: var(--text-sm); color: var(--ink-secondary); margin: 0">
+            请求标识：<code>{{ store.state.inspectId }}</code>
+          </p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap">
+            <ElButton
+              class="radar-el-btn"
+              type="primary"
+              data-action="refresh-snapshot"
+              :disabled="store.state.refreshing"
+              @click="store.refreshSnapshot({ force: true })"
+            >
+              重试加载
+            </ElButton>
+            <ElButton
+              class="radar-el-btn"
+              data-action="close-inspector"
+              @click="store.openInspector(null)"
+            >
+              返回列表
+            </ElButton>
+          </div>
+        </template>
+
+        <template v-else>
+          <p style="font-size: var(--text-sm); color: var(--ink-secondary); margin: 0">
+            请求标识：<code>{{ store.state.inspectId }}</code>
+          </p>
+          <div>
+            <ElButton
+              class="radar-el-btn"
+              type="primary"
+              data-action="close-inspector"
+              @click="store.openInspector(null)"
+            >
+              返回列表
+            </ElButton>
+          </div>
+        </template>
+      </template>
+
+      <template v-else>
         <div class="insp-cta-row">
           <a
             v-if="orderHref"
@@ -281,53 +411,62 @@ function eventPill(ev) {
           >
             前往官方订购页 ↗
           </a>
-          <button v-else type="button" class="btn" style="flex: 1" disabled>
+          <ElButton v-else class="radar-el-btn" style="flex: 1" disabled>
             无官方直达订购链接
-          </button>
+          </ElButton>
 
-          <button
-            type="button"
-            class="btn btn-star"
-            :class="{ 'is-active': isSaved }"
+          <ElButton
+            class="radar-el-btn"
+            :type="isSaved ? 'warning' : 'default'"
+            :plain="isSaved"
             data-action="toggle-save"
             :data-key="plan._key"
             @click="store.toggleSave(plan._key)"
           >
-            {{ isSaved ? "★ 已收藏" : "☆ 收藏" }}
-          </button>
+            <ElIcon style="margin-right: 4px">
+              <StarFilled v-if="isSaved" />
+              <Star v-else />
+            </ElIcon>
+            {{ isSaved ? "已收藏" : "收藏" }}
+          </ElButton>
 
-          <button
-            type="button"
-            class="btn"
-            :class="{ 'is-active': isCompared }"
+          <ElButton
+            class="radar-el-btn"
+            :type="isCompared ? 'primary' : 'default'"
+            :plain="isCompared"
             data-action="toggle-compare"
             :data-key="plan._key"
             @click="store.toggleCompare(plan._key)"
           >
-            {{ isCompared ? "⇄ 已对比" : "⇄ 对比" }}
-          </button>
+            <ElIcon style="margin-right: 4px"><Switch /></ElIcon>
+            {{ isCompared ? "已对比" : "对比" }}
+          </ElButton>
 
-          <button
-            type="button"
-            class="btn btn-icon"
+          <ElButton
+            class="radar-el-btn"
             data-action="copy-share-url"
             title="复制本套餐直链"
             aria-label="复制本套餐直链"
             @click="store.copyShareUrl()"
           >
-            🔗
-          </button>
+            <ElIcon><Link /></ElIcon>
+          </ElButton>
         </div>
 
         <!-- Audit refresh / shard notice -->
-        <div
+        <ElAlert
           v-if="store.state.auditNotice"
-          class="alert-banner"
-          style="padding: 10px 12px"
+          class="radar-status-alert"
+          type="warning"
+          :closable="false"
+          show-icon
+          role="status"
           data-audit-notice
         >
-          <span>{{ store.state.auditNotice }}</span>
-        </div>
+          <template #default>
+            <span>{{ store.state.auditNotice }}</span>
+          </template>
+        </ElAlert>
 
         <div v-if="caveats.length" class="alert-banner" style="padding: 10px 12px">
           <div style="display: flex; flex-direction: column; gap: 4px">
@@ -347,7 +486,7 @@ function eventPill(ev) {
               :key="t.key"
               class="risk-audit-item is-tag-audit-row"
             >
-              <PlanTagBadge :tag="t" full-label />
+              <PlanTagBadge :tag="t" full-label focusable />
               <span style="color: var(--ink-secondary); line-height: 1.45; flex: 1; min-width: 0">
                 {{ t.reason }}
               </span>
@@ -565,10 +704,17 @@ function eventPill(ev) {
         </section>
 
         <!-- Lazy-loaded HTTP attempts & observations -->
-        <section v-if="store.auditLoading.value" class="insp-card" data-audit-loading>
-          <span class="mono" style="font-size: var(--text-xs); color: var(--ink-muted)">
+        <section
+          v-if="store.auditLoading.value"
+          class="insp-card"
+          role="status"
+          aria-live="polite"
+          data-audit-loading
+        >
+          <div style="font-size: var(--text-xs); color: var(--ink-muted); margin-bottom: 8px">
             正在按需读取源站 HTTP 抓取审计分片…
-          </span>
+          </div>
+          <ElSkeleton :rows="2" animated />
         </section>
 
         <section v-if="attempts.length" class="insp-card" data-inspector-attempts>
@@ -620,10 +766,8 @@ function eventPill(ev) {
               type="button"
               class="btn btn-xs btn-ghost"
               data-nav-view="radar"
-              @click="
-                store.openInspector(null);
-                store.setView('radar');
-              "
+              data-action="jump-radar-from-inspector"
+              @click="handleJumpRadar()"
             >
               全部异动 →
             </button>
@@ -662,7 +806,7 @@ function eventPill(ev) {
             近 7 天未观测到保守口径下的状态或价格变更。
           </span>
         </section>
-      </div>
-    </div>
+      </template>
+    </ElDrawer>
   </div>
 </template>

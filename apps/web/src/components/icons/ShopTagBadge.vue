@@ -1,4 +1,5 @@
 <script setup>
+import { ElTag } from "element-plus";
 import TagSvgIcon from "./TagSvgIcon.vue";
 
 const props = defineProps({
@@ -23,11 +24,19 @@ function handleActivate(event) {
   event?.stopPropagation?.();
   emit("select", props.tag.key);
 }
+
+function handleKeydownActivate(event) {
+  if (!props.interactive || !props.tag) return;
+  event?.preventDefault?.();
+  handleActivate(event);
+}
 </script>
 
 <template>
-  <span
+  <ElTag
     v-if="tag"
+    size="small"
+    disable-transitions
     class="shop-tag"
     :class="[
       `is-${tag.tone}`,
@@ -44,10 +53,10 @@ function handleActivate(event) {
     :data-action="interactive ? 'filter-prov-tag' : undefined"
     :data-prov-tag="interactive ? tag.key : undefined"
     @click="interactive ? handleActivate($event) : undefined"
-    @keydown.enter.prevent="interactive ? handleActivate($event) : undefined"
-    @keydown.space.prevent="interactive ? handleActivate($event) : undefined"
+    @keydown.enter="handleKeydownActivate"
+    @keydown.space="handleKeydownActivate"
   >
     <TagSvgIcon :tone="tag.tone" />
-    <span class="tag-txt">{{ tag.shortLabel }}</span>
-  </span>
+    {{ tag.shortLabel }}
+  </ElTag>
 </template>

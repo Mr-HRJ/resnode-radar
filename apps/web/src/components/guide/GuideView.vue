@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from "vue";
+import { ElButton, ElProgress } from "element-plus";
 import {
   DEFAULT_FILTERS,
   PLAN_TAG_DEFS,
@@ -320,15 +321,17 @@ function jumpTerminal(patch) {
           <p>
             上游与归属均为真实宽带运营商（AT&amp;T / Verizon / Frontier / SoftBank / HiNet），社媒、支付风控信任度最高。
           </p>
-          <button
-            type="button"
-            class="btn btn-xs btn-soft"
+          <ElButton
+            size="small"
+            type="primary"
+            plain
+            class="radar-el-btn"
             data-action="guide-jump-track"
             data-track="home"
             @click="jumpTerminal({ track: 'home' })"
           >
             筛选真家宽 →
-          </button>
+          </ElButton>
         </div>
 
         <div class="ip-tier-box is-tier-dc">
@@ -342,16 +345,16 @@ function jumpTerminal(patch) {
           <p>
             WHOIS 国籍与机房物理所在地一致，可解锁部分流媒体，但宿主仍是数据中心，<strong>绝不可混充住宅宽带</strong>。
           </p>
-          <button
-            type="button"
-            class="btn btn-xs"
+          <ElButton
+            size="small"
+            class="radar-el-btn"
             data-action="guide-jump-opt"
             data-opt="native"
             data-track="vps"
             @click="jumpTerminal({ opt: 'native', track: 'vps' })"
           >
             查看原生IP →
-          </button>
+          </ElButton>
         </div>
 
         <div class="ip-tier-box is-tier-nat">
@@ -365,14 +368,14 @@ function jumpTerminal(patch) {
           <p>
             价格低廉（常见于 HiNet/日本民宅合租），适合轻量解锁中转，但无独立 80/443 端口且易受邻居牵连。
           </p>
-          <button
-            type="button"
-            class="btn btn-xs"
+          <ElButton
+            size="small"
+            class="radar-el-btn"
             data-action="guide-jump-nonat"
             @click="jumpTerminal({ noNat: true })"
           >
             一键排除 NAT →
-          </button>
+          </ElButton>
         </div>
       </div>
 
@@ -404,7 +407,7 @@ function jumpTerminal(patch) {
       <div class="guide-panel-head">
         <div>
           <span class="guide-step-kicker">INTERACTIVE CHECKLIST</span>
-          <h2>买前 &amp; 交付后 4 步验真自检表</h2>
+          <h2 id="guide-checklist-heading">买前 &amp; 交付后 4 步验真自检表</h2>
         </div>
         <span
           class="pill num"
@@ -414,12 +417,14 @@ function jumpTerminal(patch) {
         </span>
       </div>
 
-      <div class="guide-progress-track" aria-hidden="true">
-        <span
-          class="guide-progress-fill"
-          :style="{ width: `${Math.round((checkedCount / CHECKLIST_STEPS.length) * 100)}%` }"
-        ></span>
-      </div>
+      <ElProgress
+        aria-labelledby="guide-checklist-heading"
+        :percentage="Math.round((checkedCount / CHECKLIST_STEPS.length) * 100)"
+        :stroke-width="6"
+        :show-text="false"
+        :status="checkedCount === CHECKLIST_STEPS.length ? 'success' : undefined"
+        style="margin: 8px 0 12px"
+      />
 
       <div class="guide-checklist">
         <div
@@ -455,15 +460,17 @@ function jumpTerminal(patch) {
             >
               {{ item.toolLabel }}
             </a>
-            <button
+            <ElButton
               v-else
-              type="button"
-              class="btn btn-xs btn-soft"
+              size="small"
+              type="primary"
+              plain
+              class="radar-el-btn"
               :data-action="item.toolAction"
               @click="jumpTerminal({ noNat: true })"
             >
               {{ item.toolLabel }}
-            </button>
+            </ElButton>
           </div>
         </div>
       </div>
@@ -532,16 +539,17 @@ function jumpTerminal(patch) {
         </div>
 
         <div class="ladder-col-cta">
-          <button
-            type="button"
-            class="btn btn-xs"
-            :class="rt.liveCnt ? 'btn-primary' : 'btn-soft'"
+          <ElButton
+            size="small"
+            class="radar-el-btn"
+            :type="rt.liveCnt ? 'primary' : 'default'"
+            :plain="!rt.liveCnt"
             data-action="guide-jump-route"
             :data-route="rt.key"
             @click="jumpTerminal({ route: rt.key })"
           >
             {{ rt.liveCnt !== null ? `看现货 (${rt.liveCnt}) →` : "筛选此线路 →" }}
-          </button>
+          </ElButton>
         </div>
       </div>
     </div>

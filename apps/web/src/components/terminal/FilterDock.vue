@@ -1,5 +1,7 @@
 <script setup>
-import { computed, nextTick } from "vue";
+import { computed, nextTick, ref } from "vue";
+import { ElButton, ElIcon, ElInput, ElSegmented, ElSwitch } from "element-plus";
+import { RefreshLeft, Search, Share } from "@element-plus/icons-vue";
 import {
   BANDWIDTH_OPTIONS,
   BUDGET_OPTIONS,
@@ -24,6 +26,7 @@ import {
 } from "@resnode-radar/contracts";
 import TagSvgIcon from "../icons/TagSvgIcon.vue";
 import ShopTagBadge from "../icons/ShopTagBadge.vue";
+import RadarSelect from "../ui/RadarSelect.vue";
 import { shortProviderLabel } from "../../utils/plan-presenters.js";
 
 const props = defineProps({
@@ -45,7 +48,69 @@ const props = defineProps({
   }
 });
 
+const shopSearchRef = ref(null);
 const f = computed(() => props.store.state.filters);
+
+const regionSelectOptions = computed(() =>
+  MACRO_REGIONS.map((r) => {
+    if (r.value === "all") {
+      return { value: "all", label: "全部地区", text: "全部地区" };
+    }
+    const code = r.value === "MULTI" ? "GL" : r.value === "APAC" ? "AP" : r.value;
+    const count = props.facets.regions.get(r.value) || 0;
+    return {
+      value: r.value,
+      code,
+      text: r.label,
+      count,
+      label: `${code} · ${r.label} (${count})`
+    };
+  })
+);
+
+const budgetSelectOptions = computed(() => {
+  const opts = BUDGET_OPTIONS.map((b) => ({
+    value: b.value,
+    label: b.value === "all" ? "预算不限" : b.label
+  }));
+  if (hasCustomBudget.value) {
+    return [{ value: "custom", label: "自定义金额", disabled: true }, ...opts];
+  }
+  return opts;
+});
+
+const cycleSelectOptions = computed(() =>
+  CYCLE_OPTIONS.map((c) => ({ value: c.value, label: c.label }))
+);
+
+const statusSelectOptions = [
+  { value: "available", label: "状态: 在售现货" },
+  { value: "all", label: "状态: 含缺货全部" },
+  { value: "unavailable", label: "状态: 仅看缺货" },
+  { value: "unknown", label: "状态: 库存未公开" }
+];
+
+const sortSelectOptions = computed(() =>
+  SORT_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))
+);
+
+const mobileProviderOptions = computed(() => [
+  { value: "all", label: "全部品牌（常用商家优先）", text: "全部品牌（常用商家优先）" },
+  ...eligibleShops.value.map((s) => ({
+    value: s.provider.id,
+    code: s.primaryTag ? s.primaryTag.shortLabel : "",
+    text: s.provider.name,
+    count: s.total === 0 ? "待核验" : s.count,
+    label: `${s.primaryTag ? `[${s.primaryTag.shortLabel}] ` : ""}${s.provider.name} (${
+      s.total === 0 ? "待核验" : s.count
+    })`
+  }))
+]);
+
+const layoutSegmentedOptions = [
+  { label: "列表", value: "table" },
+  { label: "卡片", value: "grid" }
+];
 const fx = computed(() => {
   const payload = props.store.rawPayload.value;
   return payload ? fxFreshness(payload.exchangeRates, props.store.nowMs.value) : { valid: true };
@@ -194,16 +259,17 @@ async function handleSelectProvider(providerId) {
 async function handleToggleShops() {
   props.store.toggleShopsExpanded();
   await nextTick();
-  const sel = props.store.state.shopsExpanded
-    ? "[data-shop-search]"
-    : "[data-action='toggle-shops-expand']";
-  globalThis.document?.querySelector?.(sel)?.focus?.();
+  if (props.store.state.shopsExpanded) {
+    shopSearchRef.value?.focus?.();
+  } else {
+    globalThis.document?.querySelector?.("[data-action='toggle-shops-expand']")?.focus?.();
+  }
 }
 
 async function handleClearShopSearch() {
   props.store.setShopQuery("");
   await nextTick();
-  globalThis.document?.querySelector?.("[data-shop-search]")?.focus?.();
+  shopSearchRef.value?.focus?.();
 }
 
 function toggleValueFilter(key, val) {
@@ -218,22 +284,96 @@ function handleBudgetPill(val) {
     val !== "all" && cur === val && !f.value.minPrice && !f.value.maxPrice ? "all" : val;
   props.store.updateFilters({ budget: next, minPrice: "", maxPrice: "" });
 }
+
+let suppressMobileEscBubble = false;
+let suppressDesktopEscBubble = false;
+
+let desktopComposingTarget = null;
+let mobileComposingTarget = null;
+
+function isImeKeyEvent(event, kind) {
+  if (event?.isComposing || event?.key === "Process" || event?.keyCode === 229) {
+    return true;
+  }
+  const activeTarget = kind === "desktop" ? desktopComposingTarget : mobileComposingTarget;
+  if (!activeTarget) return false;
+  if (!activeTarget.isConnected || (event?.target && event.target !== activeTarget)) {
+    if (kind === "desktop") desktopComposingTarget = null;
+    else mobileComposingTarget = null;
+    return false;
+  }
+  return event?.target === activeTarget;
+}
+
+function resolveSelectCombobox(target) {
+  const selectRoot = target?.closest?.(".el-select");
+  if (!selectRoot) return null;
+  return target?.getAttribute?.("role") === "combobox"
+    ? target
+    : selectRoot.querySelector?.("[role='combobox']");
+}
+
+function handleDesktopDockKeydownCapture(event) {
+  suppressDesktopEscBubble = false;
+  if (isImeKeyEvent(event, "desktop")) {
+    if (event.key === "Escape" || event.code === "Escape") {
+      suppressDesktopEscBubble = true;
+    }
+    return;
+  }
+  if (event.key !== "Escape") return;
+  const combobox = resolveSelectCombobox(event.target);
+  if (combobox && combobox.getAttribute("aria-expanded") === "true") {
+    suppressDesktopEscBubble = true;
+  }
+}
+
+function handleDesktopDockKeydownBubble(event) {
+  if ((event.key === "Escape" || event.code === "Escape") && suppressDesktopEscBubble) {
+    suppressDesktopEscBubble = false;
+    event.stopPropagation();
+  }
+}
+
+function handleMobileRailKeydownCapture(event) {
+  suppressMobileEscBubble = false;
+  if (isImeKeyEvent(event, "mobile")) {
+    if (event.key === "Escape" || event.code === "Escape") {
+      suppressMobileEscBubble = true;
+    }
+    return;
+  }
+  if (event.key !== "Escape" || !props.store.state.mobileRailOpen) return;
+  const combobox = resolveSelectCombobox(event.target);
+  if (combobox && combobox.getAttribute("aria-expanded") === "true") {
+    // Allow ElSelect to receive Escape and collapse its dropdown, then block bubble to App.vue
+    suppressMobileEscBubble = true;
+  }
+}
+
+function handleMobileRailKeydownBubble(event) {
+  if ((event.key === "Escape" || event.code === "Escape") && suppressMobileEscBubble) {
+    suppressMobileEscBubble = false;
+    event.stopPropagation();
+  }
+}
 </script>
 
 <template>
   <!-- Mobile quick bar -->
   <div class="mobile-quick-bar" aria-label="移动端快捷筛选">
     <div class="mobile-quick-row">
-      <button
-        type="button"
-        class="btn btn-sm"
-        :class="activeBadges.length ? 'btn-primary' : 'btn-soft'"
+      <ElButton
+        size="small"
+        class="radar-el-btn mobile-filter-trigger"
+        :type="activeBadges.length ? 'primary' : 'default'"
+        :plain="!activeBadges.length"
         data-action="open-mobile-rail"
         @click="store.setMobileRailOpen(true)"
       >
         <span>配置筛选</span>
         <span v-if="activeBadges.length" class="num">({{ activeBadges.length }})</span>
-      </button>
+      </ElButton>
       <button
         type="button"
         class="btn btn-sm"
@@ -278,7 +418,15 @@ function handleBudgetPill(val) {
   </div>
 
   <!-- Desktop multi-dimensional Filter Dock -->
-  <section class="filter-dock" aria-label="多维直选配置与筛选工作台" data-filter-dock>
+  <section
+    class="filter-dock"
+    aria-label="多维直选配置与筛选工作台"
+    data-filter-dock
+    @compositionstart.capture="desktopComposingTarget = $event.target || null"
+    @compositionend.capture="desktopComposingTarget = null"
+    @keydown.capture="handleDesktopDockKeydownCapture"
+    @keydown="handleDesktopDockKeydownBubble"
+  >
     <div class="facet-matrix-row is-centered">
       <div
         class="facet-row-label"
@@ -412,15 +560,22 @@ function handleBudgetPill(val) {
             </button>
           </div>
 
-          <input
+          <ElInput
+            ref="shopSearchRef"
+            class="radar-el-input shop-picker-search"
             type="search"
-            class="input-field shop-picker-search"
+            size="small"
+            clearable
             data-shop-search
-            :value="store.state.shopQuery"
+            :model-value="store.state.shopQuery"
             placeholder="搜商家或标签（热门/老牌/家宽/性价比）"
             aria-label="查找商家"
-            @input="store.setShopQuery($event.target.value)"
-          />
+            @update:model-value="store.setShopQuery($event)"
+          >
+            <template #prefix>
+              <ElIcon><Search /></ElIcon>
+            </template>
+          </ElInput>
         </div>
 
         <template v-if="matchingShops.length">
@@ -500,22 +655,18 @@ function handleBudgetPill(val) {
     <div class="facet-matrix-row is-centered">
       <div class="facet-row-label">区域定位</div>
       <div class="facet-row-options">
-        <select
-          class="select-field region-dropdown"
-          :class="{ 'is-filtered': f.region !== 'all' }"
+        <RadarSelect
+          class="region-dropdown"
+          variant="region"
           data-filter-select="region"
           aria-label="按所在地区筛选"
-          :value="f.region"
-          @change="store.updateFilters({ region: $event.target.value })"
-        >
-          <option v-for="r in MACRO_REGIONS" :key="r.value" :value="r.value">
-            {{
-              r.value === "all"
-                ? "全部地区"
-                : `${r.value === "MULTI" ? "GL" : r.value === "APAC" ? "AP" : r.value} · ${r.label} (${facets.regions.get(r.value) || 0})`
-            }}
-          </option>
-        </select>
+          placeholder="全部地区"
+          filterable
+          :filtered="f.region !== 'all'"
+          :model-value="f.region"
+          :options="regionSelectOptions"
+          @change="store.updateFilters({ region: $event })"
+        />
 
         <div class="facet-pill-cluster" role="group" aria-label="节点本质与用途">
           <button
@@ -667,25 +818,23 @@ function handleBudgetPill(val) {
       <div class="spec-cell" role="group" aria-label="月均人民币预算区间">
         <span class="spec-cell-label">月均预算</span>
         <div class="spec-cell-opts budget-controls">
-          <select
-            class="select-field mini-select budget-select"
-            :class="{ 'is-filtered': f.budget !== 'all' || hasCustomBudget }"
+          <RadarSelect
+            class="budget-select"
+            variant="budget"
             data-filter-select="budget"
             aria-label="月均预算档位"
-            :value="hasCustomBudget ? 'custom' : f.budget"
+            placeholder="预算不限"
+            :filtered="f.budget !== 'all' || hasCustomBudget"
+            :model-value="hasCustomBudget ? 'custom' : f.budget"
+            :options="budgetSelectOptions"
             @change="
               store.updateFilters({
-                budget: $event.target.value,
+                budget: $event,
                 minPrice: '',
                 maxPrice: ''
               })
             "
-          >
-            <option v-if="hasCustomBudget" value="custom" disabled>自定义金额</option>
-            <option v-for="b in BUDGET_OPTIONS" :key="b.value" :value="b.value">
-              {{ b.value === "all" ? "不限" : b.label }}
-            </option>
-          </select>
+          />
           <div
             class="price-range-box"
             :class="{ 'is-active': Boolean(f.minPrice || f.maxPrice) }"
@@ -879,99 +1028,89 @@ function handleBudgetPill(val) {
           <span>排除快照</span>
         </button>
 
-        <button
-          type="button"
-          class="q-toggle"
-          :class="{ 'is-on-accent': f.savedOnly }"
-          data-action="toggle-quick-saved"
-          :aria-pressed="String(f.savedOnly)"
-          @click="store.updateFilters({ savedOnly: !f.savedOnly })"
-        >
+        <label class="radar-inline-switch" :class="{ 'is-active': f.savedOnly }">
+          <ElSwitch
+            size="small"
+            data-action="toggle-quick-saved"
+            :aria-label="`仅看本地收藏（${store.state.savedKeys.size} 款）`"
+            :model-value="f.savedOnly"
+            @change="store.updateFilters({ savedOnly: Boolean($event) })"
+          />
           <span data-terminal-saved-count>★ 收藏 ({{ store.state.savedKeys.size }})</span>
-        </button>
+        </label>
 
-        <select
-          class="select-field mini-select"
+        <RadarSelect
+          variant="mini"
           data-filter-select="cycle"
           aria-label="按计费周期筛选"
-          :value="f.cycle"
-          @change="store.updateFilters({ cycle: $event.target.value })"
-        >
-          <option v-for="c in CYCLE_OPTIONS" :key="c.value" :value="c.value">{{ c.label }}</option>
-        </select>
+          :filtered="f.cycle !== 'all'"
+          :model-value="f.cycle"
+          :options="cycleSelectOptions"
+          @change="store.updateFilters({ cycle: $event })"
+        />
 
-        <select
-          class="select-field mini-select"
+        <RadarSelect
+          variant="mini"
           data-filter-select="status"
           aria-label="库存状态细项"
-          :value="f.status"
-          @change="store.updateFilters({ status: $event.target.value })"
-        >
-          <option value="available">状态: 在售现货</option>
-          <option value="all">状态: 含缺货全部</option>
-          <option value="unavailable">状态: 仅看缺货</option>
-          <option value="unknown">状态: 库存未公开</option>
-        </select>
+          :filtered="f.status !== 'available'"
+          :model-value="f.status"
+          :options="statusSelectOptions"
+          @change="store.updateFilters({ status: $event })"
+        />
 
-        <button
+        <ElButton
           v-if="activeBadges.length > 0"
-          type="button"
-          class="btn btn-xs btn-soft"
+          class="radar-el-btn"
+          size="small"
+          type="primary"
+          plain
           data-action="reset-filters"
           @click="store.resetFilters()"
         >
-          ↺ 重置已选 ({{ activeBadges.length }})
-        </button>
+          <ElIcon style="margin-right: 4px"><RefreshLeft /></ElIcon>
+          重置已选 ({{ activeBadges.length }})
+        </ElButton>
       </div>
 
       <div class="toolbar-right">
         <div class="result-summary">
           共匹配 <strong>{{ matchedCount }}</strong> 款
         </div>
-        <select
-          class="select-field sort-select"
+        <RadarSelect
+          class="sort-select"
+          variant="sort"
           data-filter-select="sort"
           aria-label="排序方式"
-          :value="f.sort"
-          @change="store.updateFilters({ sort: $event.target.value })"
+          :filtered="f.sort !== 'recommended'"
+          :model-value="f.sort"
+          :options="sortSelectOptions"
+          @change="store.updateFilters({ sort: $event })"
+        />
+
+        <ElSegmented
+          class="radar-segmented layout-view-toggle"
+          size="small"
+          aria-label="桌面视图切换"
+          :model-value="store.state.layout"
+          :options="layoutSegmentedOptions"
+          @change="store.setLayout($event)"
         >
-          <option v-for="opt in SORT_OPTIONS" :key="opt.value" :value="opt.value">
-            {{ opt.label }}
-          </option>
-        </select>
+          <template #default="{ item }">
+            <span data-action="set-layout" :data-layout="item.value">{{ item.label }}</span>
+          </template>
+        </ElSegmented>
 
-        <div class="view-toggle layout-view-toggle" role="group" aria-label="桌面视图切换">
-          <button
-            type="button"
-            class="view-toggle-btn"
-            :class="{ 'is-active': store.state.layout === 'table' }"
-            data-action="set-layout"
-            data-layout="table"
-            @click="store.setLayout('table')"
-          >
-            列表
-          </button>
-          <button
-            type="button"
-            class="view-toggle-btn"
-            :class="{ 'is-active': store.state.layout === 'grid' }"
-            data-action="set-layout"
-            data-layout="grid"
-            @click="store.setLayout('grid')"
-          >
-            卡片
-          </button>
-        </div>
-
-        <button
-          type="button"
-          class="btn btn-sm"
+        <ElButton
+          class="radar-el-btn"
+          size="small"
           data-action="copy-share-url"
           title="复制带当前筛选与对比状态的 URL"
           @click="store.copyShareUrl()"
         >
+          <ElIcon style="margin-right: 4px"><Share /></ElIcon>
           分享
-        </button>
+        </ElButton>
       </div>
     </div>
   </section>
@@ -980,54 +1119,57 @@ function handleBudgetPill(val) {
   <aside
     class="mobile-filter-sheet"
     :class="{ 'is-mobile-open': store.state.mobileRailOpen }"
+    role="dialog"
+    aria-modal="true"
+    :aria-hidden="!store.state.mobileRailOpen"
     aria-label="移动端全维筛选抽屉"
     data-mobile-filter-sheet
+    @compositionstart.capture="mobileComposingTarget = $event.target || null"
+    @compositionend.capture="mobileComposingTarget = null"
+    @keydown.capture="handleMobileRailKeydownCapture"
+    @keydown="handleMobileRailKeydownBubble"
   >
     <div class="mobile-rail-header">
       <strong style="font-size: var(--text-base)">全维配置筛选（匹配 {{ matchedCount }} 款）</strong>
-      <button
-        type="button"
-        class="btn btn-sm btn-ghost"
+      <ElButton
+        text
+        size="small"
+        class="radar-el-btn"
         data-action="close-mobile-rail"
         aria-label="关闭筛选抽屉"
         @click="store.setMobileRailOpen(false)"
       >
         ✕
-      </button>
+      </ElButton>
     </div>
 
     <div class="rail-section">
       <div class="rail-heading"><span>常用商家与地区</span></div>
-      <select
-        class="select-field"
+      <RadarSelect
+        variant="full"
+        size="default"
         data-filter-select="provider"
         aria-label="按店铺筛选"
-        :value="f.provider"
-        @change="store.updateFilters({ provider: $event.target.value })"
-      >
-        <option value="all">全部品牌（常用商家优先）</option>
-        <option v-for="s in eligibleShops" :key="s.provider.id" :value="s.provider.id">
-          {{ s.primaryTag ? `[${s.primaryTag.shortLabel}] ` : "" }}{{ s.provider.name }} ({{
-            s.total === 0 ? "待核验" : s.count
-          }})
-        </option>
-      </select>
+        placeholder="全部品牌（常用商家优先）"
+        filterable
+        :filtered="f.provider !== 'all'"
+        :model-value="f.provider"
+        :options="mobileProviderOptions"
+        @change="store.updateFilters({ provider: $event })"
+      />
 
-      <select
-        class="select-field"
+      <RadarSelect
+        variant="full"
+        size="default"
         data-filter-select="region"
         aria-label="按地区筛选"
-        :value="f.region"
-        @change="store.updateFilters({ region: $event.target.value })"
-      >
-        <option v-for="r in MACRO_REGIONS" :key="r.value" :value="r.value">
-          {{
-            r.value === "all"
-              ? "全部地区"
-              : `${r.value === "MULTI" ? "GL" : r.value === "APAC" ? "AP" : r.value} ${r.label} (${facets.regions.get(r.value) || 0})`
-          }}
-        </option>
-      </select>
+        placeholder="全部地区"
+        filterable
+        :filtered="f.region !== 'all'"
+        :model-value="f.region"
+        :options="regionSelectOptions"
+        @change="store.updateFilters({ region: $event })"
+      />
     </div>
 
     <div class="rail-section">
@@ -1247,86 +1389,74 @@ function handleBudgetPill(val) {
 
     <div class="rail-section">
       <div class="rail-heading"><span>排序与现货红线</span></div>
-      <select
-        class="select-field"
+      <RadarSelect
+        variant="full"
+        size="default"
         data-filter-select="sort"
         aria-label="排序方式"
-        :value="f.sort"
-        @change="store.updateFilters({ sort: $event.target.value })"
-      >
-        <option v-for="opt in SORT_OPTIONS" :key="opt.value" :value="opt.value">
-          {{ opt.label }}
-        </option>
-      </select>
+        :filtered="f.sort !== 'recommended'"
+        :model-value="f.sort"
+        :options="sortSelectOptions"
+        @change="store.updateFilters({ sort: $event })"
+      />
       <div class="check-list">
-        <label class="check-row">
-          <span class="check-row-left">
-            <input
-              type="checkbox"
-              data-filter-toggle="availableOnly"
-              :checked="f.status === 'available'"
-              @change="
-                store.updateFilters({ status: $event.target.checked ? 'available' : 'all' })
-              "
-            />
-            <span>仅看在售现货</span>
-          </span>
+        <label class="radar-switch-row">
+          <span>仅看在售现货</span>
+          <ElSwitch
+            size="small"
+            data-filter-toggle="availableOnly"
+            :model-value="f.status === 'available'"
+            @change="store.updateFilters({ status: $event ? 'available' : 'all' })"
+          />
         </label>
-        <label class="check-row">
-          <span class="check-row-left">
-            <input
-              type="checkbox"
-              data-filter-toggle="exactOnly"
-              :checked="f.exactOnly"
-              @change="store.updateFilters({ exactOnly: $event.target.checked })"
-            />
-            <span>仅看精确库存数字</span>
-          </span>
+        <label class="radar-switch-row">
+          <span>仅看精确库存数字</span>
+          <ElSwitch
+            size="small"
+            data-filter-toggle="exactOnly"
+            :model-value="f.exactOnly"
+            @change="store.updateFilters({ exactOnly: Boolean($event) })"
+          />
         </label>
-        <label class="check-row">
-          <span class="check-row-left">
-            <input
-              type="checkbox"
-              data-filter-toggle="noNat"
-              :checked="f.noNat"
-              @change="store.updateFilters({ noNat: $event.target.checked })"
-            />
-            <span>排除 NAT / 共享 IP</span>
-          </span>
+        <label class="radar-switch-row">
+          <span>排除 NAT / 共享 IP</span>
+          <ElSwitch
+            size="small"
+            data-filter-toggle="noNat"
+            :model-value="f.noNat"
+            @change="store.updateFilters({ noNat: Boolean($event) })"
+          />
         </label>
-        <label class="check-row">
-          <span class="check-row-left">
-            <input
-              type="checkbox"
-              data-filter-toggle="noSnapshot"
-              :checked="f.noSnapshot"
-              @change="store.updateFilters({ noSnapshot: $event.target.checked })"
-            />
-            <span>排除第三方快照</span>
-          </span>
+        <label class="radar-switch-row">
+          <span>排除第三方快照</span>
+          <ElSwitch
+            size="small"
+            data-filter-toggle="noSnapshot"
+            :model-value="f.noSnapshot"
+            @change="store.updateFilters({ noSnapshot: Boolean($event) })"
+          />
         </label>
       </div>
     </div>
 
     <div class="mobile-rail-footer">
-      <button
-        type="button"
-        class="btn"
+      <ElButton
+        class="radar-el-btn"
         data-action="reset-filters"
         style="flex: 0 0 auto"
         @click="store.resetFilters()"
       >
         重置
-      </button>
-      <button
-        type="button"
-        class="btn btn-primary"
+      </ElButton>
+      <ElButton
+        class="radar-el-btn"
+        type="primary"
         data-action="close-mobile-rail"
         style="flex: 1"
         @click="store.setMobileRailOpen(false)"
       >
         查看 {{ matchedCount }} 款匹配方案
-      </button>
+      </ElButton>
     </div>
   </aside>
 </template>

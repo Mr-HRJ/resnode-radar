@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="radar-base" content="./" />
     <title>VPS雷达 (vpsld) · 全网 VPS 与住宅家宽实时库存·线路·变价大盘</title>
     <meta
@@ -25,7 +26,10 @@
     <script>
       try {
         const t = localStorage.getItem("resnode-radar:theme:v4");
-        if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+        if (t === "dark" || t === "light") {
+          document.documentElement.setAttribute("data-theme", t);
+          document.documentElement.classList.toggle("dark", t === "dark");
+        }
       } catch {}
     </script>
   </head>

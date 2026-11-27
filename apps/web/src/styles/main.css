@@ -1,4 +1,6 @@
 @import "./tokens.css";
+@import "element-plus/theme-chalk/dark/css-vars.css";
 @import "./base.css";
 @import "./layout.css";
 @import "./components.css";
+@import "./element-theme.css";

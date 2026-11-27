@@ -3,6 +3,7 @@ import { extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
+import ElementPlus from "unplugin-element-plus/vite";
 
 const webRoot = fileURLToPath(new URL("./", import.meta.url));
 const repoRoot = resolve(webRoot, "../..");
@@ -36,7 +37,7 @@ function localDataMiddleware() {
 export default defineConfig({
   root: webRoot,
   base: "./",
-  plugins: [vue(), localDataMiddleware()],
+  plugins: [vue(), ElementPlus(), localDataMiddleware()],
   resolve: {
     alias: {
       "@resnode-radar/contracts": resolve(repoRoot, "packages/contracts/src/index.js")
@@ -56,6 +57,11 @@ export default defineConfig({
   },
   test: {
     environment: "happy-dom",
-    include: ["test/**/*.test.{js,mjs}"]
+    include: ["test/**/*.test.{js,mjs}"],
+    server: {
+      deps: {
+        inline: ["element-plus"]
+      }
+    }
   }
 });

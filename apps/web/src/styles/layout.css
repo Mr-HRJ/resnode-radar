@@ -678,7 +678,8 @@
 }
 
 @media (max-width: 640px) {
-  .header-compare-btn {
+  .cmd-utils .header-compare-btn.el-button,
+  .cmd-utils .header-compare-btn {
     display: none;
   }
   .ws-tab-count {
@@ -702,7 +703,7 @@
   }
 
   .mobile-filter-sheet {
-    display: flex;
+    display: none;
     flex-direction: column;
     position: fixed;
     left: 0;
@@ -716,13 +717,9 @@
     border-top: 1px solid var(--border-default);
     border-radius: 16px 16px 0 0;
     box-shadow: var(--shadow-lg);
-    transform: translateY(105%);
-    visibility: hidden;
-    transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1), visibility 200ms;
   }
   .mobile-filter-sheet.is-mobile-open {
-    transform: translateY(0);
-    visibility: visible;
+    display: flex;
   }
   .mobile-rail-header {
     display: flex;

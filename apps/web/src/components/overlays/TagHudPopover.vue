@@ -1,7 +1,9 @@
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, reactive, ref } from "vue";
+import { useZIndex } from "element-plus";
 import TagSvgIcon from "../icons/TagSvgIcon.vue";
 
+const { nextZIndex } = useZIndex();
 const hudRef = ref(null);
 const hud = reactive({
   open: false,
@@ -11,7 +13,8 @@ const hud = reactive({
   reason: "",
   hint: "",
   top: 0,
-  left: 0
+  left: 0,
+  zIndex: 3000
 });
 
 let hoverTimer = null;
@@ -53,7 +56,6 @@ function resolveTagTipFromFocus(node) {
   const isFocusableHost =
     tagName === "button" ||
     tagName === "a" ||
-    Boolean(node.hasAttribute?.("tabindex")) ||
     node.getAttribute?.("role") === "button";
   if (isFocusableHost && typeof node.querySelector === "function") {
     const nestedTip = node.querySelector("[data-tag-tip]");
@@ -126,6 +128,7 @@ async function show(tipEl, hostEl = tipEl) {
   hud.kind = kind;
   hud.reason = reason;
   hud.hint = hint;
+  hud.zIndex = Math.max(3000, nextZIndex());
   hud.open = true;
   bindAriaDescribedBy(hostEl || tipEl);
 
@@ -218,7 +221,7 @@ defineExpose({
     role="tooltip"
     :hidden="!hud.open"
     :aria-hidden="String(!hud.open)"
-    :style="{ top: `${hud.top}px`, left: `${hud.left}px` }"
+    :style="{ top: `${hud.top}px`, left: `${hud.left}px`, zIndex: String(hud.zIndex) }"
   >
     <div v-if="hud.open" class="tag-hud-card" :class="`is-tone-${hud.tone}`">
       <div class="tag-hud-head">

@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from "vue";
+import { ElButton } from "element-plus";
 import { formatEventDelta, plain, safeUrl } from "@resnode-radar/contracts";
 import PlanTagBadge from "../icons/PlanTagBadge.vue";
 import {
@@ -261,9 +262,9 @@ function handleCardClick(event) {
       </div>
 
       <div class="row-actions" data-stop-row @click.stop>
-        <button
-          type="button"
-          class="btn btn-sm btn-star"
+        <ElButton
+          size="small"
+          class="radar-row-btn btn btn-sm btn-star"
           :class="{ 'is-active': isSaved }"
           data-action="toggle-save"
           :data-key="plan._key"
@@ -272,10 +273,10 @@ function handleCardClick(event) {
           @click.stop="store.toggleSave(plan._key)"
         >
           ★
-        </button>
-        <button
-          type="button"
-          class="btn btn-sm"
+        </ElButton>
+        <ElButton
+          size="small"
+          class="radar-row-btn btn btn-sm"
           :class="{ 'is-active': isCompared }"
           data-action="toggle-compare"
           :data-key="plan._key"
@@ -284,7 +285,7 @@ function handleCardClick(event) {
           @click.stop="store.toggleCompare(plan._key)"
         >
           ⇄
-        </button>
+        </ElButton>
         <a
           v-if="orderHref"
           class="btn-buy-cta"
@@ -296,16 +297,16 @@ function handleCardClick(event) {
         >
           直达购买 ↗
         </a>
-        <button
+        <ElButton
           v-else
-          type="button"
-          class="btn btn-sm"
+          size="small"
+          class="radar-row-btn btn btn-sm"
           data-action="inspect-plan"
           :data-product-id="plan.id"
           @click.stop="store.openInspector(plan.id)"
         >
           证据
-        </button>
+        </ElButton>
       </div>
     </div>
   </article>

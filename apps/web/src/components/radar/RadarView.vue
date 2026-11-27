@@ -1,5 +1,7 @@
 <script setup>
 import { computed } from "vue";
+import { ElButton, ElEmpty, ElIcon, ElInput, ElSegmented, ElSkeleton, ElSwitch } from "element-plus";
+import { Refresh, RefreshLeft, Search, Share } from "@element-plus/icons-vue";
 import {
   DEFAULT_FILTERS,
   MACRO_REGIONS,
@@ -17,6 +19,7 @@ import {
   safeUrl
 } from "@resnode-radar/contracts";
 import AnnouncementsCard from "./AnnouncementsCard.vue";
+import RadarSelect from "../ui/RadarSelect.vue";
 import {
   renderSpecsParts,
   routeChipClass,
@@ -287,13 +290,23 @@ function handleTapeRowClick(event, livePlan) {
   if (event?.target?.closest?.("[data-stop-row]")) return;
   props.store.openInspector(livePlan.id);
 }
+
+const radarWindowOptions = [
+  { label: "24h", value: "24h" },
+  { label: "72h", value: "72h" },
+  { label: "7天", value: "7d" }
+];
+
+const radarRegionOptions = MACRO_REGIONS.map((m) => {
+  if (m.value === "all") return { value: "all", label: "全部地区", text: "全部地区" };
+  const code = m.value === "MULTI" ? "GL" : m.value === "APAC" ? "AP" : m.value;
+  return { value: m.value, code, text: m.label, label: `${code} ${m.label}` };
+});
 </script>
 
 <template>
   <div v-if="store.state.loadState === 'loading'" class="skeleton-stack">
-    <span class="skel" style="height: 28px; width: 45%"></span>
-    <span class="skel" style="height: 64px; width: 100%"></span>
-    <span class="skel" style="height: 320px; width: 100%"></span>
+    <ElSkeleton :rows="7" animated />
   </div>
 
   <section v-else-if="store.state.loadState === 'error'" class="empty-state-card is-error">
@@ -302,14 +315,15 @@ function handleTapeRowClick(event, livePlan) {
       上游快照接口当前不可用（{{ store.state.errorDetail?.detail || "Fetch error" }}）。
     </p>
     <div>
-      <button
-        type="button"
-        class="btn btn-primary"
+      <ElButton
+        class="radar-el-btn"
+        type="primary"
         data-action="refresh-snapshot"
         @click="store.refreshSnapshot({ force: true })"
       >
-        ↻ 重试读取
-      </button>
+        <ElIcon style="margin-right: 4px"><Refresh /></ElIcon>
+        重试读取
+      </ElButton>
     </div>
   </section>
 
@@ -459,22 +473,25 @@ function handleTapeRowClick(event, livePlan) {
               ></span>
             </div>
           </div>
-          <button
-            type="button"
-            class="btn btn-xs btn-soft"
+          <ElButton
+            class="radar-el-btn"
+            size="small"
+            type="primary"
+            plain
             data-nav-view="terminal"
             @click="store.setView('terminal')"
           >
             ← 选机
-          </button>
-          <button
-            type="button"
-            class="btn btn-xs"
+          </ElButton>
+          <ElButton
+            class="radar-el-btn"
+            size="small"
             data-action="copy-share-url"
             @click="store.copyShareUrl()"
           >
+            <ElIcon style="margin-right: 4px"><Share /></ElIcon>
             分享
-          </button>
+          </ElButton>
         </div>
       </div>
 
@@ -535,70 +552,58 @@ function handleTapeRowClick(event, livePlan) {
 
         <div class="radar-filter-cluster">
           <div class="input-wrap radar-compact-search">
-            <input
+            <ElInput
+              class="radar-el-input"
               type="search"
-              class="input-field"
-              style="height: 28px"
+              size="small"
+              clearable
               data-radar-search
-              :value="r.q"
+              :model-value="r.q"
               placeholder="搜商家 / 套餐 / 地区 / 线路…"
               aria-label="搜索异动事件"
-              @input="store.patchRadar({ q: $event.target.value })"
-            />
-          </div>
-
-          <div class="view-toggle radar-window-toggle" role="group" aria-label="时间窗口">
-            <button
-              v-for="[val, lbl] in [
-                ['24h', '24h'],
-                ['72h', '72h'],
-                ['7d', '7天']
-              ]"
-              :key="val"
-              type="button"
-              class="view-toggle-btn"
-              :class="{ 'is-active': r.window === val }"
-              data-action="set-radar-window"
-              :data-window="val"
-              @click="store.patchRadar({ window: val })"
+              @update:model-value="store.patchRadar({ q: $event })"
             >
-              {{ lbl }}
-            </button>
+              <template #prefix>
+                <ElIcon><Search /></ElIcon>
+              </template>
+            </ElInput>
           </div>
 
-          <select
-            class="select-field mini-select"
-            style="min-width: 106px"
+          <ElSegmented
+            class="radar-segmented radar-window-toggle"
+            size="small"
+            aria-label="时间窗口"
+            :model-value="r.window"
+            :options="radarWindowOptions"
+            @change="store.patchRadar({ window: $event })"
+          >
+            <template #default="{ item }">
+              <span data-action="set-radar-window" :data-window="item.value">{{ item.label }}</span>
+            </template>
+          </ElSegmented>
+
+          <RadarSelect
+            variant="mini"
             data-radar-select="region"
             aria-label="按地区筛选异动"
-            :value="r.region"
-            @change="store.patchRadar({ region: $event.target.value })"
-          >
-            <option v-for="m in MACRO_REGIONS" :key="m.value" :value="m.value">
-              {{
-                m.value === "all"
-                  ? "全部地区"
-                  : `${m.value === "MULTI" ? "GL" : m.value === "APAC" ? "AP" : m.value} ${m.label}`
-              }}
-            </option>
-          </select>
+            filterable
+            :filtered="r.region !== 'all'"
+            :model-value="r.region"
+            :options="radarRegionOptions"
+            @change="store.patchRadar({ region: $event })"
+          />
 
-          <label
-            class="q-toggle"
-            :class="{ 'is-on-accent': r.savedOnly }"
-            style="cursor: pointer"
-          >
-            <input
-              type="checkbox"
-              style="margin: 0; width: 12px; height: 12px"
+          <label class="radar-inline-switch">
+            <ElSwitch
+              size="small"
               data-radar-toggle="savedOnly"
-              :checked="r.savedOnly"
-              @change="store.patchRadar({ savedOnly: $event.target.checked })"
+              :model-value="r.savedOnly"
+              @change="store.patchRadar({ savedOnly: Boolean($event) })"
             />
             <span>★ 收藏</span>
           </label>
 
-          <button
+          <ElButton
             v-if="
               r.type !== 'all' ||
               r.window !== '7d' ||
@@ -606,13 +611,15 @@ function handleTapeRowClick(event, livePlan) {
               r.savedOnly ||
               r.q
             "
-            type="button"
-            class="btn btn-xs btn-ghost"
+            class="radar-el-btn"
+            size="small"
+            text
             data-action="reset-radar"
             @click="store.resetRadar()"
           >
+            <ElIcon style="margin-right: 3px"><RefreshLeft /></ElIcon>
             重置
-          </button>
+          </ElButton>
 
           <span class="radar-hit-count num">
             命中 <strong>{{ filteredEvents.length }}</strong>
@@ -624,20 +631,19 @@ function handleTapeRowClick(event, livePlan) {
     <AnnouncementsCard :feed="store.rawPayload.value?.announcements" />
 
     <section v-if="filteredEvents.length === 0" class="empty-state-card">
-      <h2 class="empty-state-title">当前筛选条件下暂无异动事件</h2>
-      <p class="empty-state-desc">
-        可以切回「7天」窗口或重置筛选查看全部已观测到的补货、售罄与变价记录。
-      </p>
-      <div>
-        <button
-          type="button"
-          class="btn btn-primary"
+      <ElEmpty
+        description="当前筛选条件下暂无异动事件，可以切回「7天」窗口或重置筛选查看全部已观测记录。"
+        :image-size="76"
+      >
+        <ElButton
+          class="radar-el-btn"
+          type="primary"
           data-action="reset-radar"
           @click="store.resetRadar()"
         >
           显示全部 7 天异动
-        </button>
-      </div>
+        </ElButton>
+      </ElEmpty>
     </section>
 
     <section v-for="[day, items] in groupedDays" :key="day" class="tape-day-group">
@@ -930,16 +936,18 @@ function handleTapeRowClick(event, livePlan) {
               <!-- Actions -->
               <td class="col-tape-act">
                 <div class="row-actions" data-stop-row @click.stop>
-                  <button
+                  <ElButton
                     v-if="planById.get(ev.productId)"
-                    type="button"
-                    class="btn btn-xs btn-soft"
+                    size="small"
+                    type="primary"
+                    plain
+                    class="radar-el-btn"
                     data-action="inspect-plan"
                     :data-product-id="planById.get(ev.productId).id"
                     @click.stop="store.openInspector(planById.get(ev.productId).id)"
                   >
                     证据
-                  </button>
+                  </ElButton>
                   <a
                     v-if="getRowMeta(ev, planById.get(ev.productId)).orderHref"
                     class="btn-buy-cta"

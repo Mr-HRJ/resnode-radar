@@ -1,5 +1,7 @@
 import "./styles/main.css";
 import { createApp, h, reactive } from "vue";
+import { ElConfigProvider } from "element-plus";
+import zhCn from "element-plus/es/locale/lang/zh-cn";
 import { applyTheme, fxExpiresAtMs, loadTheme } from "@resnode-radar/contracts";
 import ReviewLiveBox from "./components/reviews/ReviewLiveBox.vue";
 import { REFRESH_INTERVAL_MS, loadRadarSnapshot } from "./services/snapshot-client.js";
@@ -44,7 +46,12 @@ export async function mountReviewDossier(endpointOrOptions = null) {
   });
 
   const app = createApp({
-    render: () => h(ReviewLiveBox, { ...propsState })
+    render: () =>
+      h(
+        ElConfigProvider,
+        { locale: zhCn },
+        { default: () => h(ReviewLiveBox, { ...propsState }) }
+      )
   });
   app.mount(box);
 

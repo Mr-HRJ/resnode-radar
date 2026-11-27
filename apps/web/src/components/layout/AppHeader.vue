@@ -1,5 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { ElButton, ElIcon } from "element-plus";
+import { Close, Moon, Search, Star, StarFilled, Sunny, Switch } from "@element-plus/icons-vue";
 import {
   DEFAULT_FILTERS,
   MAX_COMPARE,
@@ -198,6 +200,17 @@ const navItems = computed(() => {
 
 const activeQuery = computed(() => plain(props.store.state.filters.q));
 const compareCount = computed(() => props.store.state.compareKeys.length);
+const compareReady = computed(() => props.store.comparedPlans.value.length > 0);
+const compareDisabledTitle = computed(() => {
+  if (compareReady.value) return undefined;
+  if (props.store.state.loadState === "error") {
+    return "首份快照读取失败，请重新加载快照以匹配对比方案";
+  }
+  if (props.store.state.loadState === "ready") {
+    return "当前快照暂未匹配到已选对比方案，待后续快照恢复后自动展示";
+  }
+  return "正在加载快照以匹配对比方案…";
+});
 const themeLabel = computed(() => (props.store.state.theme === "dark" ? "☀ 亮色" : "☾ 暗色"));
 const isSyncBusy = computed(
   () => props.store.state.refreshing || props.store.state.loadState === "loading"
@@ -313,73 +326,91 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="cmd-utils">
-        <button
-          type="button"
+        <ElButton
           class="cmd-search-trigger"
           :class="{ 'has-query': Boolean(activeQuery) }"
           data-action="open-palette"
           aria-label="搜索商家、地区、线路或型号 (快捷键 / 或 ⌘K)"
           @click="emit('open-palette')"
         >
-          <span aria-hidden="true" style="font-size: 13px">⌕</span>
+          <ElIcon aria-hidden="true" :size="14"><Search /></ElIcon>
           <span class="search-label">
             {{ activeQuery ? `搜索词：${activeQuery}` : "搜商家 / 地区 / 线路 / 型号…" }}
           </span>
           <kbd class="kbd-hint">⌘K</kbd>
-        </button>
+        </ElButton>
 
-        <button
+        <ElButton
           v-if="activeQuery"
-          type="button"
-          class="btn btn-xs btn-soft"
+          class="radar-el-btn"
+          size="small"
+          type="primary"
+          plain
           data-action="clear-search"
           title="清除当前关键词过滤"
           @click="store.updateFilters({ q: '' })"
         >
-          ✕ 清词
-        </button>
+          <ElIcon style="margin-right: 3px"><Close /></ElIcon>
+          清词
+        </ElButton>
 
-        <button
-          type="button"
-          class="btn btn-sm"
-          :class="{ 'btn-star is-active': store.state.savedKeys.size > 0 }"
+        <ElButton
+          class="radar-el-btn"
+          size="small"
+          :type="store.state.savedKeys.size > 0 ? 'warning' : 'default'"
+          :plain="store.state.savedKeys.size > 0"
           data-action="open-saved"
           aria-label="打开本地收藏夹"
           @click="emit('open-saved')"
         >
-          <span>★</span>
+          <ElIcon style="margin-right: 4px">
+            <StarFilled v-if="store.state.savedKeys.size > 0" />
+            <Star v-else />
+          </ElIcon>
           <span class="num" data-saved-count>{{ store.state.savedKeys.size }}</span>
-        </button>
+        </ElButton>
 
-        <button
+        <ElButton
           v-if="compareCount > 0"
-          type="button"
-          class="btn btn-sm btn-soft header-compare-btn"
+          class="radar-el-btn header-compare-btn"
+          size="small"
+          type="primary"
+          plain
+          :disabled="!compareReady"
+          :title="compareDisabledTitle"
           data-action="open-compare"
           aria-label="打开多方案对比"
           @click="emit('open-compare')"
         >
-          <span>⇄ 对比</span>
-          <span class="num" data-header-compare-count>{{ compareCount }}/{{ MAX_COMPARE }}</span>
-        </button>
+          <ElIcon style="margin-right: 4px"><Switch /></ElIcon>
+          <span>对比</span>
+          <span class="num" style="margin-left: 4px" data-header-compare-count>
+            {{ compareCount }}/{{ MAX_COMPARE }}
+          </span>
+        </ElButton>
 
-        <button
-          type="button"
-          class="btn btn-sm btn-ghost"
+        <ElButton
+          class="radar-el-btn"
+          size="small"
+          text
           data-action="toggle-theme"
           aria-label="切换明暗主题"
           @click="store.toggleTheme()"
         >
-          {{ themeLabel }}
-        </button>
+          <ElIcon style="margin-right: 4px">
+            <Sunny v-if="store.state.theme === 'dark'" />
+            <Moon v-else />
+          </ElIcon>
+          <span>{{ store.state.theme === "dark" ? "亮色" : "暗色" }}</span>
+        </ElButton>
       </div>
     </div>
 
     <div class="telemetry-strip" aria-label="实时数据遥测与全网大盘">
       <div class="telemetry-inner">
         <div class="telemetry-left">
-          <button
-            type="button"
+          <ElButton
+            size="small"
             class="tele-pill-btn"
             :class="telemetryUi.pillClass"
             data-action="refresh-snapshot"
@@ -391,7 +422,7 @@ onBeforeUnmount(() => {
             <span data-telemetry-label :class="{ 'live-shimmer': telemetryUi.liveFresh }">
               {{ store.state.refreshing ? "同步快照中…" : telemetryUi.label }}
             </span>
-          </button>
+          </ElButton>
 
           <span class="live-clock-pill" title="本地实时时间与日期">
             <span class="num" data-live-clock>{{ liveClockStr }}</span>

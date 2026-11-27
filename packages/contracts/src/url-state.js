@@ -246,6 +246,7 @@ export function applyTheme(
   const next = theme === "dark" ? "dark" : "light";
   try {
     doc?.documentElement?.setAttribute("data-theme", next);
+    doc?.documentElement?.classList?.toggle?.("dark", next === "dark");
     storage?.setItem(THEME_KEY, next);
   } catch {
     // ignore storage errors

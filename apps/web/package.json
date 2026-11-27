@@ -9,8 +9,10 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
     "@resnode-radar/contracts": "*",
     "@tanstack/vue-virtual": "^3.13.0",
+    "element-plus": "^2.14.8",
     "vue": "^3.5.13"
   },
   "devDependencies": {
@@ -18,6 +20,7 @@
     "@vue/test-utils": "^2.4.6",
     "happy-dom": "^17.4.4",
     "playwright-core": "^1.51.0",
+    "unplugin-element-plus": "^0.11.2",
     "vite": "^6.2.0",
     "vitest": "^3.0.8"
   }
