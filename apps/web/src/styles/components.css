@@ -2042,10 +2042,17 @@
   color: var(--ink-muted);
 }
 
-.shop-picker-search {
+.shop-picker-search,
+.el-input.shop-picker-search {
+  --el-input-width: min(272px, 100%);
   width: min(272px, 100%);
+  flex: 0 1 272px;
   height: 30px;
-  background-color: var(--bg-surface);
+  background-color: transparent;
+}
+
+.radar-el-input.el-input.shop-picker-search .el-input__wrapper {
+  min-height: 30px;
 }
 
 .shop-picker-scroll-wrap {
@@ -2266,8 +2273,10 @@
   margin: 0;
 }
 
-.price-range-input:focus {
+.price-range-input:focus,
+.price-range-input:focus-visible {
   outline: none;
+  box-shadow: none;
 }
 
 .price-range-box:focus-within {

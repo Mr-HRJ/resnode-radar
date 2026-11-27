@@ -402,6 +402,53 @@ async function runBrowserE2E() {
     // Verify desktop FilterDock ElSelect layered Escape when shop picker is expanded
     await page.locator("[data-filter-dock] [data-action='toggle-shops-expand']").click();
     await page.waitForFunction(() => !document.querySelector("[data-shop-picker]")?.hidden);
+    // Regression: ElInput shop search must keep compact width (not overridden to 100% by .el-input)
+    // and suppress inner :focus-visible box-shadow/outline while showing outer wrapper ring.
+    await page.waitForFunction(() => {
+      const root = document.querySelector("[data-shop-picker] .shop-picker-search");
+      const wrapper = root?.querySelector(".el-input__wrapper");
+      const inner = root?.querySelector(".el-input__inner");
+      return Boolean(
+        inner &&
+          document.activeElement === inner &&
+          wrapper?.classList.contains("is-focus") &&
+          getComputedStyle(wrapper).boxShadow.includes("3px")
+      );
+    });
+    const shopSearchStyle = await page.evaluate(() => {
+      const root = document.querySelector("[data-shop-picker] .shop-picker-search");
+      const wrapper = root?.querySelector(".el-input__wrapper");
+      const inner = root?.querySelector(".el-input__inner");
+      const rect = root?.getBoundingClientRect();
+      return {
+        width: rect ? Math.round(rect.width) : 0,
+        activeIsInner: document.activeElement === inner,
+        wrapperFocused: Boolean(wrapper?.classList.contains("is-focus")),
+        wrapperBoxShadow: wrapper ? getComputedStyle(wrapper).boxShadow : "",
+        innerBoxShadow: inner ? getComputedStyle(inner).boxShadow : "",
+        innerOutlineStyle: inner ? getComputedStyle(inner).outlineStyle : ""
+      };
+    });
+    assert.ok(
+      shopSearchStyle.width > 0 && shopSearchStyle.width <= 280,
+      `shop-picker-search width must stay compact (<=280px), got ${JSON.stringify(shopSearchStyle)}`
+    );
+    assert.ok(
+      shopSearchStyle.activeIsInner &&
+        shopSearchStyle.wrapperFocused &&
+        shopSearchStyle.wrapperBoxShadow.includes("3px"),
+      `shop-picker-search wrapper must display outer focus ring: ${JSON.stringify(shopSearchStyle)}`
+    );
+    assert.equal(
+      shopSearchStyle.innerBoxShadow,
+      "none",
+      `shop-picker-search inner input must not leak :focus-visible box-shadow: ${JSON.stringify(shopSearchStyle)}`
+    );
+    assert.equal(
+      shopSearchStyle.innerOutlineStyle,
+      "none",
+      `shop-picker-search inner input must not leak :focus-visible outline: ${JSON.stringify(shopSearchStyle)}`
+    );
     await page.locator("[data-filter-dock] [data-filter-select='cycle'] .el-select__wrapper").click();
     await page.waitForFunction(
       () =>
